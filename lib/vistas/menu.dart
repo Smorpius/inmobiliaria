@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'usuario.dart'; // Importa la nueva vista
 
 void main() {
   runApp(const MyApp());
@@ -12,6 +13,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: const HomePage(),
+      routes: {
+        '/usuario': (context) => const UsuarioPage(), // Define la ruta
+      },
     );
   }
 }
@@ -24,21 +28,67 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       drawer: Drawer(
         child: ListView(
-          children: const [
-            UserAccountsDrawerHeader(
+          padding: EdgeInsets.zero,
+          children: [
+            const UserAccountsDrawerHeader(
               accountName: Text("Usuario"),
               accountEmail: Text("correo@example.com"),
               currentAccountPicture: CircleAvatar(
                 child: Icon(Icons.person, size: 50),
               ),
             ),
-            ListTile(leading: Icon(Icons.shopping_cart), title: Text("Ventas")),
-            ListTile(leading: Icon(Icons.home), title: Text("Inicio")),
-            ListTile(leading: Icon(Icons.people), title: Text("Usuarios")),
-            ListTile(leading: Icon(Icons.article), title: Text("Documentos")),
-            ListTile(
-              leading: Icon(Icons.show_chart),
-              title: Text("Estadísticas"),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Acción para Ventas
+                },
+                icon: const Icon(Icons.shopping_cart),
+                label: const Text("Ventas"),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Acción para Inicio
+                },
+                icon: const Icon(Icons.home),
+                label: const Text("Inicio"),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/usuario',
+                  ); // Navega a la vista de Usuario
+                },
+                icon: const Icon(Icons.people),
+                label: const Text("Usuarios"),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Acción para Documentos
+                },
+                icon: const Icon(Icons.article),
+                label: const Text("Documentos"),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  // Acción para Estadísticas
+                },
+                icon: const Icon(Icons.show_chart),
+                label: const Text("Estadísticas"),
+              ),
             ),
           ],
         ),
@@ -89,7 +139,7 @@ class HomePage extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Image.asset(
-                          'assets/logo.png',
+                          'assets/images/logo.png', // Actualiza la ruta aquí
                           height: 50,
                           fit: BoxFit.cover,
                         ),

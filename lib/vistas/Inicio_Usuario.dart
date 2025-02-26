@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'menu.dart'; // Importa la página principal
 
 class InicioUsuario extends StatelessWidget {
   @override
@@ -63,7 +64,11 @@ class InicioUsuario extends StatelessWidget {
               SizedBox(height: 40),
               ElevatedButton(
                 onPressed: () {
-                  // Acción de inicio de sesión
+                  // Navega a la página principal
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomePage()),
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey[800],
