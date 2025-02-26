@@ -121,43 +121,7 @@ class HomePage extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.all(8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 1.5,
-              ),
-              itemCount: 1,
-              itemBuilder: (context, index) {
-                return Card(
-                  color: Colors.grey[300],
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          'assets/images/logo.png', // Actualiza la ruta aquí
-                          height: 50,
-                          fit: BoxFit.cover,
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          "\$1,200,000",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          // Eliminar el GridView.builder que contiene la imagen y el precio
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Align(
