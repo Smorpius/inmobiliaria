@@ -19,7 +19,6 @@ CREATE TABLE Clientes (
     numero_telf VARCHAR(15),
     RFC VARCHAR(20),
     CURP VARCHAR(20)
-    -- Se eliminó la relación con Usuarios
 );
 
 CREATE TABLE MUEBLES (
@@ -31,3 +30,11 @@ CREATE TABLE MUEBLES (
     id_cliente INT,  -- Relación con la tabla Clientes
     CONSTRAINT fk_cliente FOREIGN KEY (id_cliente) REFERENCES Clientes(ID_Cliente) -- Clave foránea a Clientes
 );
+
+CREATE TABLE ADMINISTRADOR (
+    NombreAdmin VARCHAR(50) NOT NULL,
+    Contraseña VARCHAR(255) NOT NULL
+);
+
+INSERT INTO ADMINISTRADOR (NombreAdmin, Contraseña) 
+VALUES ('Administrador', 'Admin@ñ5');
