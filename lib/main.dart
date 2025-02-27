@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:inmobiliaria/vistas/menu.dart';
 import 'vistas/usuario.dart'; // Importa la clase UsuarioPage
+import 'vistas/Clientes.dart'; // Importa la clase ClientesScreen
 import 'vistas/Inicio_Usuario.dart'; // Importa la clase InicioUsuario
 
 void main() {
@@ -20,6 +21,8 @@ class MyApp extends StatelessWidget {
       home: HomePage(), // Cambia la clase inicial a InicioUsuario
       routes: {
         '/usuario': (context) => const UsuarioPage(), // Define la ruta
+        '/clientes':
+            (context) => ClientesScreen(), // Define la ruta para Clientes
       },
     );
   }

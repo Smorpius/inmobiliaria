@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'usuario.dart'; // Importa la nueva vista
+import 'Clientes.dart'; // Importa la clase ClientesScreen
 
 void main() {
   runApp(const MyApp());
@@ -15,6 +16,8 @@ class MyApp extends StatelessWidget {
       home: const HomePage(),
       routes: {
         '/usuario': (context) => const UsuarioPage(), // Define la ruta
+        '/clientes':
+            (context) => ClientesScreen(), // Define la ruta para Clientes
       },
     );
   }
@@ -68,6 +71,19 @@ class HomePage extends StatelessWidget {
                 },
                 icon: const Icon(Icons.people),
                 label: const Text("Usuarios"),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/clientes',
+                  ); // Navega a la vista de Clientes
+                },
+                icon: const Icon(Icons.person),
+                label: const Text("Clientes"),
               ),
             ),
             Padding(

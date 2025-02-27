@@ -20,30 +20,7 @@ class ClientesScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Clientes'),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.more_vert),
-            onPressed: () {},
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        child: ListView(
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Menú', style: TextStyle(color: Colors.white)),
-            ),
-            ListTile(
-              title: Text('Opción 1'),
-              onTap: () {},
-            ),
-            ListTile(
-              title: Text('Opción 2'),
-              onTap: () {},
-            ),
-          ],
-        ),
+        actions: [IconButton(icon: Icon(Icons.more_vert), onPressed: () {})],
       ),
       body: Row(
         children: [
@@ -79,8 +56,10 @@ class ClientesScreen extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Center(
-              child: Text('Detalles del cliente',
-                  style: TextStyle(fontSize: 18)),
+              child: Text(
+                'Detalles del cliente',
+                style: TextStyle(fontSize: 18),
+              ),
             ),
           ),
         ],
@@ -92,4 +71,3 @@ class ClientesScreen extends StatelessWidget {
     );
   }
 }
-
