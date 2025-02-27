@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inmobiliaria/vistas/menu.dart';
 import 'vistas/usuario.dart'; // Importa la clase UsuarioPage
 import 'vistas/Inicio_Usuario.dart'; // Importa la clase InicioUsuario
 
@@ -16,7 +17,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: InicioUsuario(), // Cambia la clase inicial a InicioUsuario
+      home: HomePage(), // Cambia la clase inicial a InicioUsuario
       routes: {
         '/usuario': (context) => const UsuarioPage(), // Define la ruta
       },
