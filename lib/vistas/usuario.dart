@@ -116,8 +116,8 @@ class _UsuarioPageState extends State<UsuarioPage> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
-                obscuringCharacter: '*',
               ),
+              obscureText: true, // Cambia obscuringCharacter a obscureText
             ),
             const SizedBox(height: 10),
             TextField(
