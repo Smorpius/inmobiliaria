@@ -1,4 +1,6 @@
+import '../models/usuario_model.dart';
 import 'package:flutter/material.dart';
+import '../controllers/usuario_controller.dart';
 
 class UsuarioPage extends StatefulWidget {
   const UsuarioPage({super.key});
@@ -8,6 +10,7 @@ class UsuarioPage extends StatefulWidget {
 }
 
 class _UsuarioPageState extends State<UsuarioPage> {
+  final UsuarioController _usuarioController = UsuarioController();
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidoController = TextEditingController();
@@ -17,35 +20,46 @@ class _UsuarioPageState extends State<UsuarioPage> {
   final TextEditingController _contrasenaController = TextEditingController();
   final TextEditingController _fechaNacimientoController =
       TextEditingController();
-  final List<Map<String, String>> _usuarios = [];
+  final List<Usuario> _usuarios = [];
 
-  void _agregarUsuario() {
+  @override
+  void initState() {
+    super.initState();
+    _loadUsuarios();
+  }
+
+  Future<void> _loadUsuarios() async {
+    final usuarios = await _usuarioController.getUsuarios();
     setState(() {
-      if (_idController.text.isNotEmpty &&
-          _nombreController.text.isNotEmpty &&
-          _apellidoController.text.isNotEmpty &&
-          _emailController.text.isNotEmpty &&
-          _nombreUsuarioController.text.isNotEmpty &&
-          _contrasenaController.text.isNotEmpty &&
-          _fechaNacimientoController.text.isNotEmpty) {
-        _usuarios.add({
-          'id': _idController.text,
-          'nombre': _nombreController.text,
-          'apellido': _apellidoController.text,
-          'email': _emailController.text,
-          'nombreUsuario': _nombreUsuarioController.text,
-          'contrasena': _contrasenaController.text,
-          'fechaNacimiento': _fechaNacimientoController.text,
-        });
-        _idController.clear();
-        _nombreController.clear();
-        _apellidoController.clear();
-        _emailController.clear();
-        _nombreUsuarioController.clear();
-        _contrasenaController.clear();
-        _fechaNacimientoController.clear();
-      }
+      _usuarios.addAll(usuarios);
     });
+  }
+
+  void _agregarUsuario() async {
+    if (_nombreController.text.isNotEmpty &&
+        _apellidoController.text.isNotEmpty &&
+        _emailController.text.isNotEmpty &&
+        _nombreUsuarioController.text.isNotEmpty &&
+        _contrasenaController.text.isNotEmpty &&
+        _fechaNacimientoController.text.isNotEmpty) {
+      final usuario = Usuario(
+        nombre: _nombreController.text,
+        apellido: _apellidoController.text,
+        nombreUsuario: _nombreUsuarioController.text,
+        contrasena: _contrasenaController.text,
+      );
+
+      await _usuarioController.insertUsuario(usuario);
+      _loadUsuarios(); // Recargar la lista después de agregar
+
+      _idController.clear();
+      _nombreController.clear();
+      _apellidoController.clear();
+      _emailController.clear();
+      _nombreUsuarioController.clear();
+      _contrasenaController.clear();
+      _fechaNacimientoController.clear();
+    }
   }
 
   @override
@@ -117,7 +131,7 @@ class _UsuarioPageState extends State<UsuarioPage> {
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              obscureText: true, // Cambia obscuringCharacter a obscureText
+              obscureText: true,
             ),
             const SizedBox(height: 10),
             TextField(
@@ -141,9 +155,9 @@ class _UsuarioPageState extends State<UsuarioPage> {
                 itemBuilder: (context, index) {
                   final usuario = _usuarios[index];
                   return ListTile(
-                    title: Text('${usuario['nombre']} ${usuario['apellido']}'),
+                    title: Text('${usuario.nombre} ${usuario.apellido}'),
                     subtitle: Text(
-                      'Email: ${usuario['email']}\nUsuario: ${usuario['nombreUsuario']}\nFecha de Nacimiento: ${usuario['fechaNacimiento']}',
+                      'Email: ${usuario.nombreUsuario}\nUsuario: ${usuario.nombreUsuario}\nFecha de Nacimiento: ${_fechaNacimientoController.text}',
                     ),
                   );
                 },

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:inmobiliaria/vistas/menu.dart';
 import 'vistas/usuario.dart'; // Importa la clase UsuarioPage
 import 'vistas/Clientes.dart'; // Importa la clase ClientesScreen
-import 'vistas/Inicio_Usuario.dart'; // Importa la clase InicioUsuario
 
 void main() {
   runApp(const MyApp());
