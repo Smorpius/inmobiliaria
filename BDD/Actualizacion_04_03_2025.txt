@@ -1,0 +1,110 @@
+CREATE DATABASE IF NOT EXISTS Software;
+USE Software;
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS INMUEBLES;
+DROP TABLE IF EXISTS Clientes;
+DROP TABLE IF EXISTS Usuarios;
+DROP TABLE IF EXISTS Empleados;
+DROP TABLE IF EXISTS Proveedores;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE Usuarios (
+    id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    nombre_usuario VARCHAR(100) UNIQUE NOT NULL,
+    contraseña_usuario VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE Clientes (
+    ID_Cliente INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_cliente VARCHAR(100) NOT NULL,
+    direccion_cliente VARCHAR(225) NOT NULL,
+    numero_telf VARCHAR(15) NOT NULL,
+    RFC VARCHAR(20) UNIQUE NOT NULL,
+    CURP VARCHAR(20) UNIQUE NOT NULL
+);
+
+CREATE TABLE INMUEBLES (
+    id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_inmueble VARCHAR(100) NOT NULL,
+    direccion VARCHAR(225) NOT NULL,
+    monto_total DECIMAL(10, 2) NOT NULL,
+    estatus_producto VARCHAR(50) NOT NULL,
+    id_cliente INT,
+    CONSTRAINT fk_cliente_inmueble FOREIGN KEY (id_cliente) REFERENCES Clientes(ID_Cliente) ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+CREATE TABLE Empleados (
+    id_empleado INT AUTO_INCREMENT PRIMARY KEY,
+    clave_sistema VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    apellido_paterno VARCHAR(100) NOT NULL,
+    apellido_materno VARCHAR(100) NOT NULL,
+    correo VARCHAR(100) UNIQUE NOT NULL,
+    telefono VARCHAR(15) NOT NULL,
+    direccion VARCHAR(225) NOT NULL,
+    cargo VARCHAR(100) NOT NULL,
+    sueldo_actual DECIMAL(10, 2) NOT NULL,
+    fecha_contratacion DATE NOT NULL,
+    estado_empleado VARCHAR(20) NOT NULL
+);
+
+CREATE TABLE Proveedores (
+    id_proveedor INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    nombre_empresa VARCHAR(150) NOT NULL,
+    nombre_contacto VARCHAR(100) NOT NULL,
+    direccion VARCHAR(225) NOT NULL,
+    telefono VARCHAR(15) NOT NULL,
+    correo VARCHAR(100) UNIQUE NOT NULL,
+    tipo_servicio VARCHAR(100) NOT NULL,
+    estado_proveedor VARCHAR(20) NOT NULL
+);
+
+DELIMITER $$
+
+CREATE PROCEDURE AgregarUsuario(
+    IN p_nombre VARCHAR(100),
+    IN p_apellido VARCHAR(100),
+    IN p_nombre_usuario VARCHAR(100),
+    IN p_contraseña_usuario VARCHAR(255)
+)
+BEGIN
+    INSERT INTO Usuarios (nombre, apellido, nombre_usuario, contraseña_usuario)
+    VALUES (p_nombre, p_apellido, p_nombre_usuario, p_contraseña_usuario);
+END$$
+
+CREATE PROCEDURE ModificarUsuario(
+    IN p_id_usuario INT,
+    IN p_nombre VARCHAR(100),
+    IN p_apellido VARCHAR(100),
+    IN p_nombre_usuario VARCHAR(100),
+    IN p_contraseña_usuario VARCHAR(255)
+)
+BEGIN
+    UPDATE Usuarios 
+    SET nombre = p_nombre,
+        apellido = p_apellido,
+        nombre_usuario = p_nombre_usuario,
+        contraseña_usuario = p_contraseña_usuario
+    WHERE id_usuario = p_id_usuario;
+END$$
+
+CREATE PROCEDURE EliminarUsuario(
+    IN p_id_usuario INT
+)
+BEGIN
+    DELETE FROM Usuarios WHERE id_usuario = p_id_usuario;
+END$$
+
+CREATE PROCEDURE ObtenerUsuario(
+    IN p_id_usuario INT
+)
+BEGIN
+    SELECT * FROM Usuarios WHERE id_usuario = p_id_usuario;
+END$$
+
+DELIMITER ;
