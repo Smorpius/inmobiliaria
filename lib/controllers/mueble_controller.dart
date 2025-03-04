@@ -1,4 +1,4 @@
-import 'database_helper.dart';
+import 'mysql_helper.dart';
 import '../models/mueble_model.dart';
 import 'package:sqflite/sqflite.dart';
 // lib/controllers/mueble_controller.dart

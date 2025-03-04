@@ -1,4 +1,4 @@
-import 'database_helper.dart';
+import 'mysql_helper.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/administrador_model.dart';
 // lib/controllers/administrador_controller.dart

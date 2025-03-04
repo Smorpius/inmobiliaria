@@ -1,4 +1,4 @@
-import 'database_helper.dart';
+import 'mysql_helper.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/cliente_model.dart';
 // lib/controllers/cliente_controller.dart
