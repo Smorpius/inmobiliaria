@@ -6,6 +6,8 @@ class Cliente {
   final String rfc;
   final String curp;
   final String? correo;
+  final int? idEstado;
+  final DateTime? fechaRegistro;
 
   Cliente({
     this.id,
@@ -15,6 +17,8 @@ class Cliente {
     required this.rfc,
     required this.curp,
     this.correo,
+    this.idEstado,
+    this.fechaRegistro,
   });
 
   // Convertir de Map a Cliente
@@ -27,6 +31,11 @@ class Cliente {
       rfc: map['rfc'],
       curp: map['curp'],
       correo: map['correo_cliente'],
+      idEstado: map['id_estado'],
+      fechaRegistro:
+          map['fecha_registro'] != null
+              ? DateTime.parse(map['fecha_registro'].toString())
+              : null,
     );
   }
 
@@ -40,6 +49,8 @@ class Cliente {
       'rfc': rfc,
       'curp': curp,
       'correo_cliente': correo,
+      'id_estado': idEstado,
+      'fecha_registro': fechaRegistro?.toIso8601String(),
     };
   }
 

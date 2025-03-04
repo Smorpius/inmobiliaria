@@ -5,9 +5,9 @@ class Usuario {
   final String nombreUsuario;
   final String contrasena;
   final String? correo;
-  final int? idEstado; // Added to match SQL schema
-  final DateTime? fechaCreacion; // Added to match SQL schema
-  final DateTime? ultimaActualizacion; // Added to match SQL schema
+  final int? idEstado;
+  final DateTime? fechaCreacion;
+  final DateTime? ultimaActualizacion;
 
   Usuario({
     this.id,
@@ -53,5 +53,10 @@ class Usuario {
       'fecha_creacion': fechaCreacion?.toIso8601String(),
       'ultima_actualizacion': ultimaActualizacion?.toIso8601String(),
     };
+  }
+
+  @override
+  String toString() {
+    return 'Usuario{id: $id, nombre: $nombre, apellido: $apellido, nombreUsuario: $nombreUsuario}';
   }
 }

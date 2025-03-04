@@ -4,22 +4,19 @@ import '../services/mysql_helper.dart';
 class ClienteController {
   final DatabaseService _dbService = DatabaseService();
 
-  // Crear un nuevo cliente
+  // Crear un nuevo cliente usando un stored procedure
   Future<int> insertCliente(Cliente cliente) async {
     final conn = await _dbService.connection;
 
     try {
-      var result = await conn.query(
-        'INSERT INTO clientes (nombre_cliente, id_direccion, telefono_cliente, rfc, curp, correo_cliente) VALUES (?, ?, ?, ?, ?, ?)',
-        [
-          cliente.nombre,
-          cliente.idDireccion,
-          cliente.telefono,
-          cliente.rfc,
-          cliente.curp,
-          cliente.correo,
-        ],
-      );
+      var result = await conn.query('CALL CrearCliente(?, ?, ?, ?, ?, ?)', [
+        cliente.nombre,
+        cliente.telefono,
+        cliente.rfc,
+        cliente.curp,
+        cliente.correo,
+        cliente.idDireccion,
+      ]);
 
       return result.insertId ?? -1;
     } catch (e) {
@@ -37,47 +34,29 @@ class ClienteController {
     return results.map((row) => Cliente.fromMap(row.fields)).toList();
   }
 
-  // Obtener un cliente por ID
-  Future<Cliente?> getCliente(int id) async {
+  // Obtener un cliente por RFC (usando el stored procedure del SQL)
+  Future<Cliente?> getClientePorRFC(String rfc) async {
     final conn = await _dbService.connection;
 
-    var results = await conn.query(
-      'SELECT * FROM clientes WHERE id_cliente = ?',
-      [id],
-    );
+    var results = await conn.query('CALL BuscarClientePorRFC(?)', [rfc]);
 
     return results.isNotEmpty ? Cliente.fromMap(results.first.fields) : null;
   }
 
-  // Buscar clientes por nombre
-  Future<List<Cliente>> searchClientesByName(String name) async {
-    final conn = await _dbService.connection;
-
-    var results = await conn.query(
-      'SELECT * FROM clientes WHERE nombre_cliente LIKE ?',
-      ['%$name%'],
-    );
-
-    return results.map((row) => Cliente.fromMap(row.fields)).toList();
-  }
-
-  // Actualizar cliente
+  // Actualizar cliente usando stored procedure
   Future<int> updateCliente(Cliente cliente) async {
     final conn = await _dbService.connection;
 
     try {
-      var result = await conn.query(
-        'UPDATE clientes SET nombre_cliente = ?, id_direccion = ?, telefono_cliente = ?, rfc = ?, curp = ?, correo_cliente = ? WHERE id_cliente = ?',
-        [
-          cliente.nombre,
-          cliente.idDireccion,
-          cliente.telefono,
-          cliente.rfc,
-          cliente.curp,
-          cliente.correo,
-          cliente.id,
-        ],
-      );
+      var result = await conn
+          .query('CALL ActualizarCliente(?, ?, ?, ?, ?, ?)', [
+            cliente.id,
+            cliente.nombre,
+            cliente.telefono,
+            cliente.rfc,
+            cliente.curp,
+            cliente.correo,
+          ]);
 
       return result.affectedRows ?? 0;
     } catch (e) {
@@ -86,19 +65,16 @@ class ClienteController {
     }
   }
 
-  // Eliminar cliente
-  Future<int> deleteCliente(int id) async {
+  // Inactivar cliente
+  Future<int> inactivarCliente(int id) async {
     final conn = await _dbService.connection;
 
     try {
-      var result = await conn.query(
-        'DELETE FROM clientes WHERE id_cliente = ?',
-        [id],
-      );
+      var result = await conn.query('CALL InactivarCliente(?)', [id]);
 
       return result.affectedRows ?? 0;
     } catch (e) {
-      print('Error al eliminar cliente: $e');
+      print('Error al inactivar cliente: $e');
       return 0;
     }
   }
