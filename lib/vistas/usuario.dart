@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import '../controllers/usuario_controller.dart';
 
 class UsuarioPage extends StatefulWidget {
-  const UsuarioPage({Key? key}) : super(key: key);
+  final UsuarioController usuarioController;
+
+  const UsuarioPage({super.key, required this.usuarioController});
 
   @override
-  _UsuarioPageState createState() => _UsuarioPageState();
+  UsuarioPageState createState() => UsuarioPageState();
 }
 
-class _UsuarioPageState extends State<UsuarioPage> {
-  final UsuarioController _usuarioController = UsuarioController();
+class UsuarioPageState extends State<UsuarioPage> {
+  late final UsuarioController _usuarioController;
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _nombreController = TextEditingController();
@@ -23,19 +25,18 @@ class _UsuarioPageState extends State<UsuarioPage> {
   List<Usuario> _usuarios = [];
   bool _isLoading = false;
 
-  // Función para validar correo electrónico
+  @override
+  void initState() {
+    super.initState();
+    _usuarioController = widget.usuarioController;
+    _loadUsuarios();
+  }
+
   bool _isValidEmail(String email) {
-    // Patrón de expresión regular para validación de correo electrónico
     final emailRegex = RegExp(
       r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
     );
     return emailRegex.hasMatch(email);
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUsuarios();
   }
 
   Future<void> _loadUsuarios() async {
@@ -109,7 +110,6 @@ class _UsuarioPageState extends State<UsuarioPage> {
         padding: const EdgeInsets.all(16.0),
         child: Row(
           children: [
-            // Formulario de Registro
             Expanded(
               flex: 2,
               child: Form(
@@ -157,9 +157,12 @@ class _UsuarioPageState extends State<UsuarioPage> {
                       labelText: "Contraseña",
                       obscureText: true,
                       validator: (value) {
-                        if (value!.isEmpty) return "Ingrese una contraseña";
-                        if (value.length < 6)
+                        if (value!.isEmpty) {
+                          return "Ingrese una contraseña";
+                        }
+                        if (value.length < 6) {
                           return "Contraseña debe tener al menos 6 caracteres";
+                        }
                         return null;
                       },
                     ),
@@ -177,7 +180,6 @@ class _UsuarioPageState extends State<UsuarioPage> {
               ),
             ),
             const SizedBox(width: 20),
-            // Lista de Usuarios
             Expanded(
               flex: 3,
               child:

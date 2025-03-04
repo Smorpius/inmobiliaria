@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:mysql1/mysql1.dart';
 import '../controllers/usuario_controller.dart';
 import '../controllers/administrador_controller.dart';
-// lib/services/auth_service.dart
 
 class AuthService {
-  final UsuarioController _usuarioController = UsuarioController();
+  final UsuarioController _usuarioController;
   final AdministradorController _adminController = AdministradorController();
+
+  AuthService(this._usuarioController);
 
   // Usuario actual autenticado
   String? _currentUser;
@@ -59,4 +60,17 @@ class AuthService {
 }
 
 // Para usar este servicio como singleton en toda la aplicación
-final authService = AuthService();
+final authService = AuthService(
+  UsuarioController(
+    MySqlConnection.connect(
+          ConnectionSettings(
+            host: 'localhost',
+            port: 3306,
+            user: 'root',
+            password: '123456789',
+            db: 'Proyecto_Prueba',
+          ),
+        )
+        as MySqlConnection,
+  ),
+);

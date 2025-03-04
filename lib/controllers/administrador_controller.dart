@@ -1,40 +1,39 @@
-import 'package:sqflite/sqflite.dart';
 import '../services/mysql_helper.dart';
 import '../models/administrador_model.dart';
-// lib/controllers/administrador_controller.dart
 
 class AdministradorController {
-  final dbHelper = DatabaseHelper();
+  final dbHelper = DatabaseService();
 
   // Verificar credenciales de administrador
   Future<bool> verificarCredenciales(
     String nombreAdmin,
     String contrasena,
   ) async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> result = await db.query(
-      'ADMINISTRADOR',
-      where: 'NombreAdmin = ? AND Contraseña = ?',
-      whereArgs: [nombreAdmin, contrasena],
+    final conn = await dbHelper.connection;
+    final results = await conn.query(
+      'SELECT * FROM ADMINISTRADOR WHERE NombreAdmin = ? AND Contraseña = ?',
+      [nombreAdmin, contrasena],
     );
 
-    return result.isNotEmpty;
+    return results.isNotEmpty;
   }
 
   // Obtener todos los administradores
   Future<List<Administrador>> getAdministradores() async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.query('ADMINISTRADOR');
+    final conn = await dbHelper.connection;
+    final results = await conn.query('SELECT * FROM ADMINISTRADOR');
 
-    return List.generate(maps.length, (i) {
-      return Administrador.fromMap(maps[i]);
-    });
+    return results.map((row) => Administrador.fromMap(row.fields)).toList();
   }
 
   // Insertar nuevo administrador
   Future<int> insertAdministrador(Administrador administrador) async {
-    final db = await dbHelper.database;
-    return await db.insert('ADMINISTRADOR', administrador.toMap());
+    final conn = await dbHelper.connection;
+    final result = await conn.query(
+      'INSERT INTO ADMINISTRADOR (NombreAdmin, Contraseña) VALUES (?, ?)',
+      [administrador.nombreAdmin, administrador.contrasena],
+    );
+    return result.affectedRows ?? 0;
   }
 
   // Actualizar contraseña del administrador
@@ -42,12 +41,11 @@ class AdministradorController {
     String nombreAdmin,
     String nuevaContrasena,
   ) async {
-    final db = await dbHelper.database;
-    return await db.update(
-      'ADMINISTRADOR',
-      {'Contraseña': nuevaContrasena},
-      where: 'NombreAdmin = ?',
-      whereArgs: [nombreAdmin],
+    final conn = await dbHelper.connection;
+    final result = await conn.query(
+      'UPDATE ADMINISTRADOR SET Contraseña = ? WHERE NombreAdmin = ?',
+      [nuevaContrasena, nombreAdmin],
     );
+    return result.affectedRows ?? 0;
   }
 }

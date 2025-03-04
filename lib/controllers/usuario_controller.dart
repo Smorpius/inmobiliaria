@@ -1,15 +1,18 @@
 import 'package:mysql1/mysql1.dart';
+import 'package:logging/logging.dart';
 import '../models/usuario_model.dart';
 import '../services/mysql_helper.dart';
 
 class UsuarioController {
   final DatabaseService _dbService = DatabaseService();
+  final Logger _logger = Logger('UsuarioController');
+
+  UsuarioController(MySqlConnection connection);
 
   Future<int> insertUsuario(Usuario usuario) async {
     final conn = await _dbService.connection;
 
     try {
-      // Use prepared statement with named parameters
       var result = await conn.query('CALL CrearUsuario(?, ?, ?, ?)', [
         usuario.nombre,
         usuario.apellido,
@@ -19,7 +22,7 @@ class UsuarioController {
 
       return result.insertId ?? -1;
     } catch (e) {
-      print('Error al insertar usuario: $e');
+      _logger.severe('Error al insertar usuario: $e');
       return -1;
     }
   }
@@ -54,7 +57,6 @@ class UsuarioController {
     return results.isNotEmpty;
   }
 
-  // New method to update user
   Future<int> updateUsuario(Usuario usuario) async {
     final conn = await _dbService.connection;
 
@@ -69,12 +71,11 @@ class UsuarioController {
 
       return result.affectedRows ?? 0;
     } catch (e) {
-      print('Error al actualizar usuario: $e');
+      _logger.severe('Error al actualizar usuario: $e');
       return 0;
     }
   }
 
-  // New method to inactivate user
   Future<int> inactivarUsuario(int id) async {
     final conn = await _dbService.connection;
 
@@ -83,7 +84,7 @@ class UsuarioController {
 
       return result.affectedRows ?? 0;
     } catch (e) {
-      print('Error al inactivar usuario: $e');
+      _logger.severe('Error al inactivar usuario: $e');
       return 0;
     }
   }

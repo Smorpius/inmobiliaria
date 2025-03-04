@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'usuario.dart'; // Importa la nueva vista
-import 'Clientes.dart'; // Importa la clase ClientesScreen
+import 'clientes.dart'; // Importa la clase ClientesScreen
+import '../services/mysql_helper.dart'; // Importa la clase MySqlHelper
+import '../controllers/usuario_controller.dart'; // Importa la clase UsuarioController
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  // Initialize MySQL connection
+  final mysqlHelper = DatabaseService();
+  final connection = await mysqlHelper.connection;
+
+  // Pass the connection to controllers
+  final usuarioController = UsuarioController(connection);
+
+  runApp(MyApp(usuarioController: usuarioController));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final UsuarioController usuarioController;
+
+  const MyApp({super.key, required this.usuarioController});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +26,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: const HomePage(),
       routes: {
-        '/usuario': (context) => const UsuarioPage(), // Define la ruta
+        '/usuario':
+            (context) => UsuarioPage(
+              usuarioController: usuarioController,
+            ), // Define la ruta
         '/clientes':
             (context) => ClientesScreen(), // Define la ruta para Clientes
       },

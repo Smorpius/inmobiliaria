@@ -1,8 +1,10 @@
 import 'package:mysql1/mysql1.dart';
+import 'package:logging/logging.dart';
 
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   MySqlConnection? _connection;
+  final Logger _logger = Logger('DatabaseService');
 
   factory DatabaseService() => _instance;
 
@@ -26,9 +28,9 @@ class DatabaseService {
 
     try {
       _connection = await MySqlConnection.connect(settings);
-      print('MySQL connection established');
+      _logger.info('MySQL connection established');
     } catch (e) {
-      print('MySQL connection error: $e');
+      _logger.severe('MySQL connection error: $e');
       rethrow;
     }
   }

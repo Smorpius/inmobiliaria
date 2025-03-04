@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'menu.dart'; // Importa la página principal
 
 class InicioUsuario extends StatelessWidget {
+  const InicioUsuario({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -31,7 +33,7 @@ class InicioUsuario extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 40),
-              Container(
+              SizedBox(
                 width: 300, // Establece el ancho máximo deseado
                 child: TextField(
                   decoration: InputDecoration(
@@ -46,7 +48,7 @@ class InicioUsuario extends StatelessWidget {
                 ),
               ),
               SizedBox(height: 20),
-              Container(
+              SizedBox(
                 width: 300, // Establece el ancho máximo deseado
                 child: TextField(
                   obscureText: true,

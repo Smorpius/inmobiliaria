@@ -1,8 +1,10 @@
+import 'package:logging/logging.dart';
 import '../models/cliente_model.dart';
 import '../services/mysql_helper.dart';
 
 class ClienteController {
   final DatabaseService _dbService = DatabaseService();
+  final Logger _logger = Logger('ClienteController');
 
   // Crear un nuevo cliente usando un stored procedure
   Future<int> insertCliente(Cliente cliente) async {
@@ -20,7 +22,7 @@ class ClienteController {
 
       return result.insertId ?? -1;
     } catch (e) {
-      print('Error al insertar cliente: $e');
+      _logger.severe('Error al insertar cliente: $e');
       return -1;
     }
   }
@@ -60,7 +62,7 @@ class ClienteController {
 
       return result.affectedRows ?? 0;
     } catch (e) {
-      print('Error al actualizar cliente: $e');
+      _logger.severe('Error al actualizar cliente: $e');
       return 0;
     }
   }
@@ -74,7 +76,7 @@ class ClienteController {
 
       return result.affectedRows ?? 0;
     } catch (e) {
-      print('Error al inactivar cliente: $e');
+      _logger.severe('Error al inactivar cliente: $e');
       return 0;
     }
   }

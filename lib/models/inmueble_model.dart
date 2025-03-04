@@ -1,4 +1,4 @@
-class Mueble {
+class Inmueble {
   final int? id;
   final String nombre;
   final int? idDireccion; // Changed from direccion
@@ -6,7 +6,7 @@ class Mueble {
   final int? idEstado; // Added state
   final int? idCliente;
 
-  Mueble({
+  Inmueble({
     this.id,
     required this.nombre,
     this.idDireccion,
@@ -16,10 +16,10 @@ class Mueble {
   });
 
   // Updated fromMap to match SQL schema
-  factory Mueble.fromMap(Map<String, dynamic> map) {
-    return Mueble(
-      id: map['id_mueble'], // Updated column name
-      nombre: map['nombre_mueble'], // Updated column name
+  factory Inmueble.fromMap(Map<String, dynamic> map) {
+    return Inmueble(
+      id: map['id_inmueble'], // Updated column name
+      nombre: map['nombre_inmueble'], // Updated column name
       idDireccion: map['id_direccion'], // Changed to use direccion ID
       montoTotal: map['monto_total'], // Hyphenated
       idEstado: map['id_estado'], // Added state
@@ -30,8 +30,8 @@ class Mueble {
   // Updated toMap to match SQL schema
   Map<String, dynamic> toMap() {
     return {
-      'id_mueble': id,
-      'nombre_mueble': nombre,
+      'id_inmueble': id,
+      'nombre_inmueble': nombre,
       'id_direccion': idDireccion,
       'monto_total': montoTotal,
       'id_estado': idEstado,
@@ -41,6 +41,6 @@ class Mueble {
 
   @override
   String toString() {
-    return 'Mueble{id: $id, nombre: $nombre, montoTotal: $montoTotal, idCliente: $idCliente}';
+    return 'Inmueble{id: $id, nombre: $nombre, montoTotal: $montoTotal, idCliente: $idCliente}';
   }
 }
