@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/usuario_controller.dart';
 
 class UsuarioPage extends StatefulWidget {
-  const UsuarioPage({super.key});
+  const UsuarioPage({Key? key}) : super(key: key);
 
   @override
   _UsuarioPageState createState() => _UsuarioPageState();
@@ -11,16 +11,26 @@ class UsuarioPage extends StatefulWidget {
 
 class _UsuarioPageState extends State<UsuarioPage> {
   final UsuarioController _usuarioController = UsuarioController();
-  final TextEditingController _idController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidoController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nombreUsuarioController =
       TextEditingController();
   final TextEditingController _contrasenaController = TextEditingController();
-  final TextEditingController _fechaNacimientoController =
-      TextEditingController();
-  final List<Usuario> _usuarios = [];
+
+  List<Usuario> _usuarios = [];
+  bool _isLoading = false;
+
+  // Función para validar correo electrónico
+  bool _isValidEmail(String email) {
+    // Patrón de expresión regular para validación de correo electrónico
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegex.hasMatch(email);
+  }
 
   @override
   void initState() {
@@ -29,143 +39,209 @@ class _UsuarioPageState extends State<UsuarioPage> {
   }
 
   Future<void> _loadUsuarios() async {
-    final usuarios = await _usuarioController.getUsuarios();
-    setState(() {
-      _usuarios.addAll(usuarios);
-    });
+    setState(() => _isLoading = true);
+    try {
+      final usuarios = await _usuarioController.getUsuarios();
+      setState(() {
+        _usuarios = usuarios;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showErrorSnackBar('Error al cargar usuarios');
+    }
   }
 
   void _agregarUsuario() async {
-    if (_nombreController.text.isNotEmpty &&
-        _apellidoController.text.isNotEmpty &&
-        _emailController.text.isNotEmpty &&
-        _nombreUsuarioController.text.isNotEmpty &&
-        _contrasenaController.text.isNotEmpty &&
-        _fechaNacimientoController.text.isNotEmpty) {
-      final usuario = Usuario(
-        nombre: _nombreController.text,
-        apellido: _apellidoController.text,
-        nombreUsuario: _nombreUsuarioController.text,
-        contrasena: _contrasenaController.text,
-      );
+    if (_formKey.currentState!.validate()) {
+      try {
+        final usuario = Usuario(
+          nombre: _nombreController.text.trim(),
+          apellido: _apellidoController.text.trim(),
+          nombreUsuario: _nombreUsuarioController.text.trim(),
+          contrasena: _contrasenaController.text,
+          correo: _emailController.text.trim(),
+        );
 
-      await _usuarioController.insertUsuario(usuario);
-      _loadUsuarios(); // Recargar la lista después de agregar
+        final result = await _usuarioController.insertUsuario(usuario);
 
-      _idController.clear();
-      _nombreController.clear();
-      _apellidoController.clear();
-      _emailController.clear();
-      _nombreUsuarioController.clear();
-      _contrasenaController.clear();
-      _fechaNacimientoController.clear();
+        if (result != -1) {
+          _limpiarCampos();
+          await _loadUsuarios();
+          _showSuccessSnackBar('Usuario agregado exitosamente');
+        } else {
+          _showErrorSnackBar('Error al agregar usuario');
+        }
+      } catch (e) {
+        _showErrorSnackBar('Error al guardar usuario');
+      }
     }
+  }
+
+  void _limpiarCampos() {
+    _nombreController.clear();
+    _apellidoController.clear();
+    _emailController.clear();
+    _nombreUsuarioController.clear();
+    _contrasenaController.clear();
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Agregar Usuario"),
+        title: const Text("Gestión de Usuarios"),
         backgroundColor: const Color.fromARGB(255, 153, 32, 48),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
+        child: Row(
           children: [
-            TextField(
-              controller: _idController,
-              decoration: InputDecoration(
-                labelText: "ID",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _nombreController,
-              decoration: InputDecoration(
-                labelText: "Nombre",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _apellidoController,
-              decoration: InputDecoration(
-                labelText: "Apellido",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(
-                labelText: "Email",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _nombreUsuarioController,
-              decoration: InputDecoration(
-                labelText: "Nombre de Usuario",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _contrasenaController,
-              decoration: InputDecoration(
-                labelText: "Contraseña",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _fechaNacimientoController,
-              decoration: InputDecoration(
-                labelText: "Fecha de Nacimiento",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _agregarUsuario,
-              child: const Text("Agregar Usuario"),
-            ),
-            const SizedBox(height: 20),
+            // Formulario de Registro
             Expanded(
-              child: ListView.builder(
-                itemCount: _usuarios.length,
-                itemBuilder: (context, index) {
-                  final usuario = _usuarios[index];
-                  return ListTile(
-                    title: Text('${usuario.nombre} ${usuario.apellido}'),
-                    subtitle: Text(
-                      'Email: ${usuario.nombreUsuario}\nUsuario: ${usuario.nombreUsuario}\nFecha de Nacimiento: ${_fechaNacimientoController.text}',
+              flex: 2,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  children: [
+                    _buildTextFormField(
+                      controller: _nombreController,
+                      labelText: "Nombre",
+                      validator:
+                          (value) =>
+                              value!.isEmpty ? "Ingrese un nombre" : null,
                     ),
-                  );
-                },
+                    const SizedBox(height: 10),
+                    _buildTextFormField(
+                      controller: _apellidoController,
+                      labelText: "Apellido",
+                      validator:
+                          (value) =>
+                              value!.isEmpty ? "Ingrese un apellido" : null,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTextFormField(
+                      controller: _emailController,
+                      labelText: "Email",
+                      validator: (value) {
+                        if (value!.isEmpty) return "Ingrese un email";
+                        if (!_isValidEmail(value)) return "Email inválido";
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTextFormField(
+                      controller: _nombreUsuarioController,
+                      labelText: "Nombre de Usuario",
+                      validator:
+                          (value) =>
+                              value!.isEmpty
+                                  ? "Ingrese un nombre de usuario"
+                                  : null,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildTextFormField(
+                      controller: _contrasenaController,
+                      labelText: "Contraseña",
+                      obscureText: true,
+                      validator: (value) {
+                        if (value!.isEmpty) return "Ingrese una contraseña";
+                        if (value.length < 6)
+                          return "Contraseña debe tener al menos 6 caracteres";
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _agregarUsuario,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(255, 153, 32, 48),
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      ),
+                      child: const Text("Agregar Usuario"),
+                    ),
+                  ],
+                ),
               ),
+            ),
+            const SizedBox(width: 20),
+            // Lista de Usuarios
+            Expanded(
+              flex: 3,
+              child:
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Usuarios Registrados",
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: _usuarios.length,
+                              separatorBuilder:
+                                  (context, index) => const Divider(),
+                              itemBuilder: (context, index) {
+                                final usuario = _usuarios[index];
+                                return ListTile(
+                                  title: Text(
+                                    '${usuario.nombre} ${usuario.apellido}',
+                                  ),
+                                  subtitle: Text(
+                                    'Usuario: ${usuario.nombreUsuario}\n'
+                                    'Email: ${usuario.correo ?? 'No definido'}',
+                                  ),
+                                  trailing: IconButton(
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () {
+                                      // Implementar eliminación de usuario
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTextFormField({
+    required TextEditingController controller,
+    required String labelText,
+    bool obscureText = false,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: labelText,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      obscureText: obscureText,
+      validator: validator,
     );
   }
 }
