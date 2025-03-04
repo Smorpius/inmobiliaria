@@ -21,16 +21,16 @@ class Cliente {
     this.fechaRegistro,
   });
 
-  // Convertir de Map a Cliente
+  // Updated fromMap method to match SQL column names
   factory Cliente.fromMap(Map<String, dynamic> map) {
     return Cliente(
       id: map['id_cliente'],
-      nombre: map['nombre_cliente'],
+      nombre: map['nombre_cliente'], // Changed from 'nombre'
       idDireccion: map['id_direccion'],
-      telefono: map['telefono_cliente'],
+      telefono: map['telefono_cliente'], // Changed from 'telefono'
       rfc: map['rfc'],
       curp: map['curp'],
-      correo: map['correo_cliente'],
+      correo: map['correo_cliente'], // Changed from 'correo'
       idEstado: map['id_estado'],
       fechaRegistro:
           map['fecha_registro'] != null
@@ -39,7 +39,7 @@ class Cliente {
     );
   }
 
-  // Convertir de Cliente a Map
+  // Updated toMap method to match SQL column names
   Map<String, dynamic> toMap() {
     return {
       'id_cliente': id,

@@ -1,47 +1,46 @@
-// lib/models/mueble_model.dart
 class Mueble {
   final int? id;
   final String nombre;
-  final String direccion;
+  final int? idDireccion; // Changed from direccion
   final double montoTotal;
-  final String estatusProducto;
-  final int idCliente;
+  final int? idEstado; // Added state
+  final int? idCliente;
 
   Mueble({
     this.id,
     required this.nombre,
-    required this.direccion,
+    this.idDireccion,
     required this.montoTotal,
-    required this.estatusProducto,
-    required this.idCliente,
+    this.idEstado,
+    this.idCliente,
   });
 
-  // Convertir de Map a Mueble
+  // Updated fromMap to match SQL schema
   factory Mueble.fromMap(Map<String, dynamic> map) {
     return Mueble(
-      id: map['ID_muebles'],
-      nombre: map['nombre_mueble'],
-      direccion: map['direccion'],
-      montoTotal: map['monto_total'],
-      estatusProducto: map['estatus_producto'],
+      id: map['id_mueble'], // Updated column name
+      nombre: map['nombre_mueble'], // Updated column name
+      idDireccion: map['id_direccion'], // Changed to use direccion ID
+      montoTotal: map['monto_total'], // Hyphenated
+      idEstado: map['id_estado'], // Added state
       idCliente: map['id_cliente'],
     );
   }
 
-  // Convertir de Mueble a Map
+  // Updated toMap to match SQL schema
   Map<String, dynamic> toMap() {
     return {
-      'ID_muebles': id,
+      'id_mueble': id,
       'nombre_mueble': nombre,
-      'direccion': direccion,
+      'id_direccion': idDireccion,
       'monto_total': montoTotal,
-      'estatus_producto': estatusProducto,
+      'id_estado': idEstado,
       'id_cliente': idCliente,
     };
   }
 
   @override
   String toString() {
-    return 'Mueble{id: $id, nombre: $nombre, direccion: $direccion, montoTotal: $montoTotal, estatusProducto: $estatusProducto, idCliente: $idCliente}';
+    return 'Mueble{id: $id, nombre: $nombre, montoTotal: $montoTotal, idCliente: $idCliente}';
   }
 }

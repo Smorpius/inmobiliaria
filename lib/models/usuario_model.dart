@@ -26,9 +26,9 @@ class Usuario {
       id: map['id_usuario'],
       nombre: map['nombre'],
       apellido: map['apellido'],
-      nombreUsuario: map['nombre_usuario'],
-      contrasena: map['contraseña_usuario'],
-      correo: map['correo_cliente'],
+      nombreUsuario: map['nombre_usuario'], // Hyphenated
+      contrasena: map['contraseña_usuario'], // Use full column name
+      correo: map['correo_cliente'], // From the SQL schema
       idEstado: map['id_estado'],
       fechaCreacion:
           map['fecha_creacion'] != null
