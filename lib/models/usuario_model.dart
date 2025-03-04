@@ -4,7 +4,10 @@ class Usuario {
   final String apellido;
   final String nombreUsuario;
   final String contrasena;
-  final String? correo; // Agregado según estructura SQL
+  final String? correo;
+  final int? idEstado; // Added to match SQL schema
+  final DateTime? fechaCreacion; // Added to match SQL schema
+  final DateTime? ultimaActualizacion; // Added to match SQL schema
 
   Usuario({
     this.id,
@@ -13,9 +16,11 @@ class Usuario {
     required this.nombreUsuario,
     required this.contrasena,
     this.correo,
+    this.idEstado,
+    this.fechaCreacion,
+    this.ultimaActualizacion,
   });
 
-  // Convertir de Map a Usuario (para leer desde MySQL)
   factory Usuario.fromMap(Map<String, dynamic> map) {
     return Usuario(
       id: map['id_usuario'],
@@ -24,10 +29,18 @@ class Usuario {
       nombreUsuario: map['nombre_usuario'],
       contrasena: map['contraseña_usuario'],
       correo: map['correo_cliente'],
+      idEstado: map['id_estado'],
+      fechaCreacion:
+          map['fecha_creacion'] != null
+              ? DateTime.parse(map['fecha_creacion'].toString())
+              : null,
+      ultimaActualizacion:
+          map['ultima_actualizacion'] != null
+              ? DateTime.parse(map['ultima_actualizacion'].toString())
+              : null,
     );
   }
 
-  // Convertir de Usuario a Map (para guardar en MySQL)
   Map<String, dynamic> toMap() {
     return {
       'id_usuario': id,
@@ -36,6 +49,9 @@ class Usuario {
       'nombre_usuario': nombreUsuario,
       'contraseña_usuario': contrasena,
       'correo_cliente': correo,
+      'id_estado': idEstado,
+      'fecha_creacion': fechaCreacion?.toIso8601String(),
+      'ultima_actualizacion': ultimaActualizacion?.toIso8601String(),
     };
   }
 }

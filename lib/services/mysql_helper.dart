@@ -17,15 +17,16 @@ class DatabaseService {
 
   Future<void> _connect() async {
     final settings = ConnectionSettings(
-      host: 'localhost',
+      host: '127.0.0.1',
       port: 3306,
-      user: 'tu_usuario',
-      password: 'tu_contraseña',
+      user: 'root',
+      password: '123456789',
       db: 'Proyecto_Prueba',
     );
 
     try {
       _connection = await MySqlConnection.connect(settings);
+      print('Conexión a MySQL establecida');
     } catch (e) {
       print('Error de conexión a MySQL: $e');
       rethrow;
@@ -33,7 +34,20 @@ class DatabaseService {
   }
 
   Future<void> closeConnection() async {
-    await _connection?.close();
-    _connection = null;
+    if (_connection != null) {
+      await _connection!.close();
+      _connection = null;
+    }
+  }
+
+  // Optional: Add a method to check connection
+  Future<bool> isConnected() async {
+    try {
+      // Try a simple query to check connection
+      await _connection?.query('SELECT 1');
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
