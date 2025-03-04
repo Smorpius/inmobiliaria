@@ -1,87 +1,59 @@
-import 'database_helper.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:mysql1/mysql1.dart';
 import '../models/usuario_model.dart';
-// lib/controllers/usuario_controller.dart
+import '../services/database_service.dart';
 
 class UsuarioController {
-  final dbHelper = DatabaseHelper();
+  final DatabaseService _dbService = DatabaseService();
 
-  // Crear un nuevo usuario
   Future<int> insertUsuario(Usuario usuario) async {
-    final db = await dbHelper.database;
-    return await db.insert('Usuarios', usuario.toMap());
+    final conn = await _dbService.connection;
+
+    try {
+      var result = await conn.query(
+        'INSERT INTO usuarios (nombre, apellido, nombre_usuario, contraseña_usuario, correo_cliente) VALUES (?, ?, ?, ?, ?)',
+        [
+          usuario.nombre,
+          usuario.apellido,
+          usuario.nombreUsuario,
+          usuario.contrasena,
+          usuario.correo,
+        ],
+      );
+
+      return result.insertId ?? -1;
+    } catch (e) {
+      print('Error al insertar usuario: $e');
+      return -1;
+    }
   }
 
-  // Obtener todos los usuarios
   Future<List<Usuario>> getUsuarios() async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.query('Usuarios');
+    final conn = await _dbService.connection;
 
-    return List.generate(maps.length, (i) {
-      return Usuario.fromMap(maps[i]);
-    });
+    var results = await conn.query('SELECT * FROM usuarios');
+
+    return results.map((row) => Usuario.fromMap(row.fields)).toList();
   }
 
-  // Obtener un usuario por ID
   Future<Usuario?> getUsuario(int id) async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'Usuarios',
-      where: 'id_usuario = ?',
-      whereArgs: [id],
+    final conn = await _dbService.connection;
+
+    var results = await conn.query(
+      'SELECT * FROM usuarios WHERE id_usuario = ?',
+      [id],
     );
 
-    if (maps.isNotEmpty) {
-      return Usuario.fromMap(maps.first);
-    }
-    return null;
+    return results.isNotEmpty ? Usuario.fromMap(results.first.fields) : null;
   }
 
-  // Buscar usuario por nombre de usuario
-  Future<Usuario?> findUsuarioByUsername(String username) async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'Usuarios',
-      where: 'nombre_usuario = ?',
-      whereArgs: [username],
-    );
-
-    if (maps.isNotEmpty) {
-      return Usuario.fromMap(maps.first);
-    }
-    return null;
-  }
-
-  // Actualizar usuario
-  Future<int> updateUsuario(Usuario usuario) async {
-    final db = await dbHelper.database;
-    return await db.update(
-      'Usuarios',
-      usuario.toMap(),
-      where: 'id_usuario = ?',
-      whereArgs: [usuario.id],
-    );
-  }
-
-  // Eliminar usuario
-  Future<int> deleteUsuario(int id) async {
-    final db = await dbHelper.database;
-    return await db.delete(
-      'Usuarios',
-      where: 'id_usuario = ?',
-      whereArgs: [id],
-    );
-  }
-
-  // Verificar credenciales para inicio de sesión
   Future<bool> verificarCredenciales(String username, String password) async {
-    final db = await dbHelper.database;
-    final List<Map<String, dynamic>> result = await db.query(
-      'Usuarios',
-      where: 'nombre_usuario = ? AND contraseña_usuario = ?',
-      whereArgs: [username, password],
+    final conn = await _dbService.connection;
+
+    var results = await conn.query(
+      'SELECT * FROM usuarios WHERE nombre_usuario = ? AND contraseña_usuario = ?',
+      [username, password],
     );
 
-    return result.isNotEmpty;
+    return results.isNotEmpty;
   }
 }
