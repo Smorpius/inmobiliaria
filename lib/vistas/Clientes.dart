@@ -39,6 +39,71 @@ class _ClientesScreenState extends State<ClientesScreen> {
     });
   }
 
+  void _showAddClientDialog() {
+    final _nombreController = TextEditingController();
+    final _telefonoController = TextEditingController();
+    final _rfcController = TextEditingController();
+    final _curpController = TextEditingController();
+    final _correoController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Agregar Cliente'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _nombreController,
+                    decoration: InputDecoration(labelText: 'Nombre'),
+                  ),
+                  TextField(
+                    controller: _telefonoController,
+                    decoration: InputDecoration(labelText: 'Teléfono'),
+                  ),
+                  TextField(
+                    controller: _rfcController,
+                    decoration: InputDecoration(labelText: 'RFC'),
+                  ),
+                  TextField(
+                    controller: _curpController,
+                    decoration: InputDecoration(labelText: 'CURP'),
+                  ),
+                  TextField(
+                    controller: _correoController,
+                    decoration: InputDecoration(labelText: 'Correo'),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final nuevoCliente = Cliente(
+                    nombre: _nombreController.text,
+                    telefono: _telefonoController.text,
+                    rfc: _rfcController.text,
+                    curp: _curpController.text,
+                    correo: _correoController.text,
+                  );
+
+                  await _clienteController.insertCliente(nuevoCliente);
+                  _loadClientes();
+                  Navigator.pop(context);
+                },
+                child: Text('Guardar'),
+              ),
+            ],
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,6 +138,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       final cliente = _clientes[index];
                       return ListTile(
                         title: Text(cliente.nombre),
+                        subtitle: Text(cliente.telefono),
                         onTap: () => _selectCliente(cliente),
                       );
                     },
@@ -98,10 +164,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
                             style: TextStyle(fontSize: 18),
                           ),
                           Text(
-                            'Dirección: ${_selectedCliente!.direccion}',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                          Text(
                             'Teléfono: ${_selectedCliente!.telefono}',
                             style: TextStyle(fontSize: 18),
                           ),
@@ -113,6 +175,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
                             'CURP: ${_selectedCliente!.curp}',
                             style: TextStyle(fontSize: 18),
                           ),
+                          Text(
+                            'Correo: ${_selectedCliente!.correo ?? 'No disponible'}',
+                            style: TextStyle(fontSize: 18),
+                          ),
                         ],
                       ),
             ),
@@ -120,9 +186,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Acción para agregar un nuevo cliente
-        },
+        onPressed: _showAddClientDialog,
         child: Icon(Icons.add),
       ),
     );

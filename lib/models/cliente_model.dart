@@ -1,47 +1,50 @@
-// lib/models/cliente_model.dart
 class Cliente {
   final int? id;
   final String nombre;
-  final String direccion;
+  final int? idDireccion;
   final String telefono;
   final String rfc;
   final String curp;
+  final String? correo;
 
   Cliente({
     this.id,
     required this.nombre,
-    required this.direccion,
+    this.idDireccion,
     required this.telefono,
     required this.rfc,
     required this.curp,
+    this.correo,
   });
 
   // Convertir de Map a Cliente
   factory Cliente.fromMap(Map<String, dynamic> map) {
     return Cliente(
-      id: map['ID_Cliente'],
+      id: map['id_cliente'],
       nombre: map['nombre_cliente'],
-      direccion: map['direccion_cliente'],
-      telefono: map['numero_telf'],
-      rfc: map['RFC'],
-      curp: map['CURP'],
+      idDireccion: map['id_direccion'],
+      telefono: map['telefono_cliente'],
+      rfc: map['rfc'],
+      curp: map['curp'],
+      correo: map['correo_cliente'],
     );
   }
 
   // Convertir de Cliente a Map
   Map<String, dynamic> toMap() {
     return {
-      'ID_Cliente': id,
+      'id_cliente': id,
       'nombre_cliente': nombre,
-      'direccion_cliente': direccion,
-      'numero_telf': telefono,
-      'RFC': rfc,
-      'CURP': curp,
+      'id_direccion': idDireccion,
+      'telefono_cliente': telefono,
+      'rfc': rfc,
+      'curp': curp,
+      'correo_cliente': correo,
     };
   }
 
   @override
   String toString() {
-    return 'Cliente{id: $id, nombre: $nombre, direccion: $direccion, telefono: $telefono, RFC: $rfc, CURP: $curp}';
+    return 'Cliente{id: $id, nombre: $nombre, telefono: $telefono, RFC: $rfc, CURP: $curp}';
   }
 }

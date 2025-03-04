@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:inmobiliaria/vistas/menu.dart';
 import 'vistas/usuario.dart'; // Importa la clase UsuarioPage
 import 'vistas/Clientes.dart'; // Importa la clase ClientesScreen
-import 'controllers/mysql_helper.dart'; // Importa la clase MySqlHelper
+import 'services/mysql_helper.dart'; // Importa la clase MySqlHelper
 import 'controllers/usuario_controller.dart'; // Importa la clase UsuarioController
 
 Future<void> main() async {
