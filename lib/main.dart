@@ -5,10 +5,12 @@ import 'services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'controllers/usuario_controller.dart';
 import 'package:inmobiliaria/vistas/menu.dart';
+import 'vistas/inmuebles.dart'; // Añade esta importación
 
 Future<void> main() async {
-  // Use dependency injection
+  WidgetsFlutterBinding.ensureInitialized(); // Asegura la inicialización
   final dbService = DatabaseService();
+  await dbService.connection; // Espera la conexión a la base de datos
   final usuarioController = UsuarioController(dbService: dbService);
   final authService = AuthService(usuarioController);
 
@@ -28,15 +30,18 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Inmobiliaria',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.teal,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        useMaterial3: true,
       ),
-      home: HomePage(),
+      home: const HomePage(),
       routes: {
-        '/usuario':
-            (context) => UsuarioPage(usuarioController: usuarioController),
-        '/clientes': (context) => ClientesScreen(),
+        '/usuario': (context) => UsuarioPage(usuarioController: usuarioController),
+        '/clientes': (context) => const ClientesScreen(),
+        '/inmuebles': (context) => const HomeScreen(), // Añade esta ruta
       },
     );
   }

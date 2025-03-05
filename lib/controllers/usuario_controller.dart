@@ -12,13 +12,14 @@ class UsuarioController {
   Future<int> insertUsuario(Usuario usuario) async {
     try {
       final conn = await _dbService.connection;
-      var result = await conn.query('CALL CrearUsuario(?, ?, ?, ?)', [
+      // Incluimos el correo en la llamada al SP
+      var result = await conn.query('CALL CrearUsuario(?, ?, ?, ?, ?)', [
         usuario.nombre,
         usuario.apellido,
         usuario.nombreUsuario,
         usuario.contrasena,
+        usuario.correo,
       ]);
-
       return result.insertId ?? -1;
     } catch (e) {
       _logger.severe('Error al insertar usuario: $e');
@@ -44,7 +45,6 @@ class UsuarioController {
         'SELECT * FROM usuarios WHERE id_usuario = ?',
         [id],
       );
-
       return results.isNotEmpty ? Usuario.fromMap(results.first.fields) : null;
     } catch (e) {
       _logger.severe('Error al obtener usuario: $e');
@@ -59,7 +59,6 @@ class UsuarioController {
         'SELECT * FROM usuarios WHERE nombre_usuario = ? AND contraseña_usuario = ?',
         [username, password],
       );
-
       return results.isNotEmpty;
     } catch (e) {
       _logger.severe('Error al verificar credenciales: $e');
@@ -70,14 +69,16 @@ class UsuarioController {
   Future<int> updateUsuario(Usuario usuario) async {
     try {
       final conn = await _dbService.connection;
-      var result = await conn.query('CALL ActualizarUsuario(?, ?, ?, ?, ?)', [
-        usuario.id,
-        usuario.nombre,
-        usuario.apellido,
-        usuario.nombreUsuario,
-        usuario.contrasena,
-      ]);
-
+      // Incluimos el correo en la llamada al SP
+      var result = await conn
+          .query('CALL ActualizarUsuario(?, ?, ?, ?, ?, ?)', [
+            usuario.id,
+            usuario.nombre,
+            usuario.apellido,
+            usuario.nombreUsuario,
+            usuario.contrasena,
+            usuario.correo,
+          ]);
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al actualizar usuario: $e');
@@ -89,7 +90,6 @@ class UsuarioController {
     try {
       final conn = await _dbService.connection;
       var result = await conn.query('CALL InactivarUsuario(?)', [id]);
-
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al inactivar usuario: $e');

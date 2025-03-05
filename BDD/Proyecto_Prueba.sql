@@ -6,6 +6,10 @@ USE Proyecto_Prueba;
 DROP PROCEDURE IF EXISTS CrearUsuario;
 DROP PROCEDURE IF EXISTS ActualizarUsuario;
 DROP PROCEDURE IF EXISTS InactivarUsuario;
+DROP PROCEDURE IF EXISTS CrearCliente;
+DROP PROCEDURE IF EXISTS LeerClientes;
+DROP PROCEDURE IF EXISTS ActualizarCliente;
+DROP PROCEDURE IF EXISTS InactivarCliente;
 DROP PROCEDURE IF EXISTS CrearInmueble;
 DROP PROCEDURE IF EXISTS ActualizarInmueble;
 DROP PROCEDURE IF EXISTS CrearProveedor;
@@ -21,7 +25,7 @@ DROP PROCEDURE IF EXISTS BuscarInmueblePorCliente;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Primero eliminamos las tablas en orden correcto respetando dependencias
-DROP TABLE IF EXISTS muebles;
+-- Eliminado "muebles" que no existe
 DROP TABLE IF EXISTS historial_usuarios;
 DROP TABLE IF EXISTS inmuebles;
 DROP TABLE IF EXISTS clientes;
@@ -101,6 +105,22 @@ CREATE TABLE clientes (
 
 -- Definir los triggers después de crear las tablas
 DELIMITER //
+
+-- Verificar si existe antes de crearlo
+DROP TRIGGER IF EXISTS validar_correo_usuario //
+
+CREATE TRIGGER validar_correo_usuario
+BEFORE INSERT ON usuarios
+FOR EACH ROW
+BEGIN
+    IF NEW.correo_cliente IS NOT NULL AND 
+       NEW.correo_cliente <> '' AND
+       NEW.correo_cliente NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Correo electrónico de usuario inválido';
+    END IF;
+END //
+
 
 -- Trigger para validar teléfono de cliente
 CREATE TRIGGER validar_telefono_cliente
@@ -191,7 +211,8 @@ CREATE PROCEDURE CrearUsuario(
     IN p_nombre VARCHAR(100), 
     IN p_apellido VARCHAR(100), 
     IN p_nombre_usuario VARCHAR(100), 
-    IN p_contraseña VARCHAR(255)
+    IN p_contraseña VARCHAR(255),
+    IN p_correo_cliente VARCHAR(100) -- Nuevo parámetro para el correo
 )
 BEGIN
     DECLARE usuario_existente INT;
@@ -211,10 +232,11 @@ BEGIN
     IF usuario_existente > 0 THEN 
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El nombre de usuario ya existe';
     ELSE
+        -- Ahora insertamos también el correo en la consulta
         INSERT INTO usuarios (
-            nombre, apellido, nombre_usuario, contraseña_usuario, id_estado
+            nombre, apellido, nombre_usuario, contraseña_usuario, correo_cliente, id_estado
         ) VALUES (
-            p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), v_id_estado_activo
+            p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), p_correo_cliente, v_id_estado_activo
         );
 
         SET v_id_usuario = LAST_INSERT_ID();
@@ -227,20 +249,22 @@ BEGIN
     END IF;
 END //
 
+
 -- Procedimiento para actualizar usuario con validaciones mejoradas
 CREATE PROCEDURE ActualizarUsuario(
     IN p_id_usuario INT, 
     IN p_nombre VARCHAR(100), 
     IN p_apellido VARCHAR(100), 
     IN p_nombre_usuario VARCHAR(100), 
-    IN p_contraseña VARCHAR(255)
+    IN p_contraseña VARCHAR(255),
+    IN p_correo_cliente VARCHAR(100) -- Nuevo parámetro para el correo
 )
 BEGIN
     DECLARE estado_actual_id INT;
     DECLARE v_estado_nombre VARCHAR(20);
     
     -- Validar existencia del usuario y su estado
-    SELECT id_estado, nombre_estado INTO estado_actual_id, v_estado_nombre
+    SELECT usuarios.id_estado, estados.nombre_estado INTO estado_actual_id, v_estado_nombre
     FROM usuarios 
     JOIN estados ON usuarios.id_estado = estados.id_estado
     WHERE id_usuario = p_id_usuario;
@@ -268,22 +292,24 @@ BEGIN
         SET MESSAGE_TEXT = 'Nombre de usuario ya en uso';
     END IF;
 
-    -- Validar contraseña
-    IF p_contraseña IS NULL OR p_contraseña = '' THEN
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'La contraseña no puede ser nula o vacía';
-    END IF;
-
-    -- Actualizar usuario
+    -- Actualizar usuario con correo
     UPDATE usuarios SET 
         nombre = p_nombre, 
         apellido = p_apellido, 
-        nombre_usuario = p_nombre_usuario, 
-        contraseña_usuario = EncriptarContraseña(p_contraseña)
+        nombre_usuario = p_nombre_usuario,
+        correo_cliente = p_correo_cliente, -- Añadimos el correo
+        contraseña_usuario = CASE 
+            WHEN p_contraseña IS NOT NULL AND p_contraseña <> '' 
+            THEN EncriptarContraseña(p_contraseña)
+            ELSE contraseña_usuario
+        END
     WHERE id_usuario = p_id_usuario;
 END //
 
+
+
 -- Procedimiento para inactivar usuario con verificación mejorada
+-- CORREGIDO: Eliminado el bloque duplicado
 CREATE PROCEDURE InactivarUsuario(IN p_id_usuario INT)
 BEGIN
     DECLARE estado_actual_id INT;
@@ -295,7 +321,8 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
     END IF;
 
-    SELECT id_estado, nombre_estado INTO estado_actual_id, estado_actual_nombre
+    -- Corregido para evitar ambigüedad
+    SELECT usuarios.id_estado, estados.nombre_estado INTO estado_actual_id, estado_actual_nombre
     FROM usuarios 
     JOIN estados ON usuarios.id_estado = estados.id_estado
     WHERE id_usuario = p_id_usuario;
@@ -319,7 +346,183 @@ BEGIN
 
     COMMIT;
 END //
+-- Procedimientos CRUD para Clientes
+CREATE PROCEDURE CrearCliente(
+    IN p_nombre_cliente VARCHAR(100),
+    IN p_direccion_calle VARCHAR(255),
+    IN p_direccion_numero VARCHAR(50),
+    IN p_direccion_ciudad VARCHAR(100),
+    IN p_direccion_codigo_postal VARCHAR(20),
+    IN p_telefono_cliente VARCHAR(20),
+    IN p_rfc VARCHAR(13),
+    IN p_curp VARCHAR(18),
+    IN p_correo_cliente VARCHAR(100)
+)
+BEGIN
+    DECLARE v_id_direccion INT;
+    DECLARE v_id_estado_activo INT DEFAULT 1;
+    
+    -- Validar formato de RFC
+    IF NOT (p_rfc REGEXP '^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$') THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Formato de RFC inválido';
+    END IF;
+    
+    -- Validar formato de CURP
+    IF NOT (p_curp REGEXP '^[A-Z][AEIOUX][A-Z]{2}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]$') THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Formato de CURP inválido';
+    END IF;
+    
+    -- Crear primero la dirección
+    INSERT INTO direcciones (
+        calle, 
+        numero, 
+        ciudad, 
+        id_estado,
+        codigo_postal
+    ) VALUES (
+        p_direccion_calle,
+        p_direccion_numero,
+        p_direccion_ciudad,
+        v_id_estado_activo,
+        p_direccion_codigo_postal
+    );
+    
+    SET v_id_direccion = LAST_INSERT_ID();
+    
+    -- Crear el cliente con la dirección asociada
+    INSERT INTO clientes (
+        nombre_cliente,
+        id_direccion,
+        telefono_cliente,
+        rfc,
+        curp,
+        correo_cliente,
+        id_estado
+    ) VALUES (
+        p_nombre_cliente,
+        v_id_direccion,
+        p_telefono_cliente,
+        UPPER(p_rfc),
+        UPPER(p_curp),
+        p_correo_cliente,
+        v_id_estado_activo
+    );
+END //
 
+CREATE PROCEDURE LeerClientes()
+BEGIN
+    SELECT 
+        c.*,
+        d.calle,
+        d.numero,
+        d.ciudad,
+        d.codigo_postal,
+        e.nombre_estado AS estado_cliente
+    FROM clientes c
+    JOIN direcciones d ON c.id_direccion = d.id_direccion
+    JOIN estados e ON c.id_estado = e.id_estado
+    WHERE e.nombre_estado = 'activo';
+END //
+
+CREATE PROCEDURE ActualizarCliente(
+    IN p_id_cliente INT,
+    IN p_nombre_cliente VARCHAR(100),
+    IN p_telefono_cliente VARCHAR(20),
+    IN p_rfc VARCHAR(13),
+    IN p_curp VARCHAR(18),
+    IN p_correo_cliente VARCHAR(100),
+    IN p_direccion_calle VARCHAR(255),
+    IN p_direccion_numero VARCHAR(50),
+    IN p_direccion_ciudad VARCHAR(100),
+    IN p_direccion_codigo_postal VARCHAR(20)
+)
+BEGIN
+    DECLARE v_id_direccion INT;
+    DECLARE v_estado_actual VARCHAR(20);
+    
+    -- Verificar si el cliente existe y obtener su dirección y estado
+    SELECT c.id_direccion, e.nombre_estado INTO v_id_direccion, v_estado_actual
+    FROM clientes c
+    JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_cliente = p_id_cliente;
+    
+    -- Validar que el cliente exista
+    IF v_id_direccion IS NULL THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Cliente no encontrado';
+    END IF;
+    
+    -- Verificar si el cliente está activo
+    IF v_estado_actual != 'activo' THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'No se puede actualizar un cliente inactivo';
+    END IF;
+    
+    -- Validar formato de RFC
+    IF NOT (p_rfc REGEXP '^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$') THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Formato de RFC inválido';
+    END IF;
+    
+    -- Validar formato de CURP
+    IF NOT (p_curp REGEXP '^[A-Z][AEIOUX][A-Z]{2}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]$') THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Formato de CURP inválido';
+    END IF;
+    
+    -- Actualizar dirección
+    UPDATE direcciones SET
+        calle = p_direccion_calle,
+        numero = p_direccion_numero,
+        ciudad = p_direccion_ciudad,
+        codigo_postal = p_direccion_codigo_postal
+    WHERE id_direccion = v_id_direccion;
+    
+    -- Actualizar cliente
+    UPDATE clientes SET
+        nombre_cliente = p_nombre_cliente,
+        telefono_cliente = p_telefono_cliente,
+        rfc = UPPER(p_rfc),
+        curp = UPPER(p_curp),
+        correo_cliente = p_correo_cliente
+    WHERE id_cliente = p_id_cliente;
+END //
+
+CREATE PROCEDURE InactivarCliente(IN p_id_cliente INT)
+BEGIN
+    DECLARE v_id_estado_inactivo INT;
+    DECLARE v_estado_actual VARCHAR(20);
+    
+    -- Obtener ID del estado inactivo
+    SELECT id_estado INTO v_id_estado_inactivo
+    FROM estados 
+    WHERE nombre_estado = 'inactivo';
+    
+    -- Verificar estado actual del cliente
+    SELECT e.nombre_estado INTO v_estado_actual
+    FROM clientes c
+    JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_cliente = p_id_cliente;
+    
+    -- Verificar si el cliente existe
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Cliente no encontrado';
+    END IF;
+    
+    -- Verificar si ya está inactivo
+    IF v_estado_actual = 'inactivo' THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'El cliente ya está inactivo';
+    END IF;
+    
+    -- Inactivar cliente
+    UPDATE clientes 
+    SET id_estado = v_id_estado_inactivo
+    WHERE id_cliente = p_id_cliente;
+END //
 -- Procedimiento para crear inmueble con manejo de estado y corrección de dirección
 CREATE PROCEDURE CrearInmueble(
     IN p_nombre_inmueble VARCHAR(100),
