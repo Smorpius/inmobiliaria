@@ -43,6 +43,7 @@ class HomeScreen extends StatelessWidget {
               },
               child: Card(
                 color: Colors.grey[300],
+
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -50,15 +51,17 @@ class HomeScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      height: 200, // Ajuste de altura
+                      // padding: EdgeInsets.all(20),
+                      margin: EdgeInsets.all(8),
+                      height: 200,
                       decoration: BoxDecoration(
                         color: Colors.red,
-                        borderRadius: BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
+                        //ponerle color al borde
+                        border: Border.all(color: Colors.black, width: 2),
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
                       ),
                     ),
-                    Padding(
+                    Container(
                       padding: const EdgeInsets.all(8.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,22 +175,10 @@ class _AddInmuebleScreenState extends State<AddInmuebleScreen> {
               TextFormField(
                 controller: _nombreController,
                 decoration: InputDecoration(labelText: 'Nombre del Inmueble'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el nombre del inmueble';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _calleController,
                 decoration: InputDecoration(labelText: 'Calle'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese la calle';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _numeroController,
@@ -196,22 +187,10 @@ class _AddInmuebleScreenState extends State<AddInmuebleScreen> {
               TextFormField(
                 controller: _ciudadController,
                 decoration: InputDecoration(labelText: 'Ciudad'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese la ciudad';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _estadoController,
                 decoration: InputDecoration(labelText: 'Estado'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el estado';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _codigoPostalController,
@@ -221,12 +200,6 @@ class _AddInmuebleScreenState extends State<AddInmuebleScreen> {
                 controller: _montoController,
                 decoration: InputDecoration(labelText: 'Monto Total'),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el monto total';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _clienteController,
@@ -234,18 +207,7 @@ class _AddInmuebleScreenState extends State<AddInmuebleScreen> {
                 keyboardType: TextInputType.number,
               ),
               SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    // Aquí puedes agregar la lógica para guardar el inmueble en la base de datos
-                    // usando los valores de los controladores
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Inmueble agregado')),
-                    );
-                  }
-                },
-                child: Text('Agregar Inmueble'),
-              ),
+              ElevatedButton(onPressed: () {}, child: Text('Agregar Inmueble')),
             ],
           ),
         ),
@@ -306,22 +268,10 @@ class _EditInmuebleScreenState extends State<EditInmuebleScreen> {
               TextFormField(
                 controller: _nombreController,
                 decoration: InputDecoration(labelText: 'Nombre del Inmueble'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el nombre del inmueble';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _calleController,
                 decoration: InputDecoration(labelText: 'Calle'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese la calle';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _numeroController,
@@ -330,22 +280,10 @@ class _EditInmuebleScreenState extends State<EditInmuebleScreen> {
               TextFormField(
                 controller: _ciudadController,
                 decoration: InputDecoration(labelText: 'Ciudad'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese la ciudad';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _estadoController,
                 decoration: InputDecoration(labelText: 'Estado'),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el estado';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _codigoPostalController,
@@ -355,12 +293,6 @@ class _EditInmuebleScreenState extends State<EditInmuebleScreen> {
                 controller: _montoController,
                 decoration: InputDecoration(labelText: 'Monto Total'),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese el monto total';
-                  }
-                  return null;
-                },
               ),
               TextFormField(
                 controller: _clienteController,
@@ -369,15 +301,7 @@ class _EditInmuebleScreenState extends State<EditInmuebleScreen> {
               ),
               SizedBox(height: 20),
               ElevatedButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    // Aquí puedes agregar la lógica para actualizar el inmueble en la base de datos
-                    // usando los valores de los controladores
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Inmueble actualizado')),
-                    );
-                  }
-                },
+                onPressed: () {},
                 child: Text('Actualizar Inmueble'),
               ),
             ],
