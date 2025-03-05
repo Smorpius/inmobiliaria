@@ -1,16 +1,14 @@
+import 'usuario.dart';
+import 'clientes.dart';
 import 'package:flutter/material.dart';
-import 'usuario.dart'; // Importa la nueva vista
-import 'clientes.dart'; // Importa la clase ClientesScreen
-import '../services/mysql_helper.dart'; // Importa la clase MySqlHelper
-import '../controllers/usuario_controller.dart'; // Importa la clase UsuarioController
+import '../services/mysql_helper.dart';
+import '../controllers/usuario_controller.dart';
+import '../services/connection_test.dart'; // Importación para el test de conexión
 
 void main() async {
-  // Initialize MySQL connection
   final mysqlHelper = DatabaseService();
-  final connection = await mysqlHelper.connection;
-
-  // Pass the connection to controllers
-  final usuarioController = UsuarioController(connection);
+  await mysqlHelper.connection; // Establece la conexión
+  final usuarioController = UsuarioController(dbService: mysqlHelper);
 
   runApp(MyApp(usuarioController: usuarioController));
 }
@@ -27,11 +25,8 @@ class MyApp extends StatelessWidget {
       home: const HomePage(),
       routes: {
         '/usuario':
-            (context) => UsuarioPage(
-              usuarioController: usuarioController,
-            ), // Define la ruta
-        '/clientes':
-            (context) => ClientesScreen(), // Define la ruta para Clientes
+            (context) => UsuarioPage(usuarioController: usuarioController),
+        '/clientes': (context) => const ClientesScreen(),
       },
     );
   }
@@ -78,10 +73,7 @@ class HomePage extends StatelessWidget {
               padding: const EdgeInsets.all(8.0),
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/usuario',
-                  ); // Navega a la vista de Usuario
+                  Navigator.pushNamed(context, '/usuario');
                 },
                 icon: const Icon(Icons.people),
                 label: const Text("Usuarios"),
@@ -91,10 +83,7 @@ class HomePage extends StatelessWidget {
               padding: const EdgeInsets.all(8.0),
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/clientes',
-                  ); // Navega a la vista de Clientes
+                  Navigator.pushNamed(context, '/clientes');
                 },
                 icon: const Icon(Icons.person),
                 label: const Text("Clientes"),
@@ -118,6 +107,45 @@ class HomePage extends StatelessWidget {
                 },
                 icon: const Icon(Icons.show_chart),
                 label: const Text("Estadísticas"),
+              ),
+            ),
+            // Nuevo botón para probar la conexión a la base de datos
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  // Mostrar indicador de carga
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Comprobando conexión a la base de datos...',
+                      ),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+
+                  // Comprobar conexión a la base de datos
+                  final result = await DatabaseConnectionTest.testConnection();
+
+                  if (!context.mounted) return;
+
+                  // Mostrar resultado
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        result
+                            ? '✅ Conexión exitosa a la base de datos'
+                            : '❌ Error al conectar a la base de datos',
+                      ),
+                      backgroundColor: result ? Colors.green : Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.storage,
+                ), // Cambiado de database a storage
+                label: const Text("Probar Conexión BD"),
               ),
             ),
           ],
@@ -151,7 +179,6 @@ class HomePage extends StatelessWidget {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ),
-          // Eliminar el GridView.builder que contiene la imagen y el precio
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Align(

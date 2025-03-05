@@ -1,18 +1,17 @@
-import 'package:mysql1/mysql1.dart';
 import 'package:logging/logging.dart';
 import '../models/usuario_model.dart';
 import '../services/mysql_helper.dart';
 
 class UsuarioController {
-  final DatabaseService _dbService = DatabaseService();
+  final DatabaseService _dbService;
   final Logger _logger = Logger('UsuarioController');
 
-  UsuarioController(MySqlConnection connection);
+  UsuarioController({DatabaseService? dbService})
+    : _dbService = dbService ?? DatabaseService();
 
   Future<int> insertUsuario(Usuario usuario) async {
-    final conn = await _dbService.connection;
-
     try {
+      final conn = await _dbService.connection;
       var result = await conn.query('CALL CrearUsuario(?, ?, ?, ?)', [
         usuario.nombre,
         usuario.apellido,
@@ -23,44 +22,54 @@ class UsuarioController {
       return result.insertId ?? -1;
     } catch (e) {
       _logger.severe('Error al insertar usuario: $e');
-      return -1;
+      throw Exception('No se pudo insertar el usuario: $e');
     }
   }
 
   Future<List<Usuario>> getUsuarios() async {
-    final conn = await _dbService.connection;
-
-    var results = await conn.query('SELECT * FROM usuarios');
-
-    return results.map((row) => Usuario.fromMap(row.fields)).toList();
+    try {
+      final conn = await _dbService.connection;
+      var results = await conn.query('SELECT * FROM usuarios');
+      return results.map((row) => Usuario.fromMap(row.fields)).toList();
+    } catch (e) {
+      _logger.severe('Error al obtener usuarios: $e');
+      throw Exception('No se pudieron obtener los usuarios: $e');
+    }
   }
 
   Future<Usuario?> getUsuario(int id) async {
-    final conn = await _dbService.connection;
+    try {
+      final conn = await _dbService.connection;
+      var results = await conn.query(
+        'SELECT * FROM usuarios WHERE id_usuario = ?',
+        [id],
+      );
 
-    var results = await conn.query(
-      'SELECT * FROM usuarios WHERE id_usuario = ?',
-      [id],
-    );
-
-    return results.isNotEmpty ? Usuario.fromMap(results.first.fields) : null;
+      return results.isNotEmpty ? Usuario.fromMap(results.first.fields) : null;
+    } catch (e) {
+      _logger.severe('Error al obtener usuario: $e');
+      throw Exception('No se pudo obtener el usuario: $e');
+    }
   }
 
   Future<bool> verificarCredenciales(String username, String password) async {
-    final conn = await _dbService.connection;
+    try {
+      final conn = await _dbService.connection;
+      var results = await conn.query(
+        'SELECT * FROM usuarios WHERE nombre_usuario = ? AND contraseña_usuario = ?',
+        [username, password],
+      );
 
-    var results = await conn.query(
-      'SELECT * FROM usuarios WHERE nombre_usuario = ? AND contraseña_usuario = ?',
-      [username, password],
-    );
-
-    return results.isNotEmpty;
+      return results.isNotEmpty;
+    } catch (e) {
+      _logger.severe('Error al verificar credenciales: $e');
+      throw Exception('Error de autenticación: $e');
+    }
   }
 
   Future<int> updateUsuario(Usuario usuario) async {
-    final conn = await _dbService.connection;
-
     try {
+      final conn = await _dbService.connection;
       var result = await conn.query('CALL ActualizarUsuario(?, ?, ?, ?, ?)', [
         usuario.id,
         usuario.nombre,
@@ -72,20 +81,19 @@ class UsuarioController {
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al actualizar usuario: $e');
-      return 0;
+      throw Exception('No se pudo actualizar el usuario: $e');
     }
   }
 
   Future<int> inactivarUsuario(int id) async {
-    final conn = await _dbService.connection;
-
     try {
+      final conn = await _dbService.connection;
       var result = await conn.query('CALL InactivarUsuario(?)', [id]);
 
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al inactivar usuario: $e');
-      return 0;
+      throw Exception('No se pudo inactivar el usuario: $e');
     }
   }
 }

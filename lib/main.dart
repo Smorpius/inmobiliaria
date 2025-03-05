@@ -1,25 +1,29 @@
+import 'vistas/usuario.dart';
+import 'vistas/clientes.dart';
+import 'services/mysql_helper.dart';
+import 'services/auth_service.dart';
 import 'package:flutter/material.dart';
+import 'controllers/usuario_controller.dart';
 import 'package:inmobiliaria/vistas/menu.dart';
-import 'vistas/usuario.dart'; // Importa la clase UsuarioPage
-import 'vistas/clientes.dart'; // Importa la clase ClientesScreen
-import 'services/mysql_helper.dart'; // Importa la clase MySqlHelper
-import 'controllers/usuario_controller.dart'; // Importa la clase UsuarioController
 
 Future<void> main() async {
-  // Initialize MySQL connection
-  final mysqlHelper = DatabaseService();
-  final connection = await mysqlHelper.connection;
+  // Use dependency injection
+  final dbService = DatabaseService();
+  final usuarioController = UsuarioController(dbService: dbService);
+  final authService = AuthService(usuarioController);
 
-  // Pass the connection to controllers
-  final usuarioController = UsuarioController(connection);
-
-  runApp(MyApp(usuarioController: usuarioController));
+  runApp(MyApp(usuarioController: usuarioController, authService: authService));
 }
 
 class MyApp extends StatelessWidget {
   final UsuarioController usuarioController;
+  final AuthService authService;
 
-  const MyApp({super.key, required this.usuarioController});
+  const MyApp({
+    super.key,
+    required this.usuarioController,
+    required this.authService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,14 +32,11 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: HomePage(), // Cambia la clase inicial a InicioUsuario
+      home: HomePage(),
       routes: {
         '/usuario':
-            (context) => UsuarioPage(
-              usuarioController: usuarioController,
-            ), // Define la ruta
-        '/clientes':
-            (context) => ClientesScreen(), // Define la ruta para Clientes
+            (context) => UsuarioPage(usuarioController: usuarioController),
+        '/clientes': (context) => ClientesScreen(),
       },
     );
   }
