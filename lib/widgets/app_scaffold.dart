@@ -239,7 +239,12 @@ class AppScaffold extends StatelessWidget {
             if (route == currentRoute) return;
 
             if (route == '/') {
-              Navigator.pushReplacementNamed(context, route);
+              // Elimina todas las rutas anteriores de la pila
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                route,
+                (route) => false,
+              );
             } else {
               Navigator.pushNamed(context, route);
             }

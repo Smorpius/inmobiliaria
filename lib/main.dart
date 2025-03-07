@@ -1,11 +1,11 @@
-import 'vistas/menu.dart';
-import 'vistas/usuario.dart';
-import 'vistas/clientes.dart';
+import 'vistas/vista_user.dart';
+import 'vistas/vista_menu.dart';
+import 'vistas/vista_clientes.dart';
 import 'services/mysql_helper.dart';
 import 'services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'controllers/usuario_controller.dart';
-import 'vistas/inmuebles.dart'; // Import para la pantalla de Inmuebles
+import 'vistas/vista_inmuebles.dart'; // Import para la pantalla de Inmuebles
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

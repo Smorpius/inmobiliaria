@@ -1,19 +1,8 @@
-import 'vista_agregar_inmueble.dart';
+import 'vista_add_inmueble.dart';
+import '../widgets/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import '../models/inmueble_model.dart';
 import '../controllers/inmueble_controller.dart';
-
-class InmueblesApp extends StatelessWidget {
-  const InmueblesApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
-    );
-  }
-}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,7 +27,7 @@ class HomeScreenState extends State<HomeScreen> {
     setState(() => _isLoading = true);
     try {
       final inmuebles = await _inmuebleController.getInmuebles();
-      if (!mounted) return; // Verificación después de la operación asíncrona
+      if (!mounted) return;
       setState(() {
         _inmuebles = inmuebles;
         _isLoading = false;
@@ -55,30 +44,38 @@ class HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inmuebles'),
-        elevation: 2,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _cargarInmuebles,
+    return AppScaffold(
+      title: 'Inmuebles',
+      currentRoute: '/inmuebles',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _cargarInmuebles,
+        ),
+      ],
+      body: Stack(
+        children: [
+          _buildBody(),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AgregarInmuebleScreen(),
+                  ),
+                );
+                if (!mounted) return;
+                if (result == true) {
+                  _cargarInmuebles();
+                }
+              },
+              child: const Icon(Icons.add),
+            ),
           ),
         ],
-      ),
-      body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AgregarInmuebleScreen()),
-          );
-          if (!mounted) return; // Verificación tras la navegación asíncrona
-          if (result == true) {
-            _cargarInmuebles();
-          }
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -111,7 +108,10 @@ class HomeScreenState extends State<HomeScreen> {
           children: [
             Icon(Icons.home_work, size: 80, color: Colors.grey),
             SizedBox(height: 16),
-            Text('No hay inmuebles registrados', style: TextStyle(fontSize: 16, color: Colors.grey)),
+            Text(
+              'No hay inmuebles registrados',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
             SizedBox(height: 8),
             Text('Pulse el botón + para agregar un inmueble'),
           ],
@@ -170,9 +170,7 @@ class HomeScreenState extends State<HomeScreen> {
       child: Card(
         color: Colors.grey[100],
         elevation: 3,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -186,11 +184,7 @@ class HomeScreenState extends State<HomeScreen> {
                 border: Border.all(color: Colors.grey[400]!),
               ),
               child: Center(
-                child: Icon(
-                  Icons.home,
-                  size: 80,
-                  color: Colors.grey[700],
-                ),
+                child: Icon(Icons.home, size: 80, color: Colors.grey[700]),
               ),
             ),
             // Información del inmueble
@@ -201,7 +195,10 @@ class HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     inmueble.nombre,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -213,7 +210,10 @@ class HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 4),
                   Text(
                     'Precio: \$${inmueble.montoTotal.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
                   ),
                 ],
               ),
@@ -228,7 +228,8 @@ class HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => EditInmuebleScreen(inmueble: inmueble),
+                        builder:
+                            (context) => EditInmuebleScreen(inmueble: inmueble),
                       ),
                     ).then((result) {
                       if (result == true) {
@@ -253,27 +254,26 @@ class InmuebleDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(inmueble.nombre),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditInmuebleScreen(inmueble: inmueble),
-                ),
-              );
-              if (!Navigator.of(context).mounted) return;
-              if (result == true) {
-                Navigator.pop(context, true);
-              }
-            },
-          ),
-        ],
-      ),
+    return AppScaffold(
+      title: inmueble.nombre,
+      currentRoute: '/inmuebles',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.edit),
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditInmuebleScreen(inmueble: inmueble),
+              ),
+            );
+            // Verificar si el contexto sigue siendo válido
+            if (context.mounted && result == true) {
+              Navigator.pop(context, true);
+            }
+          },
+        ),
+      ],
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -299,21 +299,34 @@ class InmuebleDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _buildInfoRow('Nombre:', inmueble.nombre),
-            _buildInfoRow('Precio:', '\$${inmueble.montoTotal.toStringAsFixed(2)}'),
-            _buildInfoRow('ID Cliente:', inmueble.idCliente?.toString() ?? 'No asignado'),
-            _buildInfoRow('Estado:', inmueble.idEstado?.toString() ?? 'No definido'),
+            _buildInfoRow(
+              'Precio:',
+              '\$${inmueble.montoTotal.toStringAsFixed(2)}',
+            ),
+            _buildInfoRow(
+              'ID Cliente:',
+              inmueble.idCliente?.toString() ?? 'No asignado',
+            ),
+            _buildInfoRow(
+              'Estado:',
+              inmueble.idEstado?.toString() ?? 'No definido',
+            ),
             _buildInfoRow(
               'Fecha de registro:',
-              inmueble.fechaRegistro?.toLocal().toString().split(' ')[0] ?? 'No disponible',
+              inmueble.fechaRegistro?.toLocal().toString().split(' ')[0] ??
+                  'No disponible',
             ),
             const SizedBox(height: 24),
-            // Dirección (simulada, ya que no se incluye en el modelo actual)
+            // Dirección
             const Text(
               'Dirección',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow('ID Dirección:', inmueble.idDireccion?.toString() ?? 'No asignada'),
+            _buildInfoRow(
+              'ID Dirección:',
+              inmueble.idDireccion?.toString() ?? 'No asignada',
+            ),
           ],
         ),
       ),
@@ -333,9 +346,7 @@ class InmuebleDetailScreen extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 16)),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 16))),
         ],
       ),
     );
@@ -364,8 +375,12 @@ class EditInmuebleScreenState extends State<EditInmuebleScreen> {
   void initState() {
     super.initState();
     _nombreController = TextEditingController(text: widget.inmueble.nombre);
-    _montoController = TextEditingController(text: widget.inmueble.montoTotal.toString());
-    _estadoController = TextEditingController(text: widget.inmueble.idEstado?.toString() ?? '1');
+    _montoController = TextEditingController(
+      text: widget.inmueble.montoTotal.toString(),
+    );
+    _estadoController = TextEditingController(
+      text: widget.inmueble.idEstado?.toString() ?? '1',
+    );
   }
 
   @override
@@ -378,8 +393,10 @@ class EditInmuebleScreenState extends State<EditInmuebleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Editar Inmueble')),
+    return AppScaffold(
+      title: 'Editar Inmueble',
+      currentRoute: '/inmuebles',
+      showDrawer: false, // No mostrar drawer en pantalla de edición
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _buildEditForm(),
