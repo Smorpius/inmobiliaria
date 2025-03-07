@@ -1,20 +1,25 @@
+import 'vistas/menu.dart';
 import 'vistas/usuario.dart';
 import 'vistas/clientes.dart';
 import 'services/mysql_helper.dart';
 import 'services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'controllers/usuario_controller.dart';
-import 'package:inmobiliaria/vistas/menu.dart';
-import 'vistas/inmuebles.dart'; // Añade esta importación
+import 'vistas/inmuebles.dart'; // Import para la pantalla de Inmuebles
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Asegura la inicialización
+  WidgetsFlutterBinding.ensureInitialized();
   final dbService = DatabaseService();
-  await dbService.connection; // Espera la conexión a la base de datos
+  await dbService.connection; 
   final usuarioController = UsuarioController(dbService: dbService);
   final authService = AuthService(usuarioController);
 
-  runApp(MyApp(usuarioController: usuarioController, authService: authService));
+  runApp(
+    MyApp(
+      usuarioController: usuarioController,
+      authService: authService,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -41,7 +46,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/usuario': (context) => UsuarioPage(usuarioController: usuarioController),
         '/clientes': (context) => const ClientesScreen(),
-        '/inmuebles': (context) => const HomeScreen(), // Añade esta ruta
+        '/inmuebles': (context) => const HomeScreen(),
       },
     );
   }

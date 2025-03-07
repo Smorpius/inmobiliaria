@@ -1,245 +1,168 @@
 import 'dart:async';
+import 'package:logging/logging.dart';
 import '../models/inmueble_model.dart';
 import '../services/mysql_helper.dart';
-import 'package:logging/logging.dart'; // Importar paquete de logging
 
 class InmuebleController {
   final DatabaseService dbHelper;
-  final Logger _logger = Logger('InmuebleController'); // Crear instancia de logger
+  final Logger _logger = Logger('InmuebleController');
 
-  // Constructor con inyección de dependencias para facilitar pruebas unitarias
-  InmuebleController({DatabaseService? dbService}) 
-      : dbHelper = dbService ?? DatabaseService();
+  InmuebleController({DatabaseService? dbService})
+    : dbHelper = dbService ?? DatabaseService();
 
-  // Crear un nuevo inmueble usando SQL directo
+  Future<List<Inmueble>> getInmuebles() async {
+    try {
+      _logger.info('Iniciando consulta de inmuebles...');
+      final db = await dbHelper.connection;
+
+      final results = await db.query('''
+        SELECT 
+          i.id_inmueble, 
+          i.nombre_inmueble, 
+          i.id_direccion, 
+          i.monto_total, 
+          i.id_estado, 
+          i.id_cliente,
+          i.fecha_registro
+        FROM inmuebles i
+        WHERE i.id_estado = 1
+        ORDER BY i.fecha_registro DESC
+      ''');
+
+      _logger.info('Resultados obtenidos: ${results.length} inmuebles');
+
+      if (results.isNotEmpty) {
+        _logger.info('Primer registro: ${results.first.fields}');
+      }
+
+      final List<Inmueble> inmuebles = [];
+
+      for (var row in results) {
+        try {
+          final inmueble = Inmueble.fromMap(row.fields);
+          inmuebles.add(inmueble);
+          _logger.fine('Inmueble procesado: $inmueble');
+        } catch (e) {
+          _logger.warning(
+            'Error procesando inmueble: ${row.fields}, error: $e',
+          );
+        }
+      }
+
+      _logger.info('Inmuebles procesados: ${inmuebles.length}');
+      return inmuebles;
+    } catch (e) {
+      _logger.severe('Error al obtener inmuebles: $e');
+      _logger.severe('Error detallado al obtener inmuebles: $e');
+      return [];
+    }
+  }
+
   Future<int> insertInmueble(Inmueble inmueble) async {
     try {
+      _logger.info('Insertando inmueble: $inmueble');
       final db = await dbHelper.connection;
+
       final result = await db.query(
-        'INSERT INTO INMUEBLES (nombre_inmueble, id_direccion, monto_total, id_estado, id_cliente) VALUES (?, ?, ?, ?, ?)',
+        '''
+        INSERT INTO inmuebles (
+          nombre_inmueble, 
+          id_direccion, 
+          monto_total, 
+          id_estado, 
+          id_cliente,
+          fecha_registro
+        ) VALUES (?, ?, ?, ?, ?, NOW())
+      ''',
         [
           inmueble.nombre,
           inmueble.idDireccion,
           inmueble.montoTotal,
-          inmueble.idEstado,
+          inmueble.idEstado ?? 1,
           inmueble.idCliente,
         ],
+      );
+
+      _logger.info(
+        'Inmueble insertado: ID=${result.insertId}, Filas afectadas=${result.affectedRows}',
       );
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al insertar inmueble: $e');
-      rethrow; // Propagar el error para manejo en la UI
+      throw Exception('Error al insertar inmueble: $e');
     }
   }
 
-  // Crear un nuevo inmueble usando el procedimiento almacenado
-  Future<int> insertInmuebleUsingStoredProc(
-      String nombre,
-      String calle,
-      String numero,
-      String ciudad,
-      int idEstado,
-      String codigoPostal,
-      double montoTotal,
-      String estatusInmueble,
-      int? idCliente) async {
-    try {
-      final db = await dbHelper.connection;
-      final result = await db.query(
-        'CALL CrearInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          nombre,
-          calle,
-          numero,
-          ciudad,
-          idEstado,
-          codigoPostal,
-          montoTotal,
-          estatusInmueble,
-          idCliente
-        ],
-      );
-      return result.affectedRows ?? 0;
-    } catch (e) {
-      _logger.severe('Error al insertar inmueble con procedimiento: $e');
-      rethrow;
-    }
-  }
-
-  // Obtener todos los inmuebles
-  Future<List<Inmueble>> getInmuebles() async {
-    try {
-      final db = await dbHelper.connection;
-      final results = await db.query('SELECT * FROM INMUEBLES');
-      return results.map((row) => Inmueble.fromMap(row.fields)).toList();
-    } catch (e) {
-      _logger.warning('Error al obtener inmuebles: $e');
-      return []; // Retornar lista vacía en caso de error
-    }
-  }
-
-  // Obtener un inmueble por ID
-  Future<Inmueble?> getInmueble(int id) async {
-    try {
-      final db = await dbHelper.connection;
-      final results = await db.query(
-        'SELECT * FROM INMUEBLES WHERE id_inmueble = ?',
-        [id],
-      );
-
-      if (results.isNotEmpty) {
-        return Inmueble.fromMap(results.first.fields);
-      }
-      return null;
-    } catch (e) {
-      _logger.warning('Error al obtener inmueble por ID: $e');
-      return null;
-    }
-  }
-
-  // Obtener inmuebles por cliente usando procedimiento almacenado
-  Future<List<Inmueble>> getInmueblesByCliente(int clienteId) async {
-    try {
-      final db = await dbHelper.connection;
-      final results = await db.query(
-        'CALL BuscarInmueblePorCliente(?)',
-        [clienteId],
-      );
-
-      // Corregido: Tratamos results como un conjunto de resultados
-      if (results.isNotEmpty) {
-        // Para procedimientos almacenados, necesitamos acceder a los resultados de manera diferente
-        // Dependiendo de la estructura exacta de la respuesta, ajustar según sea necesario
-        return results.fold<List<Inmueble>>([], (list, resultSet) {
-          list.addAll(resultSet.map((row) => Inmueble.fromMap(row.fields)));
-          return list;
-        });
-      }
-      return [];
-    } catch (e) {
-      _logger.warning('Error al obtener inmuebles por cliente: $e');
-      return [];
-    }
-  }
-
-  // Método alternativo usando SQL directo si hay problemas con el proc almacenado
-  Future<List<Inmueble>> getInmueblesByClienteSQL(int clienteId) async {
-    try {
-      final db = await dbHelper.connection;
-      final results = await db.query(
-        'SELECT * FROM INMUEBLES WHERE id_cliente = ?',
-        [clienteId],
-      );
-      return results.map((row) => Inmueble.fromMap(row.fields)).toList();
-    } catch (e) {
-      _logger.warning('Error al obtener inmuebles por cliente: $e');
-      return [];
-    }
-  }
-
-  // Actualizar inmueble usando SQL directo
   Future<int> updateInmueble(Inmueble inmueble) async {
     try {
-      if (inmueble.id == null) {
-        throw Exception("No se puede actualizar un inmueble sin ID");
-      }
-      
+      _logger.info('Actualizando inmueble: $inmueble');
       final db = await dbHelper.connection;
+
       final result = await db.query(
-        'UPDATE INMUEBLES SET nombre_inmueble = ?, id_direccion = ?, monto_total = ?, id_estado = ?, id_cliente = ? WHERE id_inmueble = ?',
+        '''
+        UPDATE inmuebles
+        SET 
+          nombre_inmueble = ?,
+          monto_total = ?,
+          id_estado = ?,
+          id_cliente = ?
+        WHERE id_inmueble = ?
+      ''',
         [
           inmueble.nombre,
-          inmueble.idDireccion,
           inmueble.montoTotal,
-          inmueble.idEstado,
+          inmueble.idEstado ?? 1,
           inmueble.idCliente,
           inmueble.id,
         ],
       );
-      return result.affectedRows ?? 0;
-    } catch (e) {
-      _logger.severe('Error al actualizar inmueble: $e');
-      rethrow;
-    }
-  }
 
-  // Actualizar inmueble usando procedimiento almacenado
-  Future<int> updateInmuebleUsingStoredProc(
-      int idInmueble,
-      String nombre,
-      String calle,
-      String numero,
-      String ciudad,
-      int idEstado,
-      double montoTotal,
-      int? idCliente) async {
-    try {
-      final db = await dbHelper.connection;
-      final result = await db.query(
-        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          idInmueble,
-          nombre,
-          calle,
-          numero,
-          ciudad,
-          idEstado,
-          montoTotal,
-          idCliente
-        ],
+      _logger.info(
+        'Inmueble actualizado: ID=${inmueble.id}, Filas afectadas=${result.affectedRows}',
       );
       return result.affectedRows ?? 0;
     } catch (e) {
-      _logger.severe('Error al actualizar inmueble con procedimiento: $e');
-      rethrow;
+      _logger.severe('Error al actualizar inmueble: $e');
+      throw Exception('Error al actualizar inmueble: $e');
     }
   }
 
-  // Eliminar inmueble
   Future<int> deleteInmueble(int id) async {
     try {
+      _logger.info('Eliminando inmueble con ID: $id');
       final db = await dbHelper.connection;
+
       final result = await db.query(
-        'DELETE FROM INMUEBLES WHERE id_inmueble = ?',
+        'DELETE FROM inmuebles WHERE id_inmueble = ?',
         [id],
+      );
+
+      _logger.info(
+        'Inmueble eliminado: ID=$id, Filas afectadas=${result.affectedRows}',
       );
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al eliminar inmueble: $e');
-      rethrow;
+      throw Exception('Error al eliminar inmueble: $e');
     }
   }
-  
-  // Obtener inmuebles con detalles de dirección (join)
-  Future<List<Map<String, dynamic>>> getInmueblesConDireccion() async {
+
+  Future<bool> verificarExistenciaInmueble(int id) async {
     try {
+      _logger.info('Verificando existencia del inmueble con ID: $id');
       final db = await dbHelper.connection;
-      final results = await db.query('''
-        SELECT i.*, d.calle, d.numero, d.ciudad, d.codigo_postal, e.nombre_estado
-        FROM INMUEBLES i
-        LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
-        LEFT JOIN estados e ON i.id_estado = e.id_estado
-      ''');
-      
-      return results.map((row) => {...row.fields}).toList();
-    } catch (e) {
-      _logger.warning('Error al obtener inmuebles con dirección: $e');
-      return [];
-    }
-  }
-  
-  // Cambiar estado del inmueble (útil para marcar como vendido/disponible)
-  Future<int> cambiarEstadoInmueble(int idInmueble, int nuevoEstadoId) async {
-    try {
-      final db = await dbHelper.connection;
+
       final result = await db.query(
-        'UPDATE INMUEBLES SET id_estado = ? WHERE id_inmueble = ?',
-        [nuevoEstadoId, idInmueble],
+        'SELECT COUNT(*) as count FROM inmuebles WHERE id_inmueble = ?',
+        [id],
       );
-      return result.affectedRows ?? 0;
+
+      final int count = result.first.fields['count'] as int;
+      _logger.info('¿Inmueble $id existe? ${count > 0}');
+      return count > 0;
     } catch (e) {
-      _logger.severe('Error al cambiar estado del inmueble: $e');
-      rethrow;
+      _logger.warning('Error al verificar existencia de inmueble: $e');
+      return false;
     }
   }
 }
