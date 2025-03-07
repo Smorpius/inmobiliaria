@@ -305,9 +305,6 @@ BEGIN
         END
     WHERE id_usuario = p_id_usuario;
 END //
-
-
-
 -- Procedimiento para inactivar usuario con verificación mejorada
 -- CORREGIDO: Eliminado el bloque duplicado
 CREATE PROCEDURE InactivarUsuario(IN p_id_usuario INT)
@@ -902,3 +899,203 @@ CREATE INDEX idx_inmuebles_estado ON inmuebles(id_estado);
 CREATE INDEX idx_clientes_estado ON clientes(id_estado);
 CREATE INDEX idx_proveedores_estado ON proveedores(id_estado);
 CREATE INDEX idx_empleados_estado ON empleados(id_estado);
+
+
+-- Agregar columna de relación en la tabla empleados
+ALTER TABLE empleados
+ADD COLUMN id_usuario INT,
+ADD CONSTRAINT fk_empleados_usuarios 
+FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario);
+
+-- Crear índice para mejorar rendimiento en la relación
+CREATE INDEX idx_empleados_usuario ON empleados(id_usuario);
+
+-- Procedimiento para crear usuario y empleado simultáneamente
+DELIMITER //
+-- Eliminar el procedimiento si ya existe antes de crearlo
+DROP PROCEDURE IF EXISTS CrearUsuarioEmpleado;
+CREATE PROCEDURE CrearUsuarioEmpleado(
+  -- Parámetros para usuarios
+  IN p_nombre VARCHAR(100),
+  IN p_apellido VARCHAR(100),
+  IN p_nombre_usuario VARCHAR(100),
+  IN p_contraseña VARCHAR(255),
+  IN p_correo VARCHAR(100),
+  
+  -- Parámetros para empleados
+  IN p_clave_sistema VARCHAR(20),
+  IN p_apellido_materno VARCHAR(100),
+  IN p_telefono VARCHAR(15),
+  IN p_direccion VARCHAR(255),
+  IN p_cargo VARCHAR(100),
+  IN p_sueldo_actual DECIMAL(10,2),
+  IN p_fecha_contratacion DATE
+)
+BEGIN
+  DECLARE v_id_usuario INT;
+  DECLARE v_id_estado_activo INT DEFAULT 1;
+  
+  -- Validaciones
+  IF LENGTH(p_contraseña) < 8 THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La contraseña debe tener al menos 8 caracteres';
+  END IF;
+
+  IF EXISTS(SELECT 1 FROM usuarios WHERE nombre_usuario = p_nombre_usuario) THEN 
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El nombre de usuario ya existe';
+  END IF;
+  
+  START TRANSACTION;
+  
+  -- Crear el usuario
+  INSERT INTO usuarios (
+    nombre, apellido, nombre_usuario, contraseña_usuario, correo_cliente, id_estado
+  ) VALUES (
+    p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), p_correo, v_id_estado_activo
+  );
+  
+  SET v_id_usuario = LAST_INSERT_ID();
+  
+  -- Registrar historial
+  INSERT INTO historial_usuarios (id_usuario, id_estado_anterior, id_estado_nuevo)
+  VALUES (v_id_usuario, NULL, v_id_estado_activo);
+  
+  -- Crear el empleado vinculado
+  INSERT INTO empleados (
+    id_usuario, clave_sistema, nombre, apellido_paterno, apellido_materno, 
+    correo, telefono, direccion, cargo, sueldo_actual, fecha_contratacion, id_estado
+  ) VALUES (
+    v_id_usuario, p_clave_sistema, p_nombre, p_apellido, p_apellido_materno,
+    p_correo, p_telefono, p_direccion, p_cargo, p_sueldo_actual, p_fecha_contratacion, v_id_estado_activo
+  );
+  
+  COMMIT;
+END //
+
+-- Procedimiento para consultar empleados con sus datos de usuario
+DROP PROCEDURE IF EXISTS LeerEmpleadosConUsuarios;
+CREATE PROCEDURE LeerEmpleadosConUsuarios()
+BEGIN
+  SELECT 
+    e.*,
+    u.nombre_usuario,
+    u.correo_cliente AS correo_usuario,
+    est.nombre_estado AS estado_empleado
+  FROM empleados e
+  JOIN usuarios u ON e.id_usuario = u.id_usuario
+  JOIN estados est ON e.id_estado = est.id_estado
+  WHERE est.nombre_estado = 'activo';
+END //
+-- Procedimiento para actualización conjunta
+-- Eliminar antes de crear el procedimiento de actualización
+DROP PROCEDURE IF EXISTS ActualizarUsuarioEmpleado;
+CREATE PROCEDURE ActualizarUsuarioEmpleado(
+  IN p_id_usuario INT,
+  IN p_id_empleado INT,
+  IN p_nombre VARCHAR(100),
+  IN p_apellido VARCHAR(100),
+  IN p_nombre_usuario VARCHAR(100),
+  IN p_contraseña VARCHAR(255),
+  IN p_correo VARCHAR(100),
+  IN p_clave_sistema VARCHAR(20),
+  IN p_apellido_materno VARCHAR(100),
+  IN p_telefono VARCHAR(15),
+  IN p_direccion VARCHAR(255),
+  IN p_cargo VARCHAR(100),
+  IN p_sueldo_actual DECIMAL(10,2)
+)
+BEGIN
+  DECLARE v_estado_actual VARCHAR(20);
+    
+  -- Verificaciones de estado
+  SELECT e.nombre_estado INTO v_estado_actual
+  FROM empleados emp
+  JOIN estados e ON emp.id_estado = e.id_estado
+  WHERE emp.id_empleado = p_id_empleado;
+  
+  IF v_estado_actual != 'activo' THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un empleado inactivo';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM usuarios WHERE nombre_usuario = p_nombre_usuario AND id_usuario <> p_id_usuario) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Nombre de usuario ya en uso';
+  END IF;
+  
+  START TRANSACTION;
+  
+  -- Actualizar usuario
+  UPDATE usuarios SET 
+    nombre = p_nombre, 
+    apellido = p_apellido, 
+    nombre_usuario = p_nombre_usuario,
+    correo_cliente = p_correo,
+    contraseña_usuario = CASE 
+        WHEN p_contraseña IS NOT NULL AND p_contraseña <> '' 
+        THEN EncriptarContraseña(p_contraseña)
+        ELSE contraseña_usuario
+    END
+  WHERE id_usuario = p_id_usuario;
+  
+  -- Actualizar empleado
+  UPDATE empleados SET 
+    clave_sistema = p_clave_sistema,
+    nombre = p_nombre,
+    apellido_paterno = p_apellido,
+    apellido_materno = p_apellido_materno,
+    correo = p_correo,
+    telefono = p_telefono,
+    direccion = p_direccion,
+    cargo = p_cargo,
+    sueldo_actual = p_sueldo_actual
+  WHERE id_empleado = p_id_empleado;
+  
+  COMMIT;
+END //
+-- Procedimiento para inactivar ambos registros
+-- Inactivación de usuario y empleado
+DROP PROCEDURE IF EXISTS InactivarUsuarioEmpleado;
+CREATE PROCEDURE InactivarUsuarioEmpleado(IN p_id_usuario INT, IN p_id_empleado INT)
+BEGIN
+  DECLARE v_id_estado_inactivo INT DEFAULT 2;
+  DECLARE v_estado_actual_usuario INT;
+  DECLARE v_estado_actual_empleado INT;
+  DECLARE v_estado_nombre VARCHAR(20);
+  
+  -- Validaciones de estado
+  SELECT usuarios.id_estado, estados.nombre_estado 
+  INTO v_estado_actual_usuario, v_estado_nombre
+  FROM usuarios 
+  JOIN estados ON usuarios.id_estado = estados.id_estado
+  WHERE id_usuario = p_id_usuario;
+  
+  IF v_estado_actual_usuario IS NULL THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
+  END IF;
+  
+  IF v_estado_nombre = 'inactivo' THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El usuario ya está inactivo';
+  END IF;
+  
+  SELECT id_estado INTO v_estado_actual_empleado
+  FROM empleados
+  WHERE id_empleado = p_id_empleado;
+  
+  START TRANSACTION;
+  
+  -- Inactivar usuario
+  UPDATE usuarios 
+  SET id_estado = v_id_estado_inactivo
+  WHERE id_usuario = p_id_usuario;
+  
+  -- Registrar historial
+  INSERT INTO historial_usuarios (id_usuario, id_estado_anterior, id_estado_nuevo)
+  VALUES (p_id_usuario, v_estado_actual_usuario, v_id_estado_inactivo);
+  
+  -- Inactivar empleado
+  UPDATE empleados 
+  SET id_estado = v_id_estado_inactivo
+  WHERE id_empleado = p_id_empleado;
+  
+  COMMIT;
+END //
+
+DELIMITER ;

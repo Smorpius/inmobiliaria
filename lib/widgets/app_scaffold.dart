@@ -112,6 +112,14 @@ class AppScaffold extends StatelessWidget {
               currentRoute: currentRoute,
               context: context,
             ),
+            // Nuevo botón para Empleados
+            _buildDrawerButton(
+              icon: Icons.badge,
+              label: "Empleados",
+              route: '/empleados',
+              currentRoute: currentRoute,
+              context: context,
+            ),
             _buildDrawerButton(
               icon: Icons.person,
               label: "Clientes",

@@ -16,7 +16,7 @@ class Usuario {
     required this.nombreUsuario,
     required this.contrasena,
     this.correo,
-    this.idEstado,
+    this.idEstado = 1, // Valor predeterminado: activo
     this.fechaCreacion,
     this.ultimaActualizacion,
   });
@@ -24,11 +24,11 @@ class Usuario {
   factory Usuario.fromMap(Map<String, dynamic> map) {
     return Usuario(
       id: map['id_usuario'],
-      nombre: map['nombre'],
-      apellido: map['apellido'],
-      nombreUsuario: map['nombre_usuario'], // Hyphenated
-      contrasena: map['contraseña_usuario'], // Use full column name
-      correo: map['correo_cliente'], // From the SQL schema
+      nombre: map['nombre'] ?? '',
+      apellido: map['apellido'] ?? '',
+      nombreUsuario: map['nombre_usuario'] ?? '',
+      contrasena: map['contraseña_usuario'] ?? '',
+      correo: map['correo_cliente'],
       idEstado: map['id_estado'],
       fechaCreacion:
           map['fecha_creacion'] != null
@@ -50,11 +50,13 @@ class Usuario {
       'contraseña_usuario': contrasena,
       'correo_cliente': correo,
       'id_estado': idEstado,
+      // Incluir fechas como en la versión original
       'fecha_creacion': fechaCreacion?.toIso8601String(),
       'ultima_actualizacion': ultimaActualizacion?.toIso8601String(),
     };
   }
 
+  // Agregar el método toString() que tenía la versión original
   @override
   String toString() {
     return 'Usuario{id: $id, nombre: $nombre, apellido: $apellido, nombreUsuario: $nombreUsuario}';

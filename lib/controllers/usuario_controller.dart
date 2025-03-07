@@ -1,5 +1,5 @@
+import '../models/usuario.dart';
 import 'package:logging/logging.dart';
-import '../models/usuario_model.dart';
 import '../services/mysql_helper.dart';
 
 class UsuarioController {
