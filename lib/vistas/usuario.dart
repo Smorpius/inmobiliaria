@@ -1,6 +1,7 @@
 import '../models/usuario_model.dart';
 import 'package:flutter/material.dart';
 import '../controllers/usuario_controller.dart';
+import '../widgets/app_scaffold.dart'; // Importamos el AppScaffold
 
 class UsuarioPage extends StatefulWidget {
   final UsuarioController usuarioController;
@@ -215,34 +216,31 @@ class UsuarioPageState extends State<UsuarioPage> {
             ? _usuarios
             : _usuarios.where((usuario) => usuario.idEstado == 1).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Gestión de Usuarios",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    // Cambiamos el Scaffold por AppScaffold
+    return AppScaffold(
+      title: 'Gestión de Usuarios',
+      currentRoute: '/usuario',
+      // Acciones específicas para esta pantalla
+      actions: [
+        Row(
+          children: [
+            const Text(
+              "Mostrar inactivos",
+              style: TextStyle(color: Colors.teal), // Adaptado al tema teal
+            ),
+            Switch(
+              value: _mostrarInactivos,
+              onChanged: (value) => setState(() => _mostrarInactivos = value),
+              activeColor: Colors.teal, // Adaptado al tema teal
+            ),
+          ],
         ),
-        backgroundColor: const Color.fromARGB(255, 153, 32, 48),
-        actions: [
-          Row(
-            children: [
-              const Text(
-                "Mostrar inactivos",
-                style: TextStyle(color: Colors.white),
-              ),
-              Switch(
-                value: _mostrarInactivos,
-                onChanged: (value) => setState(() => _mostrarInactivos = value),
-                activeColor: Colors.white,
-              ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadUsuarios,
-            tooltip: 'Actualizar',
-          ),
-        ],
-      ),
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _loadUsuarios,
+          tooltip: 'Actualizar',
+        ),
+      ],
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
@@ -268,7 +266,7 @@ class UsuarioPageState extends State<UsuarioPage> {
                           style: Theme.of(
                             context,
                           ).textTheme.titleLarge?.copyWith(
-                            color: const Color.fromARGB(255, 153, 32, 48),
+                            color: Colors.teal, // Adaptado al tema teal
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -361,12 +359,8 @@ class UsuarioPageState extends State<UsuarioPage> {
                               child: ElevatedButton.icon(
                                 onPressed: _agregarUsuario,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color.fromARGB(
-                                    255,
-                                    153,
-                                    32,
-                                    48,
-                                  ),
+                                  backgroundColor:
+                                      Colors.teal, // Adaptado al tema teal
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 15,
@@ -419,12 +413,8 @@ class UsuarioPageState extends State<UsuarioPage> {
                                     style: Theme.of(
                                       context,
                                     ).textTheme.headlineSmall?.copyWith(
-                                      color: const Color.fromARGB(
-                                        255,
-                                        153,
-                                        32,
-                                        48,
-                                      ),
+                                      color:
+                                          Colors.teal, // Adaptado al tema teal
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -497,12 +487,8 @@ class UsuarioPageState extends State<UsuarioPage> {
                                                     CircleAvatar(
                                                       radius: 28,
                                                       backgroundColor:
-                                                          const Color.fromARGB(
-                                                            255,
-                                                            153,
-                                                            32,
-                                                            48,
-                                                          ),
+                                                          Colors
+                                                              .teal, // Adaptado al tema teal
                                                       child: Text(
                                                         usuario
                                                                 .nombre
@@ -628,7 +614,8 @@ class UsuarioPageState extends State<UsuarioPage> {
                                                             icon: const Icon(
                                                               Icons.edit,
                                                               color:
-                                                                  Colors.blue,
+                                                                  Colors
+                                                                      .teal, // Adaptado al tema teal
                                                             ),
                                                             onPressed:
                                                                 () =>
@@ -720,12 +707,14 @@ class UsuarioPageState extends State<UsuarioPage> {
         prefixIcon: icon != null ? Icon(icon) : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color.fromARGB(255, 153, 32, 48)),
+          borderSide: const BorderSide(
+            color: Colors.teal,
+          ), // Adaptado al tema teal
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(
-            color: Color.fromARGB(255, 153, 32, 48),
+            color: Colors.teal, // Adaptado al tema teal
             width: 2,
           ),
         ),
