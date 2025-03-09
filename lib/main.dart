@@ -1,6 +1,5 @@
 import 'vistas/vista_user.dart';
 import 'vistas/vista_menu.dart';
-import 'vistas/vista_clientes.dart';
 import 'services/mysql_helper.dart';
 import 'services/auth_service.dart';
 import 'vistas/vista_inmuebles.dart';
@@ -10,6 +9,7 @@ import 'controllers/usuario_controller.dart';
 import 'services/usuario_empleado_service.dart';
 import 'controllers/usuario_empleado_controller.dart';
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
+import 'vistas/clientes/vista_clientes.dart';  // Importación correcta
 import 'package:intl/date_symbol_data_local.dart'; // Para inicializar los datos de fecha local
 import 'services/image_service.dart'; // Mantenemos el import original (que ahora es una fachada)
 
@@ -88,7 +88,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/usuario':
             (context) => UsuarioPage(usuarioController: usuarioController),
-        '/clientes': (context) => const ClientesScreen(),
+        '/clientes': (context) => const VistaClientes(), // CORREGIDO: ClientesScreen -> VistaClientes
         '/inmuebles': (context) => const HomeScreen(),
         '/empleados':
             (context) =>

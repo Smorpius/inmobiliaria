@@ -10,6 +10,7 @@ DROP PROCEDURE IF EXISTS CrearCliente;
 DROP PROCEDURE IF EXISTS LeerClientes;
 DROP PROCEDURE IF EXISTS ActualizarCliente;
 DROP PROCEDURE IF EXISTS InactivarCliente;
+DROP PROCEDURE IF EXISTS ReactivarCliente;
 DROP PROCEDURE IF EXISTS CrearInmueble;
 DROP PROCEDURE IF EXISTS ActualizarInmueble;
 DROP PROCEDURE IF EXISTS CrearProveedor;
@@ -21,6 +22,7 @@ DROP PROCEDURE IF EXISTS LeerEmpleados;
 DROP PROCEDURE IF EXISTS ActualizarEmpleado;
 DROP PROCEDURE IF EXISTS InactivarEmpleado;
 DROP PROCEDURE IF EXISTS BuscarClientePorRFC;
+DROP PROCEDURE IF EXISTS BuscarClientePorNombre;
 DROP PROCEDURE IF EXISTS BuscarInmueblePorCliente;
 DROP PROCEDURE IF EXISTS CrearUsuarioEmpleado;
 DROP PROCEDURE IF EXISTS LeerEmpleadosConUsuarios;
@@ -72,12 +74,12 @@ CREATE TABLE usuarios (
     nombre_usuario VARCHAR(100) NOT NULL,
     correo_cliente VARCHAR(100),
     contraseña_usuario VARCHAR(255) NOT NULL,
-    imagen_perfil VARCHAR(255) NULL, -- Campo añadido para imagen de perfil
+    imagen_perfil VARCHAR(255) NULL,
     id_estado INT DEFAULT 1,
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE INDEX idx_nombre_usuario (nombre_usuario),
-    INDEX idx_usuarios_correo (correo_cliente), -- Cambiado de UNIQUE a INDEX normal
+    INDEX idx_usuarios_correo (correo_cliente),
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
@@ -93,14 +95,17 @@ CREATE TABLE historial_usuarios (
     FOREIGN KEY (id_estado_nuevo) REFERENCES estados(id_estado)
 );
 
--- Crear tabla de Clientes con validaciones mejoradas
+-- Crear tabla de Clientes con las modificaciones solicitadas
 CREATE TABLE clientes (
     id_cliente INT AUTO_INCREMENT PRIMARY KEY,
-    nombre_cliente VARCHAR(100) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    apellido_paterno VARCHAR(100) NOT NULL,
+    apellido_materno VARCHAR(100),
     id_direccion INT,
     telefono_cliente VARCHAR(20),
     rfc VARCHAR(13) NOT NULL, 
     curp VARCHAR(18) NOT NULL,
+    tipo_cliente ENUM('comprador', 'arrendatario', 'ambos') NOT NULL DEFAULT 'comprador',
     correo_cliente VARCHAR(100),
     id_estado INT DEFAULT 1,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -138,7 +143,7 @@ CREATE TABLE empleados (
     cargo VARCHAR(100) NOT NULL,
     sueldo_actual DECIMAL(10,2) NOT NULL,
     fecha_contratacion DATE NOT NULL,
-    imagen_empleado VARCHAR(255) NULL, -- Campo añadido para imagen de empleado
+    imagen_empleado VARCHAR(255) NULL,
     id_estado INT DEFAULT 1,
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado),
     FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
@@ -340,9 +345,11 @@ BEGIN
     COMMIT;
 END //
 
--- Procedimientos CRUD para Clientes
+-- Procedimientos CRUD para Clientes (modificados)
 CREATE PROCEDURE CrearCliente(
-    IN p_nombre_cliente VARCHAR(100),
+    IN p_nombre VARCHAR(100),
+    IN p_apellido_paterno VARCHAR(100),
+    IN p_apellido_materno VARCHAR(100),
     IN p_direccion_calle VARCHAR(255),
     IN p_direccion_numero VARCHAR(50),
     IN p_direccion_ciudad VARCHAR(100),
@@ -350,7 +357,8 @@ CREATE PROCEDURE CrearCliente(
     IN p_telefono_cliente VARCHAR(20),
     IN p_rfc VARCHAR(13),
     IN p_curp VARCHAR(18),
-    IN p_correo_cliente VARCHAR(100)
+    IN p_correo_cliente VARCHAR(100),
+    IN p_tipo_cliente ENUM('comprador', 'arrendatario', 'ambos')
 )
 BEGIN
     DECLARE v_id_direccion INT;
@@ -373,17 +381,33 @@ BEGIN
     SET v_id_direccion = LAST_INSERT_ID();
     
     INSERT INTO clientes (
-        nombre_cliente, id_direccion, telefono_cliente, rfc, curp, correo_cliente, id_estado
+        nombre, apellido_paterno, apellido_materno, id_direccion, telefono_cliente, 
+        rfc, curp, tipo_cliente, correo_cliente, id_estado
     ) VALUES (
-        p_nombre_cliente, v_id_direccion, p_telefono_cliente, UPPER(p_rfc), UPPER(p_curp), p_correo_cliente, v_id_estado_activo
+        p_nombre, p_apellido_paterno, p_apellido_materno, v_id_direccion, p_telefono_cliente, 
+        UPPER(p_rfc), UPPER(p_curp), COALESCE(p_tipo_cliente, 'comprador'), p_correo_cliente, v_id_estado_activo
     );
 END //
 
 CREATE PROCEDURE LeerClientes()
 BEGIN
     SELECT 
-        c.*,
-        d.calle, d.numero, d.ciudad, d.codigo_postal,
+        c.id_cliente,
+        c.nombre,
+        c.apellido_paterno,
+        c.apellido_materno,
+        c.id_direccion,
+        c.telefono_cliente,
+        c.rfc,
+        c.curp,
+        c.tipo_cliente,
+        c.correo_cliente,
+        c.id_estado,
+        c.fecha_registro,
+        d.calle, 
+        d.numero, 
+        d.ciudad, 
+        d.codigo_postal,
         e.nombre_estado AS estado_cliente
     FROM clientes c
     JOIN direcciones d ON c.id_direccion = d.id_direccion
@@ -393,7 +417,9 @@ END //
 
 CREATE PROCEDURE ActualizarCliente(
     IN p_id_cliente INT,
-    IN p_nombre_cliente VARCHAR(100),
+    IN p_nombre VARCHAR(100),
+    IN p_apellido_paterno VARCHAR(100),
+    IN p_apellido_materno VARCHAR(100),
     IN p_telefono_cliente VARCHAR(20),
     IN p_rfc VARCHAR(13),
     IN p_curp VARCHAR(18),
@@ -401,7 +427,8 @@ CREATE PROCEDURE ActualizarCliente(
     IN p_direccion_calle VARCHAR(255),
     IN p_direccion_numero VARCHAR(50),
     IN p_direccion_ciudad VARCHAR(100),
-    IN p_direccion_codigo_postal VARCHAR(20)
+    IN p_direccion_codigo_postal VARCHAR(20),
+    IN p_tipo_cliente ENUM('comprador', 'arrendatario', 'ambos')
 )
 BEGIN
     DECLARE v_id_direccion INT;
@@ -436,10 +463,13 @@ BEGIN
     WHERE id_direccion = v_id_direccion;
     
     UPDATE clientes SET
-        nombre_cliente = p_nombre_cliente,
+        nombre = p_nombre,
+        apellido_paterno = p_apellido_paterno,
+        apellido_materno = p_apellido_materno,
         telefono_cliente = p_telefono_cliente,
         rfc = UPPER(p_rfc),
         curp = UPPER(p_curp),
+        tipo_cliente = COALESCE(p_tipo_cliente, 'comprador'),
         correo_cliente = p_correo_cliente
     WHERE id_cliente = p_id_cliente;
 END //
@@ -468,6 +498,33 @@ BEGIN
     
     UPDATE clientes 
     SET id_estado = v_id_estado_inactivo
+    WHERE id_cliente = p_id_cliente;
+END //
+
+CREATE PROCEDURE ReactivarCliente(IN p_id_cliente INT)
+BEGIN
+    DECLARE v_id_estado_activo INT;
+    DECLARE v_estado_actual VARCHAR(20);
+    
+    SELECT id_estado INTO v_id_estado_activo
+    FROM estados 
+    WHERE nombre_estado = 'activo';
+    
+    SELECT e.nombre_estado INTO v_estado_actual
+    FROM clientes c
+    JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_cliente = p_id_cliente;
+    
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
+    END IF;
+    
+    IF v_estado_actual = 'activo' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El cliente ya está activo';
+    END IF;
+    
+    UPDATE clientes 
+    SET id_estado = v_id_estado_activo
     WHERE id_cliente = p_id_cliente;
 END //
 
@@ -685,7 +742,7 @@ CREATE PROCEDURE ActualizarEmpleado(
     IN p_direccion VARCHAR(225),
     IN p_cargo VARCHAR(100),
     IN p_sueldo_actual DECIMAL(10,2),
-    IN p_imagen_empleado VARCHAR(255) -- Añadido parámetro para imagen
+    IN p_imagen_empleado VARCHAR(255)
 )
 BEGIN
     DECLARE v_estado_actual VARCHAR(20);
@@ -747,6 +804,19 @@ BEGIN
     JOIN direcciones d ON c.id_direccion = d.id_direccion
     JOIN estados e ON c.id_estado = e.id_estado
     WHERE c.rfc = p_rfc;
+END //
+
+CREATE PROCEDURE BuscarClientePorNombre(IN p_texto VARCHAR(100))
+BEGIN
+    SELECT 
+        c.*, 
+        d.calle, d.numero, d.ciudad, d.codigo_postal,
+        e.nombre_estado AS estado_cliente
+    FROM clientes c
+    JOIN direcciones d ON c.id_direccion = d.id_direccion
+    JOIN estados e ON c.id_estado = e.id_estado
+    WHERE CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', IFNULL(c.apellido_materno, '')) 
+          LIKE CONCAT('%', p_texto, '%');
 END //
 
 CREATE PROCEDURE BuscarInmueblePorCliente(IN p_id_cliente INT)
