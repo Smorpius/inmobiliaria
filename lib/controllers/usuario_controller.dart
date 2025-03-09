@@ -12,13 +12,14 @@ class UsuarioController {
   Future<int> insertUsuario(Usuario usuario) async {
     try {
       final conn = await _dbService.connection;
-      // Incluimos el correo en la llamada al SP
-      var result = await conn.query('CALL CrearUsuario(?, ?, ?, ?, ?)', [
+      // Corregido: Ahora incluimos los 6 parámetros esperados, incluido imagenPerfil
+      var result = await conn.query('CALL CrearUsuario(?, ?, ?, ?, ?, ?)', [
         usuario.nombre,
         usuario.apellido,
         usuario.nombreUsuario,
         usuario.contrasena,
         usuario.correo,
+        usuario.imagenPerfil, // Añadido el parámetro que faltaba
       ]);
       return result.insertId ?? -1;
     } catch (e) {
@@ -69,16 +70,20 @@ class UsuarioController {
   Future<int> updateUsuario(Usuario usuario) async {
     try {
       final conn = await _dbService.connection;
-      // Incluimos el correo en la llamada al SP
-      var result = await conn
-          .query('CALL ActualizarUsuario(?, ?, ?, ?, ?, ?)', [
-            usuario.id,
-            usuario.nombre,
-            usuario.apellido,
-            usuario.nombreUsuario,
-            usuario.contrasena,
-            usuario.correo,
-          ]);
+      // Asegúrate que ActualizarUsuario esté recibiendo todos los parámetros necesarios
+      // Si el procedimiento también espera imagenPerfil, inclúyelo
+      var result = await conn.query(
+        'CALL ActualizarUsuario(?, ?, ?, ?, ?, ?, ?)', // Ajusta según tu SP
+        [
+          usuario.id,
+          usuario.nombre,
+          usuario.apellido,
+          usuario.nombreUsuario,
+          usuario.contrasena,
+          usuario.correo,
+          usuario.imagenPerfil, // Añadido por consistencia, ajusta según tu SP
+        ],
+      );
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al actualizar usuario: $e');

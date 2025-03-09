@@ -5,9 +5,9 @@ class Usuario {
   final String nombreUsuario;
   final String contrasena;
   final String? correo;
-  final int? idEstado;
-  final DateTime? fechaCreacion;
-  final DateTime? ultimaActualizacion;
+  final String? imagenPerfil; // Campo nuevo para la imagen
+  final int idEstado;
+  final String? estadoNombre;
 
   Usuario({
     this.id,
@@ -16,9 +16,9 @@ class Usuario {
     required this.nombreUsuario,
     required this.contrasena,
     this.correo,
-    this.idEstado = 1, // Valor predeterminado: activo
-    this.fechaCreacion,
-    this.ultimaActualizacion,
+    this.imagenPerfil, // Añadido parámetro
+    required this.idEstado,
+    this.estadoNombre,
   });
 
   factory Usuario.fromMap(Map<String, dynamic> map) {
@@ -27,17 +27,11 @@ class Usuario {
       nombre: map['nombre'] ?? '',
       apellido: map['apellido'] ?? '',
       nombreUsuario: map['nombre_usuario'] ?? '',
-      contrasena: map['contraseña_usuario'] ?? '',
+      contrasena: '', // No mostramos la contraseña
       correo: map['correo_cliente'],
-      idEstado: map['id_estado'],
-      fechaCreacion:
-          map['fecha_creacion'] != null
-              ? DateTime.parse(map['fecha_creacion'].toString())
-              : null,
-      ultimaActualizacion:
-          map['ultima_actualizacion'] != null
-              ? DateTime.parse(map['ultima_actualizacion'].toString())
-              : null,
+      imagenPerfil: map['imagen_perfil'], // Añadida lectura del campo
+      idEstado: map['id_estado'] ?? 1,
+      estadoNombre: map['estado_usuario'],
     );
   }
 
@@ -49,16 +43,11 @@ class Usuario {
       'nombre_usuario': nombreUsuario,
       'contraseña_usuario': contrasena,
       'correo_cliente': correo,
+      'imagen_perfil': imagenPerfil, // Añadida escritura del campo
       'id_estado': idEstado,
-      // Incluir fechas como en la versión original
-      'fecha_creacion': fechaCreacion?.toIso8601String(),
-      'ultima_actualizacion': ultimaActualizacion?.toIso8601String(),
     };
   }
 
-  // Agregar el método toString() que tenía la versión original
-  @override
-  String toString() {
-    return 'Usuario{id: $id, nombre: $nombre, apellido: $apellido, nombreUsuario: $nombreUsuario}';
-  }
+  // Para mostrar estado formateado
+  String get estado => estadoNombre ?? (idEstado == 1 ? 'Activo' : 'Inactivo');
 }

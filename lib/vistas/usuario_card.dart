@@ -1,5 +1,6 @@
 import '../../../models/usuario.dart';
 import 'package:flutter/material.dart';
+import '../widgets/user_avatar.dart'; // Importar el widget reutilizable
 
 class UsuarioCard extends StatelessWidget {
   final Usuario usuario;
@@ -12,10 +13,6 @@ class UsuarioCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
   });
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
-  }
 
   String _getEstadoTexto(int? idEstado) {
     return idEstado == 1 ? 'Activo' : 'Inactivo';
@@ -66,17 +63,14 @@ class UsuarioCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 28,
+            // Usar el widget reutilizable UserAvatar en lugar de _buildUsuarioAvatar()
+            UserAvatar(
+              imagePath: usuario.imagenPerfil,
+              nombre: usuario.nombre,
+              apellido: usuario.apellido,
+              radius: 28.0,
               backgroundColor: Colors.teal,
-              child: Text(
-                usuario.nombre.isNotEmpty ? usuario.nombre[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
+              isActive: usuario.idEstado == 1,
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -128,14 +122,6 @@ class UsuarioCard extends StatelessWidget {
                         ? 'No disponible'
                         : usuario.correo!,
                   ),
-                  const SizedBox(height: 4),
-                  _buildInfoRow(
-                    Icons.calendar_today,
-                    "Registro:",
-                    usuario.fechaCreacion != null
-                        ? _formatDate(usuario.fechaCreacion!)
-                        : 'No disponible',
-                  ),
                 ],
               ),
             ),
@@ -143,27 +129,18 @@ class UsuarioCard extends StatelessWidget {
               children: [
                 if (usuario.idEstado == 1)
                   IconButton(
-                    icon: const Icon(
-                      Icons.edit,
-                      color: Colors.teal,
-                    ),
+                    icon: const Icon(Icons.edit, color: Colors.teal),
                     onPressed: () => onEdit(usuario),
                     tooltip: 'Editar usuario',
                   ),
                 const SizedBox(height: 8),
                 usuario.idEstado == 1
                     ? IconButton(
-                        icon: const Icon(
-                          Icons.delete,
-                          color: Colors.red,
-                        ),
-                        onPressed: () => onDelete(usuario),
-                        tooltip: 'Inactivar usuario',
-                      )
-                    : const Icon(
-                        Icons.block,
-                        color: Colors.grey,
-                      ),
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => onDelete(usuario),
+                      tooltip: 'Inactivar usuario',
+                    )
+                    : const Icon(Icons.block, color: Colors.grey),
               ],
             ),
           ],
