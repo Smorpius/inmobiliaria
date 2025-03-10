@@ -6,39 +6,37 @@ class ClienteController {
   final DatabaseService _dbService = DatabaseService();
   final Logger _logger = Logger('ClienteController');
 
-  // Crear un nuevo cliente usando el stored procedure actualizado
+  // Crear un nuevo cliente con los campos de dirección completos
   Future<int> insertCliente(Cliente cliente) async {
     final conn = await _dbService.connection;
 
     try {
       // Llamar al procedimiento almacenado con todos los parámetros requeridos
       var result = await conn.query(
-        'CALL CrearCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL CrearCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
-          cliente.nombre, // p_nombre
-          cliente.apellidoPaterno, // p_apellido_paterno
-          cliente.apellidoMaterno ?? '', // p_apellido_materno
-          cliente.calle ??
-              'Calle por defecto', // Usar valor del formulario si está disponible
-          cliente.numero ??
-              'S/N', // Usar valor del formulario si está disponible
-          cliente.ciudad ??
-              'Ciudad por defecto', // Usar valor del formulario si está disponible
-          cliente.codigoPostal ??
-              '00000', // Usar valor del formulario si está disponible
-          cliente.telefono, // p_telefono_cliente
-          cliente.rfc, // p_rfc
-          cliente.curp, // p_curp
-          cliente.correo, // p_correo_cliente
-          cliente.tipoCliente, // p_tipo_cliente
+          cliente.nombre,
+          cliente.apellidoPaterno,
+          cliente.apellidoMaterno ?? '',
+          // Campos de dirección completos
+          cliente.calle ?? '',
+          cliente.numero ?? '',
+          cliente.colonia ?? '',
+          cliente.ciudad ?? '',
+          cliente.estadoGeografico ?? '',
+          cliente.codigoPostal ?? '',
+          cliente.referencias ?? '',
+          // Resto de campos del cliente
+          cliente.telefono,
+          cliente.rfc,
+          cliente.curp,
+          cliente.correo ?? '',
+          cliente.tipoCliente,
         ],
       );
 
-      _logger.info('Cliente insertado exitosamente');
-
-      // Después de insertar el cliente, cargamos todos los clientes para refrescar la vista
-      await getClientes();
-
+      _logger.info('Cliente insertado exitosamente con ID: ${result.insertId}');
+      await getClientes(); // Actualizar la lista de clientes
       return result.insertId ?? -1;
     } catch (e) {
       _logger.severe('Error al insertar cliente: $e');
@@ -46,64 +44,67 @@ class ClienteController {
     }
   }
 
-  // Obtener todos los clientes usando la nueva estructura
+  // Obtener todos los clientes activos con datos completos de dirección
   Future<List<Cliente>> getClientes() async {
     final conn = await _dbService.connection;
 
     try {
-      // Usar el procedimiento almacenado actualizado
-      final results = await conn.query('CALL LeerClientes()');
+      final results = await conn.query('''
+        SELECT 
+          c.*,
+          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+          d.codigo_postal, d.referencias,
+          e.nombre_estado AS estado_cliente
+        FROM clientes c
+        JOIN direcciones d ON c.id_direccion = d.id_direccion
+        JOIN estados e ON c.id_estado = e.id_estado
+        WHERE e.nombre_estado = 'activo'
+      ''');
 
-      _logger.info(
-        'Tipo de resultados: ${results.runtimeType}, longitud: ${results.length}',
-      );
+      _logger.info('Clientes activos obtenidos: ${results.length}');
 
-      if (results.isEmpty) {
-        _logger.info('No se encontraron clientes');
-        return [];
-      }
+      if (results.isEmpty) return [];
 
       final List<Cliente> clientesList = [];
 
       for (var row in results) {
         try {
-          _logger.info('Procesando fila: ${row.toString()}');
-          // Convertir directamente el resultado a Cliente
           final cliente = Cliente.fromMap(row.fields);
           clientesList.add(cliente);
         } catch (e) {
-          _logger.severe('Error al procesar cliente: $e');
-          // Continuar con el siguiente cliente en caso de error
-          continue;
+          _logger.warning(
+            'Error al procesar cliente: ${row.fields['id_cliente']}: $e',
+          );
         }
       }
 
-      _logger.info('Clientes procesados correctamente: ${clientesList.length}');
       return clientesList;
     } catch (e) {
-      _logger.severe('Error al obtener clientes: $e');
+      _logger.severe('Error al obtener clientes activos: $e');
       throw Exception('Error al obtener clientes: $e');
     }
   }
 
-  // NUEVO: Método para obtener clientes inactivos (CORREGIDO)
+  // Obtener clientes inactivos con datos completos de dirección
   Future<List<Cliente>> getClientesInactivos() async {
     final conn = await _dbService.connection;
 
     try {
-      // Consulta que filtra por clientes inactivos
-      final results = await conn.query(
-        'SELECT c.*, d.calle, d.numero, d.ciudad, d.codigo_postal, e.nombre_estado AS estado_cliente '
-        'FROM clientes c '
-        'JOIN direcciones d ON c.id_direccion = d.id_direccion '
-        'JOIN estados e ON c.id_estado = e.id_estado '
-        'WHERE e.nombre_estado = "inactivo"',
-      );
+      final results = await conn.query('''
+        SELECT 
+          c.*,
+          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+          d.codigo_postal, d.referencias,
+          e.nombre_estado AS estado_cliente
+        FROM clientes c
+        JOIN direcciones d ON c.id_direccion = d.id_direccion
+        JOIN estados e ON c.id_estado = e.id_estado
+        WHERE e.nombre_estado = 'inactivo'
+      ''');
 
-      if (results.isEmpty) {
-        _logger.info('No se encontraron clientes inactivos');
-        return [];
-      }
+      _logger.info('Clientes inactivos obtenidos: ${results.length}');
+
+      if (results.isEmpty) return [];
 
       final List<Cliente> clientesList = [];
 
@@ -112,8 +113,9 @@ class ClienteController {
           final cliente = Cliente.fromMap(row.fields);
           clientesList.add(cliente);
         } catch (e) {
-          _logger.severe('Error al procesar cliente inactivo: $e');
-          continue;
+          _logger.warning(
+            'Error al procesar cliente inactivo: ${row.fields['id_cliente']}: $e',
+          );
         }
       }
 
@@ -124,7 +126,7 @@ class ClienteController {
     }
   }
 
-  // Actualizar cliente con la nueva estructura
+  // Actualizar cliente con campos de dirección completos
   Future<int> updateCliente(Cliente cliente) async {
     final conn = await _dbService.connection;
 
@@ -134,33 +136,28 @@ class ClienteController {
       }
 
       var result = await conn.query(
-        'CALL ActualizarCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL ActualizarCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
-          cliente.id, // p_id_cliente
-          cliente.nombre, // p_nombre
-          cliente.apellidoPaterno, // p_apellido_paterno
-          cliente.apellidoMaterno ?? '', // p_apellido_materno
-          cliente.telefono, // p_telefono_cliente
-          cliente.rfc, // p_rfc
-          cliente.curp, // p_curp
-          cliente.correo, // p_correo_cliente
-          cliente.calle ??
-              'Calle por defecto', // Usar valor del formulario si está disponible
-          cliente.numero ??
-              'S/N', // Usar valor del formulario si está disponible
-          cliente.ciudad ??
-              'Ciudad por defecto', // Usar valor del formulario si está disponible
-          cliente.codigoPostal ??
-              '00000', // Usar valor del formulario si está disponible
-          cliente.tipoCliente, // p_tipo_cliente
+          cliente.id,
+          cliente.nombre,
+          cliente.apellidoPaterno,
+          cliente.apellidoMaterno ?? '',
+          cliente.telefono,
+          cliente.rfc,
+          cliente.curp,
+          cliente.correo ?? '',
+          // Campos de dirección completos
+          cliente.calle ?? '',
+          cliente.numero ?? '',
+          cliente.colonia ?? '',
+          cliente.ciudad ?? '',
+          cliente.estadoGeografico ?? '',
+          cliente.codigoPostal ?? '',
+          cliente.tipoCliente,
         ],
       );
 
-      _logger.info('Cliente actualizado exitosamente');
-
-      // Después de actualizar el cliente, cargamos todos los clientes para refrescar la vista
-      await getClientes();
-
+      _logger.info('Cliente actualizado exitosamente: ID=${cliente.id}');
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al actualizar cliente: $e');
@@ -168,18 +165,13 @@ class ClienteController {
     }
   }
 
-  // Inactivar cliente (no cambia)
+  // Inactivar cliente
   Future<int> inactivarCliente(int id) async {
     final conn = await _dbService.connection;
 
     try {
       var result = await conn.query('CALL InactivarCliente(?)', [id]);
-
-      _logger.info('Cliente inactivado exitosamente');
-
-      // Después de inactivar el cliente, cargamos todos los clientes para refrescar la vista
-      await getClientes();
-
+      _logger.info('Cliente inactivado: ID=$id');
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al inactivar cliente: $e');
@@ -187,18 +179,13 @@ class ClienteController {
     }
   }
 
-  // Reactivar cliente (ya existía pero agregamos logging)
+  // Reactivar cliente
   Future<int> reactivarCliente(int id) async {
     final conn = await _dbService.connection;
 
     try {
       var result = await conn.query('CALL ReactivarCliente(?)', [id]);
-
-      _logger.info('Cliente reactivado exitosamente');
-
-      // Después de reactivar el cliente, refrescamos la vista de clientes inactivos
-      await getClientesInactivos();
-
+      _logger.info('Cliente reactivado: ID=$id');
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al reactivar cliente: $e');
@@ -206,12 +193,26 @@ class ClienteController {
     }
   }
 
-  // Resto de métodos sin cambios...
+  // Buscar cliente por RFC
   Future<Cliente?> getClientePorRFC(String rfc) async {
     final conn = await _dbService.connection;
-    // Implementación sin cambios...
+
     try {
-      final results = await conn.query('CALL BuscarClientePorRFC(?)', [rfc]);
+      final results = await conn.query(
+        '''
+        SELECT 
+          c.*,
+          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+          d.codigo_postal, d.referencias,
+          e.nombre_estado AS estado_cliente
+        FROM clientes c
+        JOIN direcciones d ON c.id_direccion = d.id_direccion
+        JOIN estados e ON c.id_estado = e.id_estado
+        WHERE c.rfc = ?
+      ''',
+        [rfc],
+      );
+
       if (results.isEmpty) return null;
       return Cliente.fromMap(results.first.fields);
     } catch (e) {
@@ -220,13 +221,27 @@ class ClienteController {
     }
   }
 
+  // Buscar clientes por nombre
   Future<List<Cliente>> buscarClientesPorNombre(String texto) async {
     final conn = await _dbService.connection;
-    // Implementación sin cambios...
+
     try {
-      final results = await conn.query('CALL BuscarClientePorNombre(?)', [
-        texto,
-      ]);
+      final results = await conn.query(
+        '''
+        SELECT 
+          c.*,
+          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+          d.codigo_postal, d.referencias,
+          e.nombre_estado AS estado_cliente
+        FROM clientes c
+        JOIN direcciones d ON c.id_direccion = d.id_direccion
+        JOIN estados e ON c.id_estado = e.id_estado
+        WHERE CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', IFNULL(c.apellido_materno, '')) 
+              LIKE CONCAT('%', ?, '%')
+      ''',
+        [texto],
+      );
+
       if (results.isEmpty) return [];
 
       final List<Cliente> clientesList = [];
@@ -235,8 +250,9 @@ class ClienteController {
           final cliente = Cliente.fromMap(row.fields);
           clientesList.add(cliente);
         } catch (e) {
-          _logger.severe('Error al procesar cliente: $e');
-          continue;
+          _logger.warning(
+            'Error al procesar cliente en búsqueda: ${row.fields['id_cliente']}: $e',
+          );
         }
       }
 
@@ -247,17 +263,33 @@ class ClienteController {
     }
   }
 
-  Future<List<dynamic>> getInmueblesPorCliente(int idCliente) async {
+  // Obtener inmuebles asociados a un cliente
+  Future<List<Map<String, dynamic>>> getInmueblesPorCliente(
+    int idCliente,
+  ) async {
     final conn = await _dbService.connection;
-    // Implementación sin cambios...
+
     try {
-      final results = await conn.query('CALL BuscarInmueblePorCliente(?)', [
-        idCliente,
-      ]);
+      final results = await conn.query(
+        '''
+        SELECT 
+          i.*,
+          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+          d.codigo_postal, d.referencias,
+          e.nombre_estado AS estado_inmueble
+        FROM inmuebles i
+        JOIN direcciones d ON i.id_direccion = d.id_direccion
+        JOIN estados e ON i.id_estado = e.id_estado
+        WHERE i.id_cliente = ?
+      ''',
+        [idCliente],
+      );
+
       if (results.isEmpty) return [];
+
       return results.map((row) => row.fields).toList();
     } catch (e) {
-      _logger.severe('Error al buscar inmuebles por cliente: $e');
+      _logger.severe('Error al obtener inmuebles por cliente: $e');
       throw Exception('Error al buscar inmuebles por cliente: $e');
     }
   }

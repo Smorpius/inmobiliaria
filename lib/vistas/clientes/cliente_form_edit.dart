@@ -19,6 +19,7 @@ class ClienteFormEdit extends StatefulWidget {
 }
 
 class _ClienteFormEditState extends State<ClienteFormEdit> {
+  // Controladores para información personal
   late final TextEditingController nombreController;
   late final TextEditingController apellidoPaternoController;
   late final TextEditingController apellidoMaternoController;
@@ -26,11 +27,22 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
   late final TextEditingController rfcController;
   late final TextEditingController curpController;
   late final TextEditingController correoController;
+
+  // Controladores para campos de dirección
+  late final TextEditingController calleController;
+  late final TextEditingController numeroController;
+  late final TextEditingController coloniaController;
+  late final TextEditingController ciudadController;
+  late final TextEditingController estadoGeograficoController;
+  late final TextEditingController codigoPostalController;
+  late final TextEditingController referenciasController;
+
   late String tipoCliente;
 
   @override
   void initState() {
     super.initState();
+    // Inicializar controladores con valores existentes
     nombreController = TextEditingController(text: widget.cliente.nombre);
     apellidoPaternoController = TextEditingController(
       text: widget.cliente.apellidoPaterno,
@@ -42,6 +54,24 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
     rfcController = TextEditingController(text: widget.cliente.rfc);
     curpController = TextEditingController(text: widget.cliente.curp);
     correoController = TextEditingController(text: widget.cliente.correo ?? '');
+
+    // Inicializar controladores de dirección
+    calleController = TextEditingController(text: widget.cliente.calle ?? '');
+    numeroController = TextEditingController(text: widget.cliente.numero ?? '');
+    coloniaController = TextEditingController(
+      text: widget.cliente.colonia ?? '',
+    );
+    ciudadController = TextEditingController(text: widget.cliente.ciudad ?? '');
+    estadoGeograficoController = TextEditingController(
+      text: widget.cliente.estadoGeografico ?? '',
+    );
+    codigoPostalController = TextEditingController(
+      text: widget.cliente.codigoPostal ?? '',
+    );
+    referenciasController = TextEditingController(
+      text: widget.cliente.referencias ?? '',
+    );
+
     tipoCliente = widget.cliente.tipoCliente;
   }
 
@@ -54,6 +84,16 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
     rfcController.dispose();
     curpController.dispose();
     correoController.dispose();
+
+    // Liberar controladores de dirección
+    calleController.dispose();
+    numeroController.dispose();
+    coloniaController.dispose();
+    ciudadController.dispose();
+    estadoGeograficoController.dispose();
+    codigoPostalController.dispose();
+    referenciasController.dispose();
+
     super.dispose();
   }
 
@@ -71,6 +111,19 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
       );
       return false;
     }
+
+    // Validación para campos obligatorios de dirección
+    if (ciudadController.text.isEmpty ||
+        estadoGeograficoController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, ingrese al menos Ciudad y Estado'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return false;
+    }
+
     return true;
   }
 
@@ -96,10 +149,22 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
       idDireccion: widget.cliente.idDireccion,
       idEstado: widget.cliente.idEstado,
       fechaRegistro: widget.cliente.fechaRegistro,
-      calle: widget.cliente.calle,
-      numero: widget.cliente.numero,
-      ciudad: widget.cliente.ciudad,
-      codigoPostal: widget.cliente.codigoPostal,
+
+      // Usar los valores de los controladores de dirección
+      calle: calleController.text.isNotEmpty ? calleController.text : null,
+      numero: numeroController.text.isNotEmpty ? numeroController.text : null,
+      colonia:
+          coloniaController.text.isNotEmpty ? coloniaController.text : null,
+      ciudad: ciudadController.text,
+      estadoGeografico: estadoGeograficoController.text,
+      codigoPostal:
+          codigoPostalController.text.isNotEmpty
+              ? codigoPostalController.text
+              : null,
+      referencias:
+          referenciasController.text.isNotEmpty
+              ? referenciasController.text
+              : null,
     );
 
     try {
@@ -218,6 +283,90 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.emailAddress,
+            ),
+
+            // Sección de dirección
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16.0),
+              child: Divider(thickness: 1),
+            ),
+            const Text(
+              'Información de Dirección',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            // Todos los campos de dirección para editar
+            TextField(
+              controller: calleController,
+              decoration: const InputDecoration(
+                labelText: 'Calle',
+                prefixIcon: Icon(Icons.location_on),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: numeroController,
+              decoration: const InputDecoration(
+                labelText: 'Número',
+                prefixIcon: Icon(Icons.home),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: coloniaController,
+              decoration: const InputDecoration(
+                labelText: 'Colonia',
+                prefixIcon: Icon(Icons.grid_3x3),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ciudadController,
+              decoration: const InputDecoration(
+                labelText: 'Ciudad *',
+                prefixIcon: Icon(Icons.location_city),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: estadoGeograficoController,
+              decoration: const InputDecoration(
+                labelText: 'Estado *',
+                prefixIcon: Icon(Icons.map),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: codigoPostalController,
+              decoration: const InputDecoration(
+                labelText: 'Código Postal',
+                prefixIcon: Icon(Icons.markunread_mailbox),
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: referenciasController,
+              decoration: const InputDecoration(
+                labelText: 'Referencias',
+                prefixIcon: Icon(Icons.info_outline),
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Text(
+                '* Campos obligatorios',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
             ),
           ],
         ),

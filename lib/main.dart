@@ -2,16 +2,16 @@ import 'vistas/vista_user.dart';
 import 'vistas/vista_menu.dart';
 import 'services/mysql_helper.dart';
 import 'services/auth_service.dart';
-import 'vistas/vista_inmuebles.dart';
 import 'dart:developer' as developer;
+import 'services/image_service.dart';
 import 'package:flutter/material.dart';
 import 'controllers/usuario_controller.dart';
+import 'vistas/clientes/vista_clientes.dart';
 import 'services/usuario_empleado_service.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'controllers/usuario_empleado_controller.dart';
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
-import 'vistas/clientes/vista_clientes.dart';  // Importación correcta
-import 'package:intl/date_symbol_data_local.dart'; // Para inicializar los datos de fecha local
-import 'services/image_service.dart'; // Mantenemos el import original (que ahora es una fachada)
+import 'vistas/inmuebles/index.dart';  // Importamos desde el nuevo índice
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +20,8 @@ Future<void> main() async {
   await initializeDateFormatting('es_ES', null);
 
   // Inicializar servicio de caché de imágenes
-  final imageService = ImageService(); // Esta instancia ahora usa la fachada
-  imageService.scheduleCacheCleanup(); // Programar limpieza periódica de caché
+  final imageService = ImageService();
+  imageService.scheduleCacheCleanup();
   developer.log('Servicio de caché de imágenes inicializado');
 
   // Inicialización de servicios
@@ -88,8 +88,8 @@ class MyApp extends StatelessWidget {
       routes: {
         '/usuario':
             (context) => UsuarioPage(usuarioController: usuarioController),
-        '/clientes': (context) => const VistaClientes(), // CORREGIDO: ClientesScreen -> VistaClientes
-        '/inmuebles': (context) => const HomeScreen(),
+        '/clientes': (context) => const VistaClientes(),
+        '/inmuebles': (context) => const InmuebleListScreen(), // Cambiado HomeScreen por InmuebleListScreen
         '/empleados':
             (context) =>
                 ListaEmpleadosScreen(controller: usuarioEmpleadoController),

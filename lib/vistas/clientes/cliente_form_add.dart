@@ -24,11 +24,15 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
   final rfcController = TextEditingController();
   final curpController = TextEditingController();
   final correoController = TextEditingController();
-  // Nuevos controladores para campos de dirección
+
+  // Controladores para TODOS los campos de dirección
   final calleController = TextEditingController();
   final numeroController = TextEditingController();
+  final coloniaController = TextEditingController(); // Añadido
   final ciudadController = TextEditingController();
+  final estadoGeograficoController = TextEditingController(); // Añadido
   final codigoPostalController = TextEditingController();
+  final referenciasController = TextEditingController(); // Añadido
 
   String tipoCliente = 'comprador';
 
@@ -41,10 +45,15 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
     rfcController.dispose();
     curpController.dispose();
     correoController.dispose();
+
+    // Liberar todos los controladores de dirección
     calleController.dispose();
     numeroController.dispose();
+    coloniaController.dispose();
     ciudadController.dispose();
+    estadoGeograficoController.dispose();
     codigoPostalController.dispose();
+    referenciasController.dispose();
     super.dispose();
   }
 
@@ -67,6 +76,17 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       );
       return false;
     }
+
+    // Validación adicional para campos obligatorios de dirección
+    if (ciudadController.text.isEmpty ||
+        estadoGeograficoController.text.isEmpty) {
+      _mostrarSnackBar(
+        'Por favor, ingrese al menos Ciudad y Estado',
+        Colors.orange,
+      );
+      return false;
+    }
+
     return true;
   }
 
@@ -85,18 +105,25 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       curp: curpController.text,
       tipoCliente: tipoCliente,
       correo: correoController.text.isNotEmpty ? correoController.text : null,
-      // Agregar los campos de dirección
+
+      // Todos los campos de dirección
       calle: calleController.text.isNotEmpty ? calleController.text : null,
       numero: numeroController.text.isNotEmpty ? numeroController.text : null,
-      ciudad: ciudadController.text.isNotEmpty ? ciudadController.text : null,
+      colonia:
+          coloniaController.text.isNotEmpty ? coloniaController.text : null,
+      ciudad: ciudadController.text,
+      estadoGeografico: estadoGeograficoController.text,
       codigoPostal:
           codigoPostalController.text.isNotEmpty
               ? codigoPostalController.text
               : null,
+      referencias:
+          referenciasController.text.isNotEmpty
+              ? referenciasController.text
+              : null,
     );
 
     try {
-      // Necesitamos actualizar el método en el controlador para usar estos campos
       await widget.controller.insertCliente(nuevoCliente);
 
       if (!mounted) return;
@@ -214,6 +241,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
             ),
             const SizedBox(height: 12),
 
+            // Campos de dirección completos
             TextField(
               controller: calleController,
               decoration: const InputDecoration(
@@ -233,10 +261,28 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: coloniaController,
+              decoration: const InputDecoration(
+                labelText: 'Colonia',
+                prefixIcon: Icon(Icons.grid_3x3),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: ciudadController,
               decoration: const InputDecoration(
-                labelText: 'Ciudad',
+                labelText: 'Ciudad *',
                 prefixIcon: Icon(Icons.location_city),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: estadoGeograficoController,
+              decoration: const InputDecoration(
+                labelText: 'Estado *',
+                prefixIcon: Icon(Icons.map),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -249,6 +295,23 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: referenciasController,
+              decoration: const InputDecoration(
+                labelText: 'Referencias',
+                prefixIcon: Icon(Icons.info_outline),
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+            const Padding(
+              padding: EdgeInsets.only(top: 8.0),
+              child: Text(
+                '* Campos obligatorios',
+                style: TextStyle(fontStyle: FontStyle.italic),
+              ),
             ),
           ],
         ),

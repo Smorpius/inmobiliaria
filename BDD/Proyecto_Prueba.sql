@@ -34,6 +34,8 @@ DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Primero eliminamos las tablas en orden correcto respetando dependencias
 DROP TABLE IF EXISTS historial_usuarios;
+DROP TABLE IF EXISTS inmuebles_imagenes;
+DROP TABLE IF EXISTS inmuebles_clientes_interesados;
 DROP TABLE IF EXISTS inmuebles;
 DROP TABLE IF EXISTS clientes;
 DROP TABLE IF EXISTS empleados;
@@ -52,17 +54,24 @@ CREATE TABLE IF NOT EXISTS estados (
 INSERT INTO estados (id_estado, nombre_estado) 
 VALUES 
     (1, 'activo'),
-    (2, 'inactivo') 
-AS new ON DUPLICATE KEY UPDATE nombre_estado = new.nombre_estado;
+    (2, 'inactivo'),
+    (3, 'disponible'),
+    (4, 'vendido'),
+    (5, 'rentado'),
+    (6, 'en_negociacion')
+ON DUPLICATE KEY UPDATE nombre_estado = VALUES(nombre_estado);
 
--- Crear tabla de direcciones normalizadas con código postal opcional
+-- Crear tabla de direcciones normalizadas con campos completos
 CREATE TABLE direcciones (
     id_direccion INT AUTO_INCREMENT PRIMARY KEY,
-    calle VARCHAR(255) NOT NULL,
-    numero VARCHAR(50),
+    calle VARCHAR(100) NOT NULL,
+    numero VARCHAR(20),
+    colonia VARCHAR(100),
     ciudad VARCHAR(100) NOT NULL,
-    id_estado INT NOT NULL,
-    codigo_postal VARCHAR(20) NULL,
+    estado_geografico VARCHAR(100) NOT NULL,
+    codigo_postal VARCHAR(10),
+    referencias TEXT,
+    id_estado INT NOT NULL DEFAULT 1,
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
@@ -150,18 +159,47 @@ CREATE TABLE empleados (
     INDEX idx_empleados_usuario (id_usuario)
 );
 
--- Crear tabla de Inmuebles con valores por defecto
+-- Crear tabla de Inmuebles con valores por defecto y campos adicionales
 CREATE TABLE inmuebles (
     id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
     nombre_inmueble VARCHAR(100) NOT NULL,
     id_direccion INT,
     monto_total DECIMAL(12,2) NOT NULL,
-    id_estado INT DEFAULT 1,
+    tipo_inmueble ENUM('casa', 'departamento', 'terreno', 'oficina', 'bodega', 'otro') NOT NULL DEFAULT 'casa',
+    tipo_operacion ENUM('venta', 'renta') NOT NULL DEFAULT 'venta',
+    precio_venta DECIMAL(12,2) DEFAULT NULL,
+    precio_renta DECIMAL(12,2) DEFAULT NULL,
+    id_estado INT DEFAULT 3, -- 'disponible' por defecto
     id_cliente INT,
+    id_empleado INT,
+    caracteristicas TEXT,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_direccion) REFERENCES direcciones(id_direccion),
     FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE SET NULL,
-    FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado),
+    FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado)
+);
+
+-- Crear tabla para clientes interesados
+CREATE TABLE IF NOT EXISTS inmuebles_clientes_interesados (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_inmueble INT NOT NULL,
+    id_cliente INT NOT NULL,
+    fecha_interes TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    comentarios TEXT,
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
+);
+
+-- Crear tabla para imágenes de inmuebles
+CREATE TABLE IF NOT EXISTS inmuebles_imagenes (
+    id_imagen INT AUTO_INCREMENT PRIMARY KEY,
+    id_inmueble INT NOT NULL,
+    ruta_imagen VARCHAR(255) NOT NULL,
+    descripcion VARCHAR(100),
+    es_principal BOOLEAN DEFAULT FALSE,
+    fecha_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble)
 );
 
 -- Definir los triggers
@@ -345,15 +383,18 @@ BEGIN
     COMMIT;
 END //
 
--- Procedimientos CRUD para Clientes (modificados)
+-- Procedimientos CRUD para Clientes
 CREATE PROCEDURE CrearCliente(
     IN p_nombre VARCHAR(100),
     IN p_apellido_paterno VARCHAR(100),
     IN p_apellido_materno VARCHAR(100),
-    IN p_direccion_calle VARCHAR(255),
-    IN p_direccion_numero VARCHAR(50),
+    IN p_direccion_calle VARCHAR(100),
+    IN p_direccion_numero VARCHAR(20),
+    IN p_direccion_colonia VARCHAR(100),
     IN p_direccion_ciudad VARCHAR(100),
-    IN p_direccion_codigo_postal VARCHAR(20),
+    IN p_direccion_estado_geografico VARCHAR(100),
+    IN p_direccion_codigo_postal VARCHAR(10),
+    IN p_direccion_referencias TEXT,
     IN p_telefono_cliente VARCHAR(20),
     IN p_rfc VARCHAR(13),
     IN p_curp VARCHAR(18),
@@ -373,9 +414,10 @@ BEGIN
     END IF;
     
     INSERT INTO direcciones (
-        calle, numero, ciudad, id_estado, codigo_postal
+        calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias, id_estado
     ) VALUES (
-        p_direccion_calle, p_direccion_numero, p_direccion_ciudad, v_id_estado_activo, p_direccion_codigo_postal
+        p_direccion_calle, p_direccion_numero, p_direccion_colonia, p_direccion_ciudad, 
+        p_direccion_estado_geografico, p_direccion_codigo_postal, p_direccion_referencias, v_id_estado_activo
     );
     
     SET v_id_direccion = LAST_INSERT_ID();
@@ -406,8 +448,11 @@ BEGIN
         c.fecha_registro,
         d.calle, 
         d.numero, 
+        d.colonia,
         d.ciudad, 
+        d.estado_geografico,
         d.codigo_postal,
+        d.referencias,
         e.nombre_estado AS estado_cliente
     FROM clientes c
     JOIN direcciones d ON c.id_direccion = d.id_direccion
@@ -424,10 +469,13 @@ CREATE PROCEDURE ActualizarCliente(
     IN p_rfc VARCHAR(13),
     IN p_curp VARCHAR(18),
     IN p_correo_cliente VARCHAR(100),
-    IN p_direccion_calle VARCHAR(255),
-    IN p_direccion_numero VARCHAR(50),
+    IN p_direccion_calle VARCHAR(100),
+    IN p_direccion_numero VARCHAR(20),
+    IN p_direccion_colonia VARCHAR(100),
     IN p_direccion_ciudad VARCHAR(100),
-    IN p_direccion_codigo_postal VARCHAR(20),
+    IN p_direccion_estado_geografico VARCHAR(100),
+    IN p_direccion_codigo_postal VARCHAR(10),
+    IN p_direccion_referencias TEXT,
     IN p_tipo_cliente ENUM('comprador', 'arrendatario', 'ambos')
 )
 BEGIN
@@ -458,8 +506,11 @@ BEGIN
     UPDATE direcciones SET
         calle = p_direccion_calle,
         numero = p_direccion_numero,
+        colonia = p_direccion_colonia,
         ciudad = p_direccion_ciudad,
-        codigo_postal = p_direccion_codigo_postal
+        estado_geografico = p_direccion_estado_geografico,
+        codigo_postal = p_direccion_codigo_postal,
+        referencias = p_direccion_referencias
     WHERE id_direccion = v_id_direccion;
     
     UPDATE clientes SET
@@ -531,35 +582,47 @@ END //
 -- Procedimiento para crear inmueble
 CREATE PROCEDURE CrearInmueble(
     IN p_nombre_inmueble VARCHAR(100),
-    IN p_direccion_calle VARCHAR(255),
-    IN p_direccion_numero VARCHAR(50),
+    IN p_direccion_calle VARCHAR(100),
+    IN p_direccion_numero VARCHAR(20),
+    IN p_direccion_colonia VARCHAR(100),
     IN p_direccion_ciudad VARCHAR(100),
-    IN p_direccion_estado INT,
-    IN p_direccion_codigo_postal VARCHAR(20),
-    IN p_monto_total DECIMAL(10,2),
-    IN p_estatus_inmueble VARCHAR(20),
-    IN p_id_cliente INT
+    IN p_direccion_estado_geografico VARCHAR(100),
+    IN p_direccion_codigo_postal VARCHAR(10),
+    IN p_direccion_referencias TEXT,
+    IN p_monto_total DECIMAL(12,2),
+    IN p_tipo_inmueble ENUM('casa', 'departamento', 'terreno', 'oficina', 'bodega', 'otro'),
+    IN p_tipo_operacion ENUM('venta', 'renta'),
+    IN p_precio_venta DECIMAL(12,2),
+    IN p_precio_renta DECIMAL(12,2),
+    IN p_id_estado INT,
+    IN p_id_cliente INT,
+    IN p_id_empleado INT,
+    IN p_caracteristicas TEXT
 )
 BEGIN
     DECLARE v_id_direccion INT;
-    DECLARE v_id_estado INT DEFAULT 1;
+    DECLARE v_id_estado INT DEFAULT 3; -- 'disponible' por defecto
     
     INSERT INTO direcciones (
-        calle, numero, ciudad, id_estado, codigo_postal
+        calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias, id_estado
     ) VALUES (
-        p_direccion_calle, p_direccion_numero, p_direccion_ciudad, p_direccion_estado, p_direccion_codigo_postal
+        p_direccion_calle, p_direccion_numero, p_direccion_colonia, p_direccion_ciudad, 
+        p_direccion_estado_geografico, p_direccion_codigo_postal, p_direccion_referencias, 1
     );
     
     SET v_id_direccion = LAST_INSERT_ID();
     
-    IF p_estatus_inmueble = 'vendido' THEN
-        SET v_id_estado = 2;
+    IF p_id_estado IS NOT NULL THEN
+        SET v_id_estado = p_id_estado;
     END IF;
     
     INSERT INTO inmuebles (
-        nombre_inmueble, id_direccion, monto_total, id_estado, id_cliente
+        nombre_inmueble, id_direccion, monto_total, tipo_inmueble, tipo_operacion, 
+        precio_venta, precio_renta, id_estado, id_cliente, id_empleado, caracteristicas
     ) VALUES (
-        p_nombre_inmueble, v_id_direccion, p_monto_total, v_id_estado, p_id_cliente
+        p_nombre_inmueble, v_id_direccion, p_monto_total, COALESCE(p_tipo_inmueble, 'casa'), 
+        COALESCE(p_tipo_operacion, 'venta'), p_precio_venta, p_precio_renta, v_id_estado, 
+        p_id_cliente, p_id_empleado, p_caracteristicas
     );
 END //
 
@@ -567,34 +630,47 @@ END //
 CREATE PROCEDURE ActualizarInmueble(
     IN p_id_inmueble INT,
     IN p_nombre_inmueble VARCHAR(100),
-    IN p_direccion_calle VARCHAR(255),
-    IN p_direccion_numero VARCHAR(50),
+    IN p_direccion_calle VARCHAR(100),
+    IN p_direccion_numero VARCHAR(20),
+    IN p_direccion_colonia VARCHAR(100),
     IN p_direccion_ciudad VARCHAR(100),
+    IN p_direccion_estado_geografico VARCHAR(100),
+    IN p_direccion_codigo_postal VARCHAR(10),
+    IN p_direccion_referencias TEXT,
+    IN p_monto_total DECIMAL(12,2),
+    IN p_tipo_inmueble ENUM('casa', 'departamento', 'terreno', 'oficina', 'bodega', 'otro'),
+    IN p_tipo_operacion ENUM('venta', 'renta'),
+    IN p_precio_venta DECIMAL(12,2),
+    IN p_precio_renta DECIMAL(12,2),
     IN p_id_estado INT,
-    IN p_monto_total DECIMAL(10,2),
-    IN p_id_cliente INT
+    IN p_id_cliente INT,
+    IN p_id_empleado INT,
+    IN p_caracteristicas TEXT
 )
 BEGIN
     DECLARE v_id_direccion INT;
-    DECLARE v_old_id_estado INT;
 
-    SELECT id_direccion, id_estado INTO v_id_direccion, v_old_id_estado
+    SELECT id_direccion INTO v_id_direccion
     FROM inmuebles 
     WHERE id_inmueble = p_id_inmueble;
 
     IF v_id_direccion IS NULL THEN
         INSERT INTO direcciones (
-            calle, numero, ciudad, id_estado, codigo_postal
+            calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias, id_estado
         ) VALUES (
-            p_direccion_calle, p_direccion_numero, p_direccion_ciudad, p_id_estado, '00000'
+            p_direccion_calle, p_direccion_numero, p_direccion_colonia, p_direccion_ciudad, 
+            p_direccion_estado_geografico, p_direccion_codigo_postal, p_direccion_referencias, 1
         );
         SET v_id_direccion = LAST_INSERT_ID();
     ELSE
         UPDATE direcciones SET
             calle = p_direccion_calle,
             numero = p_direccion_numero,
+            colonia = p_direccion_colonia,
             ciudad = p_direccion_ciudad,
-            id_estado = p_id_estado
+            estado_geografico = p_direccion_estado_geografico,
+            codigo_postal = p_direccion_codigo_postal,
+            referencias = p_direccion_referencias
         WHERE id_direccion = v_id_direccion;
     END IF;
 
@@ -602,8 +678,14 @@ BEGIN
         nombre_inmueble = p_nombre_inmueble,
         id_direccion = v_id_direccion,
         monto_total = p_monto_total,
+        tipo_inmueble = COALESCE(p_tipo_inmueble, 'casa'),
+        tipo_operacion = COALESCE(p_tipo_operacion, 'venta'),
+        precio_venta = p_precio_venta,
+        precio_renta = p_precio_renta,
         id_estado = p_id_estado,
-        id_cliente = p_id_cliente
+        id_cliente = p_id_cliente,
+        id_empleado = p_id_empleado,
+        caracteristicas = p_caracteristicas
     WHERE id_inmueble = p_id_inmueble;
 END //
 
@@ -701,7 +783,7 @@ CREATE PROCEDURE CrearEmpleado(
     IN p_apellido_materno VARCHAR(100),
     IN p_correo VARCHAR(100),
     IN p_telefono VARCHAR(15),
-    IN p_direccion VARCHAR(225),
+    IN p_direccion VARCHAR(255),
     IN p_cargo VARCHAR(100),
     IN p_sueldo_actual DECIMAL(10,2),
     IN p_fecha_contratacion DATE,
@@ -739,7 +821,7 @@ CREATE PROCEDURE ActualizarEmpleado(
     IN p_apellido_materno VARCHAR(100),
     IN p_correo VARCHAR(100),
     IN p_telefono VARCHAR(15),
-    IN p_direccion VARCHAR(225),
+    IN p_direccion VARCHAR(255),
     IN p_cargo VARCHAR(100),
     IN p_sueldo_actual DECIMAL(10,2),
     IN p_imagen_empleado VARCHAR(255)
@@ -798,7 +880,7 @@ CREATE PROCEDURE BuscarClientePorRFC(IN p_rfc VARCHAR(13))
 BEGIN
     SELECT 
         c.*, 
-        d.calle, d.numero, d.ciudad, d.codigo_postal,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico, d.codigo_postal, d.referencias,
         e.nombre_estado AS estado_cliente
     FROM clientes c
     JOIN direcciones d ON c.id_direccion = d.id_direccion
@@ -810,7 +892,7 @@ CREATE PROCEDURE BuscarClientePorNombre(IN p_texto VARCHAR(100))
 BEGIN
     SELECT 
         c.*, 
-        d.calle, d.numero, d.ciudad, d.codigo_postal,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico, d.codigo_postal, d.referencias,
         e.nombre_estado AS estado_cliente
     FROM clientes c
     JOIN direcciones d ON c.id_direccion = d.id_direccion
@@ -823,7 +905,7 @@ CREATE PROCEDURE BuscarInmueblePorCliente(IN p_id_cliente INT)
 BEGIN
     SELECT 
         i.*, 
-        d.calle, d.numero, d.ciudad, d.codigo_postal,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico, d.codigo_postal, d.referencias,
         e.nombre_estado AS estado_inmueble
     FROM inmuebles i
     JOIN direcciones d ON i.id_direccion = d.id_direccion
@@ -1074,3 +1156,6 @@ CREATE INDEX idx_inmuebles_estado ON inmuebles(id_estado);
 CREATE INDEX idx_clientes_estado ON clientes(id_estado);
 CREATE INDEX idx_proveedores_estado ON proveedores(id_estado);
 CREATE INDEX idx_empleados_estado ON empleados(id_estado);
+CREATE INDEX idx_inmuebles_empleado ON inmuebles(id_empleado);
+CREATE INDEX idx_inmuebles_clientes_interesados ON inmuebles_clientes_interesados(id_inmueble, id_cliente);
+CREATE INDEX idx_inmuebles_imagenes ON inmuebles_imagenes(id_inmueble);

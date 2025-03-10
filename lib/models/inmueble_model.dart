@@ -9,7 +9,24 @@ class Inmueble {
   final double montoTotal;
   final int? idEstado;
   final int? idCliente;
+  final int? idEmpleado;
   final DateTime? fechaRegistro;
+
+  // Nuevos campos según tu base de datos
+  final String tipoInmueble; // casa, departamento, terreno, etc.
+  final String tipoOperacion; // venta, renta
+  final double? precioVenta;
+  final double? precioRenta;
+  final String? caracteristicas;
+
+  // Campos de dirección completos
+  final String? calle;
+  final String? numero;
+  final String? colonia;
+  final String? ciudad;
+  final String? estadoGeografico;
+  final String? codigoPostal;
+  final String? referencias;
 
   Inmueble({
     this.id,
@@ -18,11 +35,23 @@ class Inmueble {
     required this.montoTotal,
     this.idEstado,
     this.idCliente,
+    this.idEmpleado,
     this.fechaRegistro,
+    this.tipoInmueble = 'casa',
+    this.tipoOperacion = 'venta',
+    this.precioVenta,
+    this.precioRenta,
+    this.caracteristicas,
+    this.calle,
+    this.numero,
+    this.colonia,
+    this.ciudad,
+    this.estadoGeografico,
+    this.codigoPostal,
+    this.referencias,
   });
 
   factory Inmueble.fromMap(Map<String, dynamic> map) {
-    // Log informativo con los datos recibidos
     _logger.info('Procesando datos del inmueble: $map');
 
     // Manejo seguro del monto total
@@ -43,6 +72,41 @@ class Inmueble {
         'Error al convertir monto_total: ${map['monto_total']}, error: $e',
       );
       montoTotal = 0.0;
+    }
+
+    // Procesamiento seguro de precios
+    double? precioVenta;
+    try {
+      if (map['precio_venta'] != null) {
+        if (map['precio_venta'] is String) {
+          precioVenta = double.parse(map['precio_venta']);
+        } else if (map['precio_venta'] is int) {
+          precioVenta = (map['precio_venta'] as int).toDouble();
+        } else {
+          precioVenta = map['precio_venta'] as double?;
+        }
+      }
+    } catch (e) {
+      _logger.warning(
+        'Error al convertir precio_venta: ${map['precio_venta']}, error: $e',
+      );
+    }
+
+    double? precioRenta;
+    try {
+      if (map['precio_renta'] != null) {
+        if (map['precio_renta'] is String) {
+          precioRenta = double.parse(map['precio_renta']);
+        } else if (map['precio_renta'] is int) {
+          precioRenta = (map['precio_renta'] as int).toDouble();
+        } else {
+          precioRenta = map['precio_renta'] as double?;
+        }
+      }
+    } catch (e) {
+      _logger.warning(
+        'Error al convertir precio_renta: ${map['precio_renta']}, error: $e',
+      );
     }
 
     // Convertir fechaRegistro con manejo seguro
@@ -77,19 +141,38 @@ class Inmueble {
                   ? int.tryParse(map['id_direccion'])
                   : null),
       montoTotal: montoTotal,
+      tipoInmueble: (map['tipo_inmueble'] as String?) ?? 'casa',
+      tipoOperacion: (map['tipo_operacion'] as String?) ?? 'venta',
+      precioVenta: precioVenta,
+      precioRenta: precioRenta,
+      caracteristicas: map['caracteristicas'] as String?,
       idEstado:
           map['id_estado'] is int
               ? map['id_estado']
               : (map['id_estado'] is String
                   ? int.tryParse(map['id_estado'])
-                  : 1),
+                  : 3),
       idCliente:
           map['id_cliente'] is int
               ? map['id_cliente']
               : (map['id_cliente'] is String
                   ? int.tryParse(map['id_cliente'])
                   : null),
+      idEmpleado:
+          map['id_empleado'] is int
+              ? map['id_empleado']
+              : (map['id_empleado'] is String
+                  ? int.tryParse(map['id_empleado'])
+                  : null),
       fechaRegistro: fechaRegistro,
+      // Datos de dirección
+      calle: map['calle'] as String?,
+      numero: map['numero'] as String?,
+      colonia: map['colonia'] as String?,
+      ciudad: map['ciudad'] as String?,
+      estadoGeografico: map['estado_geografico'] as String?,
+      codigoPostal: map['codigo_postal'] as String?,
+      referencias: map['referencias'] as String?,
     );
   }
 
@@ -99,13 +182,48 @@ class Inmueble {
       'nombre_inmueble': nombre,
       'id_direccion': idDireccion,
       'monto_total': montoTotal,
+      'tipo_inmueble': tipoInmueble,
+      'tipo_operacion': tipoOperacion,
+      'precio_venta': precioVenta,
+      'precio_renta': precioRenta,
+      'caracteristicas': caracteristicas,
       'id_estado': idEstado,
       'id_cliente': idCliente,
+      'id_empleado': idEmpleado,
     };
+  }
+
+  // Propiedad para obtener la dirección completa
+  String get direccionCompleta {
+    final List<String> partes = [];
+
+    if (calle != null && calle!.isNotEmpty) {
+      String parte = calle!;
+      if (numero != null && numero!.isNotEmpty) parte += ' $numero';
+      partes.add(parte);
+    }
+
+    if (colonia != null && colonia!.isNotEmpty) {
+      partes.add('Col. $colonia');
+    }
+
+    if (ciudad != null && ciudad!.isNotEmpty) {
+      String parte = ciudad!;
+      if (estadoGeografico != null && estadoGeografico!.isNotEmpty) {
+        parte += ', $estadoGeografico';
+      }
+      partes.add(parte);
+    }
+
+    if (codigoPostal != null && codigoPostal!.isNotEmpty) {
+      partes.add('C.P. $codigoPostal');
+    }
+
+    return partes.isNotEmpty ? partes.join(', ') : 'Dirección no disponible';
   }
 
   @override
   String toString() {
-    return 'Inmueble{id: $id, nombre: $nombre, montoTotal: $montoTotal, idCliente: $idCliente, fechaRegistro: $fechaRegistro}';
+    return 'Inmueble{id: $id, nombre: $nombre, tipo: $tipoInmueble, operacion: $tipoOperacion, estado: $idEstado}';
   }
 }
