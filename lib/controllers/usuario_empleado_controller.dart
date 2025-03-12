@@ -5,10 +5,10 @@ import 'dart:developer' as developer;
 import '../models/usuario_empleado.dart';
 import '../services/usuario_empleado_service.dart';
 
-
 class UsuarioEmpleadoController {
   final UsuarioEmpleadoService _service;
-  final _empleadosController = StreamController<List<UsuarioEmpleado>>.broadcast();
+  final _empleadosController =
+      StreamController<List<UsuarioEmpleado>>.broadcast();
   List<UsuarioEmpleado> _empleadosList = [];
   bool _isInitialized = false;
 
@@ -52,11 +52,48 @@ class UsuarioEmpleadoController {
   // Verificar si un nombre de usuario ya existe
   Future<bool> nombreUsuarioExiste(String nombreUsuario) async {
     try {
-      developer.log('Verificando si existe el nombre de usuario');
-      return await _service.nombreUsuarioExiste(nombreUsuario);
+      developer.log(
+        'Verificando si existe el nombre de usuario: $nombreUsuario',
+      );
+      final existe = await _service.nombreUsuarioExiste(nombreUsuario);
+      developer.log('Nombre usuario "$nombreUsuario" existe: $existe');
+      return existe;
     } catch (e) {
       developer.log('Error al verificar nombre de usuario: $e', error: e);
       throw Exception('Error al verificar nombre de usuario: $e');
+    }
+  }
+
+  // NUEVO MÉTODO: Verificar si existe nombre de usuario excluyendo el usuario actual
+  Future<bool> nombreUsuarioExisteExcluyendo(
+    String nombreUsuario,
+    int idUsuarioExcluir,
+  ) async {
+    try {
+      developer.log(
+        'Verificando si existe el nombre de usuario: $nombreUsuario (excluyendo ID: $idUsuarioExcluir)',
+      );
+
+      // Si el nombre de usuario es el mismo que ya tenía, no es duplicado
+      final empleadoActual = await obtenerEmpleado(idUsuarioExcluir);
+      if (empleadoActual?.usuario.nombreUsuario == nombreUsuario) {
+        developer.log('Es el mismo nombre de usuario actual, no es duplicado');
+        return false;
+      }
+
+      // Verificar si hay otro usuario con ese nombre
+      return await _service.nombreUsuarioExisteExcluyendoId(
+        nombreUsuario,
+        idUsuarioExcluir,
+      );
+    } catch (e) {
+      developer.log(
+        'Error al verificar nombre de usuario excluyendo: $e',
+        error: e,
+      );
+      // En caso de error, devolvemos falso para permitir continuar
+      // Alternativamente, podrías lanzar una excepción dependiendo de tu manejo de errores
+      return false;
     }
   }
 
@@ -146,8 +183,12 @@ class UsuarioEmpleadoController {
     }
   }
 
-  // Crear un nuevo empleado con usuario
-  Future<int> crearEmpleado(Usuario usuario, Empleado empleado) async {
+  // MÉTODO MODIFICADO: Crear usuario y empleado pasando contraseña
+  Future<int> crearUsuarioEmpleado(
+    Usuario usuario,
+    Empleado empleado,
+    String contrasena,
+  ) async {
     try {
       developer.log('Creando empleado para usuario: ${usuario.nombreUsuario}');
 
@@ -159,7 +200,11 @@ class UsuarioEmpleadoController {
         );
       }
 
-      final id = await _service.crearUsuarioEmpleado(usuario, empleado);
+      final id = await _service.crearUsuarioEmpleado(
+        usuario,
+        empleado,
+        contrasena,
+      );
       // Pausa ligera para asegurar actualización de BD
       await Future.delayed(const Duration(milliseconds: 200));
       await cargarEmpleadosConRefresco();
@@ -171,7 +216,7 @@ class UsuarioEmpleadoController {
     }
   }
 
-  // Actualizar un empleado existente
+  // MÉTODO MEJORADO: Actualizar un empleado existente con validación de nombre de usuario
   Future<void> actualizarEmpleado(
     int idUsuario,
     int idEmpleado,
@@ -179,6 +224,19 @@ class UsuarioEmpleadoController {
     Empleado empleado,
   ) async {
     try {
+      // Si el nombre de usuario ha cambiado, verificar que no esté duplicado
+      if (usuario.nombreUsuario.isNotEmpty) {
+        // Usamos el nuevo método para verificar duplicados excluyendo el ID actual
+        final existeNombreUsuario = await _service
+            .nombreUsuarioExisteExcluyendoId(usuario.nombreUsuario, idUsuario);
+
+        if (existeNombreUsuario) {
+          throw Exception(
+            "El nombre de usuario '${usuario.nombreUsuario}' ya está en uso por otro empleado.",
+          );
+        }
+      }
+
       await _service.actualizarUsuarioEmpleado(
         idUsuario,
         idEmpleado,

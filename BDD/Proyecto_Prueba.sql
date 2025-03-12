@@ -36,6 +36,7 @@ DROP FUNCTION IF EXISTS EncriptarContraseña;
 DROP TABLE IF EXISTS historial_usuarios;
 DROP TABLE IF EXISTS inmuebles_imagenes;
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;
+DROP TABLE IF EXISTS cliente_inmueble;
 DROP TABLE IF EXISTS inmuebles;
 DROP TABLE IF EXISTS clientes;
 DROP TABLE IF EXISTS empleados;
@@ -913,7 +914,7 @@ BEGIN
     WHERE i.id_cliente = p_id_cliente;
 END //
 
--- Procedimiento para crear usuario y empleado con imágenes
+-- Procedimiento para crear usuario y empleado con imágenes (MODIFICADO)
 CREATE PROCEDURE CrearUsuarioEmpleado(
     IN p_nombre VARCHAR(100),
     IN p_apellido VARCHAR(100),
@@ -1148,6 +1149,20 @@ BEGIN
 END //
 
 DELIMITER ;
+
+-- Crear tabla para relacionar clientes con inmuebles
+CREATE TABLE IF NOT EXISTS cliente_inmueble (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  id_cliente INT NOT NULL,
+  id_inmueble INT NOT NULL,
+  fecha_adquisicion DATE NOT NULL,
+  FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+  FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
+  CONSTRAINT unique_inmueble UNIQUE (id_inmueble)
+);
+
+-- Índice para mejorar el rendimiento de las consultas
+CREATE INDEX idx_cliente_inmueble_cliente ON cliente_inmueble(id_cliente);
 
 -- Índices adicionales
 CREATE INDEX idx_usuarios_estado ON usuarios(id_estado);

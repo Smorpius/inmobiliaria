@@ -113,6 +113,47 @@ class UsuarioEmpleadoService {
     }
   }
 
+  // NUEVO MÉTODO: Verificar si un nombre de usuario ya existe, excluyendo el usuario con el ID especificado
+  Future<bool> nombreUsuarioExisteExcluyendoId(
+    String nombreUsuario,
+    int idExcluir,
+  ) async {
+    try {
+      developer.log(
+        'Verificando si existe el nombre de usuario: $nombreUsuario (excluyendo ID: $idExcluir)',
+      );
+      final conn = await _db.connection;
+
+      // Consulta que excluye el ID especificado
+      final results = await conn.query(
+        'SELECT COUNT(*) as count FROM usuarios WHERE nombre_usuario = ? AND id_usuario <> ?',
+        [nombreUsuario, idExcluir],
+      );
+
+      if (results.isEmpty) {
+        developer.log(
+          'No se obtuvieron resultados al verificar nombre de usuario excluyendo ID',
+        );
+        return false;
+      }
+
+      int count = results.first.fields['count'] as int;
+      developer.log(
+        'Nombre usuario "$nombreUsuario" existe (excluyendo ID $idExcluir): ${count > 0}',
+      );
+      return count > 0;
+    } catch (e) {
+      developer.log(
+        'Error al verificar existencia de nombre de usuario excluyendo ID: $e',
+        error: e,
+        stackTrace: StackTrace.current,
+      );
+      // En caso de error, es más seguro retornar false que lanzar una excepción
+      // para permitir que el flujo de edición continúe
+      return false;
+    }
+  }
+
   // Método mejorado para obtener empleados con reintentos y opción de refresco
   Future<List<UsuarioEmpleado>> obtenerEmpleados({
     bool forzarRefresco = false,
@@ -293,7 +334,12 @@ class UsuarioEmpleadoService {
     }
   }
 
-  Future<int> crearUsuarioEmpleado(Usuario usuario, Empleado empleado) async {
+  // MÉTODO CORREGIDO: Agregar parámetro contrasena
+  Future<int> crearUsuarioEmpleado(
+    Usuario usuario,
+    Empleado empleado,
+    String contrasena,
+  ) async {
     try {
       developer.log(
         'Iniciando crearUsuarioEmpleado para: ${usuario.nombre} ${usuario.apellido}',
@@ -313,9 +359,9 @@ class UsuarioEmpleadoService {
           usuario.nombre,
           usuario.apellido,
           usuario.nombreUsuario,
-          usuario.contrasena,
+          contrasena, // Usar el parámetro contrasena en lugar de usuario.contrasena
           usuario.correo,
-          usuario.imagenPerfil, // Nuevo parámetro para imagen de perfil
+          usuario.imagenPerfil,
           empleado.claveSistema,
           empleado.apellidoMaterno,
           empleado.telefono,
@@ -324,7 +370,7 @@ class UsuarioEmpleadoService {
           empleado.sueldoActual,
           empleado.fechaContratacion.toIso8601String(),
           correoContacto,
-          empleado.imagenEmpleado, // Nuevo parámetro para imagen de empleado
+          empleado.imagenEmpleado,
         ],
       );
 
@@ -400,14 +446,14 @@ class UsuarioEmpleadoService {
           usuario.nombreUsuario,
           usuario.contrasena.isNotEmpty ? usuario.contrasena : null,
           usuario.correo,
-          usuario.imagenPerfil, // Nuevo parámetro para imagen de perfil
+          usuario.imagenPerfil,
           empleado.claveSistema,
           empleado.apellidoMaterno,
           empleado.telefono,
           empleado.direccion,
           empleado.cargo,
           empleado.sueldoActual,
-          empleado.imagenEmpleado, // Nuevo parámetro para imagen de empleado
+          empleado.imagenEmpleado,
         ],
       );
       developer.log('Usuario empleado actualizado exitosamente');
@@ -443,7 +489,6 @@ class UsuarioEmpleadoService {
     }
   }
 
-  // NUEVO: Método para reactivar usuario empleado
   Future<void> reactivarUsuarioEmpleado(int idUsuario, int idEmpleado) async {
     try {
       developer.log(

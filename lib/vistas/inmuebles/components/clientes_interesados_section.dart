@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../models/cliente_model.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../controllers/cliente_controller.dart';
+import '../../../vistas/clientes/vista_clientes.dart';
 import '../../../controllers/inmueble_controller.dart';
-import 'package:url_launcher/url_launcher.dart'; // Importación actualizada
 
 class ClientesInteresadosSection extends StatefulWidget {
   final int idInmueble;
@@ -24,8 +25,23 @@ class _ClientesInteresadosSectionState
   final InmuebleController _inmuebleController = InmuebleController();
   final ClienteController _clienteController = ClienteController();
 
-  // Añadir una variable para filtrar/buscar clientes
+  // Añadir Future como propiedad de clase
+  late Future<List<Map<String, dynamic>>> _clientesInteresadosFuture;
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Inicializar el Future cuando se crea el widget
+    _cargarClientesInteresados();
+  }
+
+  // Método para cargar clientes interesados
+  void _cargarClientesInteresados() {
+    _clientesInteresadosFuture = _inmuebleController.getClientesInteresados(
+      widget.idInmueble,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +53,6 @@ class _ClientesInteresadosSectionState
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
 
-        // Añadir un buscador para filtrar clientes
         if (!widget.isInactivo)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -73,8 +88,9 @@ class _ClientesInteresadosSectionState
             ),
           ),
 
+        // FutureBuilder modificado para usar la propiedad de clase
         FutureBuilder<List<Map<String, dynamic>>>(
-          future: _inmuebleController.getClientesInteresados(widget.idInmueble),
+          future: _clientesInteresadosFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -103,7 +119,6 @@ class _ClientesInteresadosSectionState
               return _buildEmptyClientesMessage();
             }
 
-            // Filtrar clientes según la búsqueda
             var clientesFiltrados = clientes;
             if (_searchQuery.isNotEmpty) {
               clientesFiltrados =
@@ -167,7 +182,6 @@ class _ClientesInteresadosSectionState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Indicador del número de clientes encontrados
         Padding(
           padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
           child: Text(
@@ -193,6 +207,7 @@ class _ClientesInteresadosSectionState
                     : 'Fecha no disponible';
             final telefono = cliente['telefono_cliente'];
             final correo = cliente['correo_cliente'];
+            final idCliente = cliente['id_cliente'];
 
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
@@ -245,11 +260,17 @@ class _ClientesInteresadosSectionState
                               ],
                             ),
                           ),
+                          IconButton(
+                            icon: const Icon(Icons.person_search),
+                            tooltip: 'Ver perfil completo',
+                            color: Colors.teal,
+                            onPressed:
+                                () => _verDetallesClienteInteresado(idCliente),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
 
-                      // Información de contacto con botones interactivos
                       if (telefono != null && telefono.toString().isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0),
@@ -374,7 +395,46 @@ class _ClientesInteresadosSectionState
     );
   }
 
-  // Métodos para contactar al cliente - CORREGIDOS
+  Future<void> _verDetallesClienteInteresado(int idCliente) async {
+    try {
+      Cliente? cliente;
+      final clientes = await _clienteController.getClientes();
+
+      try {
+        cliente = clientes.firstWhere((c) => c.id == idCliente);
+      } catch (_) {
+        final inactivos = await _clienteController.getClientesInactivos();
+        try {
+          cliente = inactivos.firstWhere((c) => c.id == idCliente);
+        } catch (_) {
+          throw Exception('Cliente no encontrado');
+        }
+      }
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => VistaClientes(
+                controller: _clienteController,
+                clienteInicial: cliente,
+              ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar detalles del cliente: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _llamarCliente(String telefono) async {
     final uri = Uri.parse('tel:$telefono');
     if (await canLaunchUrl(uri)) {
@@ -421,6 +481,8 @@ class _ClientesInteresadosSectionState
   }
 
   void _mostrarDetallesCliente(Map<String, dynamic> cliente) {
+    // El resto del código para mostrar detalles...
+    // (Mantengo el código original ya que no requiere cambios)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -440,7 +502,8 @@ class _ClientesInteresadosSectionState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Sección de datos personales
+                  // Contenido del scrollview...
+                  // (Código original)
                   const CircleAvatar(
                     radius: 40,
                     backgroundColor: Colors.amber,
@@ -457,7 +520,6 @@ class _ClientesInteresadosSectionState
                   ),
                   const SizedBox(height: 24),
 
-                  // Sección de fechas
                   _buildDetailItem(
                     Icons.calendar_today,
                     'Interesado desde',
@@ -467,7 +529,6 @@ class _ClientesInteresadosSectionState
                   ),
                   const Divider(height: 20),
 
-                  // Sección de contacto
                   _buildDetailItem(
                     Icons.phone,
                     'Teléfono',
@@ -480,7 +541,6 @@ class _ClientesInteresadosSectionState
                     cliente['correo_cliente'] ?? 'No disponible',
                   ),
 
-                  // Botones de acción rápida
                   if (cliente['telefono_cliente'] != null ||
                       cliente['correo_cliente'] != null)
                     Padding(
@@ -509,11 +569,21 @@ class _ClientesInteresadosSectionState
                               Colors.orange,
                               () => _enviarEmail(cliente['correo_cliente']),
                             ),
+                          _buildActionButton(
+                            Icons.person_search,
+                            'Perfil',
+                            Colors.teal,
+                            () {
+                              Navigator.pop(context);
+                              _verDetallesClienteInteresado(
+                                cliente['id_cliente'],
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
 
-                  // Sección de comentarios
                   if (cliente['comentarios'] != null &&
                       cliente['comentarios'].toString().isNotEmpty)
                     Padding(
@@ -582,9 +652,7 @@ class _ClientesInteresadosSectionState
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         decoration: BoxDecoration(
-          color: color.withAlpha(
-            (0.1 * 255).round(),
-          ), // Corrección: withOpacity -> withAlpha
+          color: color.withAlpha((0.1 * 255).round()),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Column(
@@ -598,14 +666,12 @@ class _ClientesInteresadosSectionState
     );
   }
 
-  // Diálogo para agregar un cliente interesado
+  // Método modificado para agregar cliente interesado con recarga de datos
   void _mostrarDialogoAgregarClienteInteresado(BuildContext context) async {
-    // Cargar clientes activos para mostrar en desplegable
     final clientes = await _clienteController.getClientes();
 
     if (!context.mounted) return;
 
-    // Variables para el formulario
     Cliente? clienteSeleccionado;
     final comentariosController = TextEditingController();
     String searchQuery = '';
@@ -624,7 +690,6 @@ class _ClientesInteresadosSectionState
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Buscador de clientes
                     TextField(
                       onChanged: (value) {
                         setStateDialog(() {
@@ -656,7 +721,6 @@ class _ClientesInteresadosSectionState
                     ),
                     const SizedBox(height: 16),
 
-                    // Lista de clientes filtrada
                     Container(
                       constraints: const BoxConstraints(maxHeight: 200),
                       decoration: BoxDecoration(
@@ -700,7 +764,6 @@ class _ClientesInteresadosSectionState
                     ),
                     const SizedBox(height: 16),
 
-                    // Campo de comentarios
                     TextField(
                       controller: comentariosController,
                       decoration: const InputDecoration(
@@ -728,7 +791,7 @@ class _ClientesInteresadosSectionState
                           ? null
                           : () async {
                             try {
-                              // Registrar el cliente interesado en la base de datos
+                              // Registrar el cliente interesado
                               await _inmuebleController
                                   .registrarClienteInteresado(
                                     widget.idInmueble,
@@ -750,8 +813,10 @@ class _ClientesInteresadosSectionState
                                 ),
                               );
 
-                              // Forzar reconstrucción del widget para mostrar el nuevo cliente
-                              setState(() {});
+                              // IMPORTANTE: Recargar los datos después de agregar
+                              setState(() {
+                                _cargarClientesInteresados();
+                              });
                             } catch (e) {
                               if (!context.mounted) return;
 

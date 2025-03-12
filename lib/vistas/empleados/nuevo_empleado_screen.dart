@@ -3,6 +3,7 @@ import 'empleado_usuario_form.dart';
 import 'empleado_laboral_form.dart';
 import '../../models/empleado.dart';
 import '../../utils/ui_helpers.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../utils/dialog_helper.dart';
 import '../../models/empleado_form_state.dart';
@@ -66,23 +67,72 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
     });
   }
 
-  Future<void> _guardarEmpleado() async {
-    if (!_formKey.currentState!.validate()) return;
+  // Método para mostrar el diálogo de carga de manera segura
+  void _mostrarDialogoCarga(String mensaje) {
+    if (mounted) {
+      DialogHelper.mostrarDialogoCarga(context, mensaje);
+    }
+  }
 
+  // Método para cerrar el diálogo de carga de manera segura
+  void _cerrarDialogo() {
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _guardarEmpleado() async {
+    // CORRECCIÓN: Eliminar la llamada a limpiarContrasenaParaValidacion
+    // Ya no llamamos a _controller.limpiarContrasenaParaValidacion();
+
+    // CORRECCIÓN: No esperar, ya que no hay operación asíncrona necesaria aquí
+    // await Future.delayed(const Duration(milliseconds: 50));
+
+    developer.log('Iniciando validación del formulario...');
+
+    if (!_formKey.currentState!.validate()) {
+      developer.log('Validación de formulario falló');
+      return;
+    }
+
+    developer.log('Formulario validado, verificando nombre de usuario...');
+
+    // Validación de nombre de usuario existente
     if (_controller.nombreUsuarioExiste) {
       UIHelpers.mostrarError(context, "Nombre de usuario ya existe");
       return;
     }
 
+    // CORRECCIÓN: Capturar la contraseña antes de validarla para asegurar que tengamos el valor correcto
+    final contrasena = _formState.usuarioContrasenaController.text.trim();
+
+    developer.log(
+      'Nombre de usuario válido, verificando contraseña: "$contrasena", longitud=${contrasena.length}',
+    );
+
+    // Validación específica de contraseña - verificamos directamente aquí
+    if (contrasena.length < 8) {
+      UIHelpers.mostrarError(
+        context,
+        "La contraseña debe tener al menos 8 caracteres",
+      );
+      return;
+    }
+
+    developer.log('Contraseña válida, procediendo a guardar empleado...');
+
+    // Actualizar el estado de carga y mostrar diálogo ANTES de operaciones asíncronas
     setState(() => _isLoading = true);
-    DialogHelper.mostrarDialogoCarga(context, "Guardando empleado...");
+
+    // Mostrar diálogo de carga antes de la operación asíncrona
+    _mostrarDialogoCarga("Guardando empleado...");
 
     try {
       final usuario = Usuario(
         nombre: _formState.usuarioNombreController.text,
         apellido: _formState.usuarioApellidoController.text,
         nombreUsuario: _formState.usuarioNombreUsuarioController.text,
-        contrasena: _formState.usuarioContrasenaController.text,
+        contrasena: contrasena, // Usamos la variable capturada previamente
         correo: _formState.usuarioCorreoController.text,
         imagenPerfil: _formState.imagenPerfilPath,
         idEstado: 1,
@@ -103,20 +153,41 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
         idEstado: 1,
       );
 
-      await widget.usuarioEmpleadoController.crearEmpleado(usuario, empleado);
+      developer.log('Datos preparados, llamando al servicio de creación...');
 
-      if (mounted) {
-        Navigator.of(context).pop(); // Cierra el diálogo de carga
-        UIHelpers.mostrarExito(context, "Empleado creado exitosamente");
-        Navigator.of(context).pop(); // Regresa a la pantalla anterior
-      }
+      // Usar la contraseña capturada previamente
+      await widget.usuarioEmpleadoController.crearUsuarioEmpleado(
+        usuario,
+        empleado,
+        contrasena,
+      );
+
+      developer.log('Empleado creado exitosamente');
+
+      if (!mounted) return;
+
+      // Cerrar el diálogo de carga
+      _cerrarDialogo();
+
+      // Mostrar mensaje de éxito
+      UIHelpers.mostrarExito(context, "Empleado creado exitosamente");
+
+      // Navegar hacia atrás
+      Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop(); // Cierra el diálogo de carga
-        UIHelpers.mostrarError(context, "Error al crear empleado: $e");
-      }
+      developer.log('Error al crear empleado: $e', error: e);
+      if (!mounted) return;
+
+      // Cerrar el diálogo de carga
+      _cerrarDialogo();
+
+      // Mostrar error
+      UIHelpers.mostrarError(context, "Error al crear empleado: $e");
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      // Actualizar estado de carga si todavía estamos montados
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

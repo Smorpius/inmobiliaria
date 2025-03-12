@@ -1,15 +1,17 @@
+import 'dart:async';
 import 'empleados_estado.dart';
 import 'empleados_filtro.dart';
 import 'empleados_acciones.dart';
 import 'empleados_list_view.dart';
 import 'empleados_empty_view.dart';
 import 'empleados_error_view.dart';
+import 'dart:developer' as developer;
 import 'empleados_error_handler.dart';
 import 'package:flutter/material.dart';
+import '../nuevo_empleado_screen.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../models/usuario_empleado.dart';
 import '../../../controllers/usuario_empleado_controller.dart';
-import '../nuevo_empleado_screen.dart'; // Importar la nueva pantalla
 
 class ListaEmpleadosScreen extends StatefulWidget {
   final UsuarioEmpleadoController controller;
@@ -23,6 +25,9 @@ class ListaEmpleadosScreen extends StatefulWidget {
 class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
     with EmpleadosErrorHandler, EmpleadosAcciones {
   late final EmpleadosEstado estado;
+  
+  // Timer para actualización automática
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
@@ -44,7 +49,40 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
             });
       }
       cargarEmpleados();
+      
+      // Iniciar actualización automática cada 30 segundos
+      _iniciarActualizacionAutomatica();
     });
+  }
+  
+  void _iniciarActualizacionAutomatica() {
+    // Cancelar timer existente si hay uno
+    _autoRefreshTimer?.cancel();
+    
+    // Crear nuevo timer que se ejecuta cada 30 segundos
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) {
+        if (mounted) {
+          developer.log('Ejecutando actualización automática de empleados');
+          // Cargar datos sin mostrar indicador de carga para no interrumpir al usuario
+          _cargarEmpleadosSilenciosamente();
+        }
+      },
+    );
+  }
+
+  // Cargar datos sin mostrar indicador de carga
+  Future<void> _cargarEmpleadosSilenciosamente() async {
+    try {
+      final conexionExitosa = await widget.controller.verificarConexion();
+      if (conexionExitosa) {
+        await widget.controller.cargarEmpleadosConRefresco();
+      }
+    } catch (e) {
+      developer.log('Error en actualización automática: $e');
+      // No mostrar errores al usuario para actualizaciones en segundo plano
+    }
   }
 
   Future<void> cargarEmpleados() async {
@@ -73,7 +111,6 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
     setState(() => estado.mostrarInactivos = value);
   }
 
-  // Método para navegar a la pantalla de nuevo empleado
   void _navegarANuevoEmpleado() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -81,7 +118,14 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
           usuarioEmpleadoController: widget.controller,
         ),
       ),
-    ).then((_) => cargarEmpleados()); // Recargar al volver
+    ).then((_) => cargarEmpleados());
+  }
+  
+  @override
+  void dispose() {
+    // Cancelar el timer de actualización automática
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -151,7 +195,7 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
         if (!snapshot.hasData && !estado.isLoading) {
           return EmpleadosEmptyView(
             mostrandoInactivos: estado.mostrarInactivos,
-            onNuevoEmpleado: _navegarANuevoEmpleado, // Usar el nuevo método
+            onNuevoEmpleado: _navegarANuevoEmpleado,
           );
         }
 
@@ -165,25 +209,24 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
           if (empleadosFiltrados.isEmpty) {
             return EmpleadosEmptyView(
               mostrandoInactivos: estado.mostrarInactivos,
-              onNuevoEmpleado: _navegarANuevoEmpleado, // Usar el nuevo método
+              onNuevoEmpleado: _navegarANuevoEmpleado,
             );
           }
 
-          return EmpleadosListView(
-            empleados: empleadosFiltrados,
-            onItemTap:
-                (empleado) =>
-                    modificarEmpleado(empleado, onSuccess: cargarEmpleados),
-            onAgregarEmpleado: _navegarANuevoEmpleado, // Usar el nuevo método
-            onEliminar:
-                (empleado) =>
-                    inactivarEmpleado(empleado, onSuccess: cargarEmpleados),
-            onReactivar:
-                (empleado) =>
-                    reactivarEmpleado(empleado, onSuccess: cargarEmpleados),
-            onModificar:
-                (empleado) =>
-                    modificarEmpleado(empleado, onSuccess: cargarEmpleados),
+          return RefreshIndicator(
+            onRefresh: cargarEmpleados,
+            child: EmpleadosListView(
+              empleados: empleadosFiltrados,
+              onItemTap: (empleado) => 
+                  modificarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onAgregarEmpleado: _navegarANuevoEmpleado,
+              onEliminar: (empleado) => 
+                  inactivarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onReactivar: (empleado) => 
+                  reactivarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onModificar: (empleado) => 
+                  modificarEmpleado(empleado, onSuccess: cargarEmpleados),
+            ),
           );
         }
 

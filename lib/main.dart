@@ -4,14 +4,16 @@ import 'services/mysql_helper.dart';
 import 'services/auth_service.dart';
 import 'dart:developer' as developer;
 import 'services/image_service.dart';
+import 'vistas/inmuebles/index.dart';
 import 'package:flutter/material.dart';
+import 'services/usuario_service.dart';
 import 'controllers/usuario_controller.dart';
 import 'vistas/clientes/vista_clientes.dart';
+import 'controllers/empleado_controller.dart';
 import 'services/usuario_empleado_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'controllers/usuario_empleado_controller.dart';
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
-import 'vistas/inmuebles/index.dart';  // Importamos desde el nuevo índice
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,10 +34,19 @@ Future<void> main() async {
   final usuarioController = UsuarioController(dbService: dbService);
   final authService = AuthService(usuarioController);
 
+  // Creación del nuevo UsuarioService
+  final usuarioService = UsuarioService(dbService);
+
   // Nuevo servicio y controlador para Usuario-Empleado
   final usuarioEmpleadoService = UsuarioEmpleadoService(dbService);
   final usuarioEmpleadoController = UsuarioEmpleadoController(
     usuarioEmpleadoService,
+  );
+
+  // Inicialización del controlador de empleados
+  final empleadoController = EmpleadoController(
+    usuarioEmpleadoService,
+    usuarioService,
   );
 
   // Inicializar el controlador de empleados en segundo plano
@@ -58,6 +69,7 @@ Future<void> main() async {
       usuarioController: usuarioController,
       authService: authService,
       usuarioEmpleadoController: usuarioEmpleadoController,
+      empleadoController: empleadoController,
     ),
   );
 }
@@ -66,12 +78,14 @@ class MyApp extends StatelessWidget {
   final UsuarioController usuarioController;
   final AuthService authService;
   final UsuarioEmpleadoController usuarioEmpleadoController;
+  final EmpleadoController empleadoController;
 
   const MyApp({
     super.key,
     required this.usuarioController,
     required this.authService,
     required this.usuarioEmpleadoController,
+    required this.empleadoController,
   });
 
   @override
@@ -88,8 +102,10 @@ class MyApp extends StatelessWidget {
       routes: {
         '/usuario':
             (context) => UsuarioPage(usuarioController: usuarioController),
-        '/clientes': (context) => const VistaClientes(),
-        '/inmuebles': (context) => const InmuebleListScreen(), // Cambiado HomeScreen por InmuebleListScreen
+        '/clientes':
+            (context) =>
+                const VistaClientes(), // Ya no da error porque clienteInicial es opcional
+        '/inmuebles': (context) => const InmuebleListScreen(),
         '/empleados':
             (context) =>
                 ListaEmpleadosScreen(controller: usuarioEmpleadoController),

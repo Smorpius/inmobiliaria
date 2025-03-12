@@ -1,44 +1,96 @@
+import 'dart:async';
 import 'cliente_form_add.dart';
 import 'cliente_list_view.dart';
 import 'cliente_form_edit.dart';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../controllers/cliente_controller.dart';
 
 class VistaClientes extends StatefulWidget {
-  const VistaClientes({super.key});
+  final ClienteController? controller;
+  final Cliente? clienteInicial; // Cambiado a opcional
+
+  const VistaClientes({
+    super.key,
+    this.controller,
+    this.clienteInicial, // Ya no es requerido
+  });
 
   @override
   State<VistaClientes> createState() => _VistaClientesState();
 }
 
 class _VistaClientesState extends State<VistaClientes> {
-  final ClienteController _controller = ClienteController();
-  List<Cliente> _clientesActivos = [];
-  List<Cliente> _clientesInactivos = [];
+  late final ClienteController _controller;
   Cliente? _selectedCliente;
   bool _isLoading = true;
   bool _mostrandoInactivos = false;
 
+  // Timer para actualización automática
+  Timer? _autoRefreshTimer;
+
   @override
   void initState() {
     super.initState();
-    _cargarClientes();
+    _controller = widget.controller ?? ClienteController();
+
+    // Si hay un cliente inicial, seleccionarlo
+    if (widget.clienteInicial != null) {
+      _selectedCliente = widget.clienteInicial;
+    }
+
+    // Cargar clientes inicialmente
+    _cargarDatos();
+
+    // Iniciar actualización automática
+    _iniciarActualizacionAutomatica();
   }
 
-  Future<void> _cargarClientes() async {
+  void _iniciarActualizacionAutomatica() {
+    // Cancelar timer existente si hay uno
+    _autoRefreshTimer?.cancel();
+
+    // Crear nuevo timer que se ejecuta cada 30 segundos
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        developer.log('Ejecutando actualización automática de clientes');
+        // Cargar datos sin mostrar indicador de carga para no interrumpir al usuario
+        _actualizarSilenciosamente();
+      }
+    });
+  }
+
+  // Cargar datos sin mostrar indicador de carga
+  Future<void> _actualizarSilenciosamente() async {
+    try {
+      await _obtenerClientes(true);
+    } catch (e) {
+      developer.log('Error en actualización automática: $e');
+      // No mostrar errores al usuario para actualizaciones en segundo plano
+    }
+  }
+
+  @override
+  void dispose() {
+    // Cancelar el timer de actualización automática
+    _autoRefreshTimer?.cancel();
+    _clientesController.close(); // Cerrar el StreamController
+    super.dispose();
+  }
+
+  Future<void> _cargarDatos() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final activos = await _controller.getClientes();
-      final inactivos = await _controller.getClientesInactivos();
+      await _obtenerClientes();
 
       if (mounted) {
         setState(() {
-          _clientesActivos = activos;
-          _clientesInactivos = inactivos;
           _isLoading = false;
         });
       }
@@ -57,70 +109,140 @@ class _VistaClientesState extends State<VistaClientes> {
     }
   }
 
+  Future<void> _obtenerClientes([bool silencioso = false]) async {
+    if (!mounted) return;
+
+    if (!silencioso) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      final activos = await _controller.getClientes();
+      final inactivos = await _controller.getClientesInactivos();
+
+      if (mounted) {
+        setState(() {
+          _clientes = [...activos, ...inactivos];
+          if (!silencioso) _isLoading = false;
+        });
+      }
+    } catch (e) {
+      developer.log('Error al obtener clientes: $e');
+      if (!silencioso && mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar clientes: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Almacenamiento local de clientes para el StreamBuilder personalizado
+  List<Cliente> _clientes = [];
+
+  // StreamController personalizado para simular un stream de actualizaciones
+  final StreamController<List<Cliente>> _clientesController =
+      StreamController<List<Cliente>>.broadcast();
+
+  Stream<List<Cliente>> get _clientesStream => _clientesController.stream;
+
   void _agregarCliente() {
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder:
           (context) => ClienteFormAdd(
-            onClienteAdded: _cargarClientes,
+            onClienteAdded: _cargarDatos,
             controller: _controller,
           ),
     );
   }
 
   void _editarCliente(Cliente cliente) {
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder:
           (context) => ClienteFormEdit(
             cliente: cliente,
-            onClienteUpdated: _cargarClientes,
+            onClienteUpdated: _cargarDatos,
             controller: _controller,
           ),
     );
   }
 
   Future<void> _toggleEstadoCliente(Cliente cliente) async {
-    final messenger = ScaffoldMessenger.of(context);
+    if (!mounted) return;
+
+    // Capturar context al comienzo para evitar el uso después de operación asíncrona
+    final ScaffoldMessengerState messengerState = ScaffoldMessenger.of(context);
     final bool estaInactivo = _mostrandoInactivos;
 
     try {
+      bool success = false;
+
       if (estaInactivo) {
         await _controller.reactivarCliente(cliente.id!);
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Cliente reactivado correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        success = true;
+
+        // Verificar que el widget sigue montado antes de mostrar SnackBar
+        if (mounted) {
+          messengerState.showSnackBar(
+            const SnackBar(
+              content: Text('Cliente reactivado correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
         await _controller.inactivarCliente(cliente.id!);
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Cliente inactivado correctamente'),
-            backgroundColor: Colors.orange,
+        success = true;
+
+        // Verificar que el widget sigue montado antes de mostrar SnackBar
+        if (mounted) {
+          messengerState.showSnackBar(
+            const SnackBar(
+              content: Text('Cliente inactivado correctamente'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+
+      // Deseleccionar cliente actual y actualizar datos solo si sigue montado
+      if (mounted && success) {
+        setState(() {
+          _selectedCliente = null;
+        });
+
+        // Actualizar la lista de clientes
+        await _cargarDatos();
+      }
+    } catch (e) {
+      // Verificar que el widget sigue montado antes de mostrar error
+      if (mounted) {
+        messengerState.showSnackBar(
+          SnackBar(
+            content: Text('Error al cambiar estado del cliente: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       }
-
-      // Deseleccionar cliente actual
-      setState(() {
-        _selectedCliente = null;
-      });
-
-      // Recargar los datos
-      await _cargarClientes();
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Error al cambiar estado del cliente: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
 
   void _toggleMostrarInactivos() {
+    if (!mounted) return;
+
     setState(() {
       _mostrandoInactivos = !_mostrandoInactivos;
       _selectedCliente = null; // Reset de la selección
@@ -129,13 +251,21 @@ class _VistaClientesState extends State<VistaClientes> {
 
   @override
   Widget build(BuildContext context) {
-    final clientes =
-        _mostrandoInactivos ? _clientesInactivos : _clientesActivos;
+    // Cada vez que se construye el widget, actualizamos el stream
+    if (_clientes.isNotEmpty) {
+      _clientesController.add(_clientes);
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestión de Clientes'),
         actions: [
+          // Botón para actualización manual (opcional)
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar lista',
+            onPressed: _cargarDatos,
+          ),
           // Botón para alternar entre activos e inactivos
           IconButton(
             onPressed: _toggleMostrarInactivos,
@@ -155,21 +285,49 @@ class _VistaClientesState extends State<VistaClientes> {
               ? const Center(child: CircularProgressIndicator())
               : Row(
                 children: [
-                  // Panel izquierdo con lista de clientes
+                  // Panel izquierdo con lista de clientes usando StreamBuilder
                   Expanded(
                     flex: 3,
-                    child: ClienteListView(
-                      clientes: clientes,
-                      selectedCliente: _selectedCliente,
-                      onClienteSelected: (cliente) {
-                        setState(() {
-                          _selectedCliente = cliente;
-                        });
+                    child: StreamBuilder<List<Cliente>>(
+                      stream: _clientesStream,
+                      initialData: _clientes,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text('Error: ${snapshot.error}'),
+                          );
+                        }
+
+                        if (!snapshot.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        final clientes = snapshot.data!;
+                        final filteredClientes =
+                            _mostrandoInactivos
+                                ? clientes
+                                    .where((c) => c.idEstado != 1)
+                                    .toList()
+                                : clientes
+                                    .where((c) => c.idEstado == 1)
+                                    .toList();
+
+                        return ClienteListView(
+                          clientes: filteredClientes,
+                          selectedCliente: _selectedCliente,
+                          onClienteSelected: (cliente) {
+                            setState(() {
+                              _selectedCliente = cliente;
+                            });
+                          },
+                          onRefresh: _cargarDatos,
+                          onEdit: _editarCliente,
+                          onDelete: _toggleEstadoCliente,
+                          mostrandoInactivos: _mostrandoInactivos,
+                        );
                       },
-                      onRefresh: _cargarClientes,
-                      onEdit: _editarCliente,
-                      onDelete: _toggleEstadoCliente,
-                      mostrandoInactivos: _mostrandoInactivos,
                     ),
                   ),
                   // Panel derecho con detalles del cliente seleccionado
@@ -199,14 +357,7 @@ class _VistaClientesState extends State<VistaClientes> {
                             )
                             : Padding(
                               padding: const EdgeInsets.all(8.0),
-                              child: ClienteDetailView(
-                                cliente: _selectedCliente!,
-                                onEdit: () => _editarCliente(_selectedCliente!),
-                                onDelete:
-                                    () =>
-                                        _toggleEstadoCliente(_selectedCliente!),
-                                isInactivo: _mostrandoInactivos,
-                              ),
+                              child: _buildClienteDetail(_selectedCliente!),
                             ),
                   ),
                 ],
@@ -221,101 +372,29 @@ class _VistaClientesState extends State<VistaClientes> {
               : null,
     );
   }
-}
 
-// Separamos la clase ClienteDetailView para que pueda ser reutilizada
-class ClienteDetailView extends StatelessWidget {
-  final Cliente cliente;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final bool isInactivo;
-
-  const ClienteDetailView({
-    super.key,
-    required this.cliente,
-    required this.onEdit,
-    required this.onDelete,
-    this.isInactivo = false,
-  });
-
-  // Formatea tipos de cliente para mostrar con primera letra mayúscula
-  String _formatTipoCliente(String tipo) {
-    switch (tipo) {
-      case 'comprador':
-        return 'Comprador';
-      case 'arrendatario':
-        return 'Arrendatario';
-      case 'ambos':
-        return 'Comprador y Arrendatario';
-      default:
-        return tipo[0].toUpperCase() + tipo.substring(1);
-    }
-  }
-
-  Widget _buildDetailRow(String label, String value, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: isInactivo ? Colors.grey : Colors.teal, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isInactivo ? Colors.grey.shade600 : null,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildClienteDetail(Cliente cliente) {
     return Card(
-      margin: const EdgeInsets.all(16.0),
       elevation: 4,
-      color: isInactivo ? Colors.grey.shade50 : null,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.all(8),
+      color: _mostrandoInactivos ? Colors.grey.shade100 : null,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Encabezado
             Center(
               child: Column(
                 children: [
                   CircleAvatar(
-                    radius: 40,
                     backgroundColor:
-                        isInactivo
-                            ? Colors.grey.shade300
-                            : Colors.teal.shade100,
+                        _mostrandoInactivos ? Colors.grey : Colors.teal,
+                    foregroundColor: Colors.white,
+                    radius: 40,
                     child: Text(
                       cliente.nombre.substring(0, 1).toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: isInactivo ? Colors.grey : Colors.teal,
-                      ),
+                      style: const TextStyle(fontSize: 32),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -325,12 +404,14 @@ class ClienteDetailView extends StatelessWidget {
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       decoration:
-                          isInactivo ? TextDecoration.lineThrough : null,
-                      color: isInactivo ? Colors.grey.shade700 : null,
+                          _mostrandoInactivos
+                              ? TextDecoration.lineThrough
+                              : null,
+                      color: _mostrandoInactivos ? Colors.grey.shade700 : null,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  if (isInactivo)
+                  if (_mostrandoInactivos)
                     Container(
                       margin: const EdgeInsets.only(top: 8),
                       padding: const EdgeInsets.symmetric(
@@ -352,111 +433,47 @@ class ClienteDetailView extends StatelessWidget {
                 ],
               ),
             ),
-            const Divider(height: 40),
 
-            // Información básica del cliente
-            _buildDetailRow('Nombre', cliente.nombre, Icons.person),
-            _buildDetailRow(
-              'Apellido Paterno',
-              cliente.apellidoPaterno,
-              Icons.person,
-            ),
-            if (cliente.apellidoMaterno != null &&
-                cliente.apellidoMaterno!.isNotEmpty)
-              _buildDetailRow(
-                'Apellido Materno',
-                cliente.apellidoMaterno!,
-                Icons.person,
-              ),
-            _buildDetailRow(
+            const Divider(height: 32),
+
+            // Información de contacto
+            _buildDetailItem(Icons.phone, 'Teléfono', cliente.telefono),
+            _buildDetailItem(Icons.badge, 'RFC', cliente.rfc),
+            _buildDetailItem(Icons.assignment_ind, 'CURP', cliente.curp),
+            _buildDetailItem(
+              Icons.category,
               'Tipo de Cliente',
               _formatTipoCliente(cliente.tipoCliente),
-              Icons.category,
             ),
-            _buildDetailRow('Teléfono', cliente.telefono, Icons.phone),
-            _buildDetailRow('RFC', cliente.rfc, Icons.assignment_ind),
-            _buildDetailRow('CURP', cliente.curp, Icons.badge),
-            _buildDetailRow(
-              'Correo',
-              cliente.correo ?? 'No proporcionado',
-              Icons.email,
-            ),
+            if (cliente.correo != null)
+              _buildDetailItem(Icons.email, 'Correo', cliente.correo!),
 
-            // Dirección completa
-            _buildDetailRow(
-              'Dirección',
-              cliente.direccionCompleta,
-              Icons.location_on,
-            ),
-
-            // Fecha de registro
             if (cliente.fechaRegistro != null)
-              _buildDetailRow(
+              _buildDetailItem(
+                Icons.calendar_today,
                 'Fecha de registro',
                 cliente.fechaRegistro.toString().split(' ')[0],
-                Icons.calendar_today,
               ),
 
-            // Lista de inmuebles asociados si están disponibles
-            if (cliente.id != null)
-              FutureBuilder<List<Map<String, dynamic>>>(
-                future: ClienteController().getInmueblesPorCliente(cliente.id!),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+            const Divider(height: 32),
 
-                  if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Divider(height: 40),
-                        Text(
-                          'Inmuebles asociados',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: snapshot.data!.length,
-                          itemBuilder: (context, index) {
-                            final inmueble = snapshot.data![index];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: const Icon(Icons.home),
-                                title: Text(inmueble['nombre'] ?? 'Sin nombre'),
-                                subtitle: Text(
-                                  '${inmueble['tipo_inmueble'] ?? 'N/A'} - ${inmueble['tipo_operacion'] ?? 'N/A'}',
-                                ),
-                                trailing: Text(
-                                  inmueble['monto_total'] != null
-                                      ? '\$${inmueble['monto_total']}'
-                                      : 'Precio no especificado',
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    );
-                  }
+            // Dirección
+            const Text(
+              'Dirección',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            Text(cliente.direccionCompleta),
 
-                  return const SizedBox.shrink();
-                },
-              ),
+            const SizedBox(height: 32),
 
-            const SizedBox(height: 24),
+            // Botones de acción
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                if (!isInactivo)
+                if (!_mostrandoInactivos)
                   ElevatedButton.icon(
-                    onPressed: onEdit,
+                    onPressed: () => _editarCliente(cliente),
                     icon: const Icon(Icons.edit),
                     label: const Text('Editar'),
                     style: ElevatedButton.styleFrom(
@@ -464,13 +481,16 @@ class ClienteDetailView extends StatelessWidget {
                       foregroundColor: Colors.white,
                     ),
                   ),
-                if (!isInactivo) const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
-                  onPressed: onDelete,
-                  icon: Icon(isInactivo ? Icons.person_add : Icons.delete),
-                  label: Text(isInactivo ? 'Reactivar' : 'Inactivar'),
+                  onPressed: () => _toggleEstadoCliente(cliente),
+                  icon: Icon(
+                    _mostrandoInactivos ? Icons.person_add : Icons.delete,
+                  ),
+                  label: Text(_mostrandoInactivos ? 'Reactivar' : 'Inactivar'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isInactivo ? Colors.green : Colors.red,
+                    backgroundColor:
+                        _mostrandoInactivos ? Colors.green : Colors.red,
                     foregroundColor: Colors.white,
                   ),
                 ),
@@ -478,6 +498,47 @@ class ClienteDetailView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  String _formatTipoCliente(String tipo) {
+    switch (tipo) {
+      case 'comprador':
+        return 'Comprador';
+      case 'arrendatario':
+        return 'Arrendatario';
+      case 'ambos':
+        return 'Comprador y Arrendatario';
+      default:
+        return tipo;
+    }
+  }
+
+  Widget _buildDetailItem(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.teal, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(value),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

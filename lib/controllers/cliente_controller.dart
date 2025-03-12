@@ -1,6 +1,7 @@
 import 'package:logging/logging.dart';
 import '../models/cliente_model.dart';
 import '../services/mysql_helper.dart';
+import '../vistas/clientes/cliente_inmueble.dart'; // Importación añadida
 
 class ClienteController {
   final DatabaseService _dbService = DatabaseService();
@@ -291,6 +292,100 @@ class ClienteController {
     } catch (e) {
       _logger.severe('Error al obtener inmuebles por cliente: $e');
       throw Exception('Error al buscar inmuebles por cliente: $e');
+    }
+  }
+
+  // NUEVOS MÉTODOS PARA LA RELACIÓN CLIENTE-INMUEBLE
+
+  // Asignar un inmueble a un cliente
+  Future<bool> asignarInmuebleACliente(
+    int idCliente,
+    int idInmueble, [
+    DateTime? fechaAdquisicion,
+  ]) async {
+    final conn = await _dbService.connection;
+    final fecha = fechaAdquisicion ?? DateTime.now();
+
+    try {
+      // Verificar si el inmueble ya está asignado a otro cliente
+      final existeAsignacion = await conn.query(
+        'SELECT id FROM cliente_inmueble WHERE id_inmueble = ?',
+        [idInmueble],
+      );
+
+      if (existeAsignacion.isNotEmpty) {
+        _logger.warning('El inmueble ya está asignado a otro cliente');
+        return false;
+      }
+
+      await conn.query(
+        'INSERT INTO cliente_inmueble (id_cliente, id_inmueble, fecha_adquisicion) VALUES (?, ?, ?)',
+        [idCliente, idInmueble, fecha.toIso8601String().split('T')[0]],
+      );
+
+      _logger.info('Inmueble $idInmueble asignado al cliente $idCliente');
+      return true;
+    } catch (e) {
+      _logger.severe('Error al asignar inmueble a cliente: $e');
+      throw Exception('Error al asignar inmueble: $e');
+    }
+  }
+
+  // Eliminar asignación de inmueble a cliente
+  Future<bool> desasignarInmuebleDeCliente(int idInmueble) async {
+    final conn = await _dbService.connection;
+
+    try {
+      final result = await conn.query(
+        'DELETE FROM cliente_inmueble WHERE id_inmueble = ?',
+        [idInmueble],
+      );
+
+      _logger.info(
+        'Inmueble $idInmueble desasignado. Filas afectadas: ${result.affectedRows}',
+      );
+      return result.affectedRows! > 0;
+    } catch (e) {
+      _logger.severe('Error al desasignar inmueble: $e');
+      throw Exception('Error al desasignar inmueble: $e');
+    }
+  }
+
+  // Obtener todos los inmuebles asignados a un cliente
+  Future<List<ClienteInmueble>> getInmueblesAsignados(int idCliente) async {
+    final conn = await _dbService.connection;
+
+    try {
+      final results = await conn.query(
+        'SELECT * FROM cliente_inmueble WHERE id_cliente = ?',
+        [idCliente],
+      );
+
+      if (results.isEmpty) return [];
+
+      return results.map((row) => ClienteInmueble.fromMap(row.fields)).toList();
+    } catch (e) {
+      _logger.severe('Error al obtener inmuebles asignados: $e');
+      throw Exception('Error al obtener inmuebles asignados: $e');
+    }
+  }
+
+  // Obtener cliente asignado a un inmueble
+  Future<ClienteInmueble?> getClienteDeInmueble(int idInmueble) async {
+    final conn = await _dbService.connection;
+
+    try {
+      final results = await conn.query(
+        'SELECT * FROM cliente_inmueble WHERE id_inmueble = ?',
+        [idInmueble],
+      );
+
+      if (results.isEmpty) return null;
+
+      return ClienteInmueble.fromMap(results.first.fields);
+    } catch (e) {
+      _logger.severe('Error al obtener cliente de inmueble: $e');
+      throw Exception('Error al obtener cliente de inmueble: $e');
     }
   }
 }

@@ -1,3 +1,4 @@
+import '../../../models/usuario.dart';
 import 'package:flutter/material.dart';
 import '../empleado_usuario_form.dart';
 import '../empleado_laboral_form.dart';
@@ -5,8 +6,6 @@ import '../../../widgets/app_scaffold.dart';
 import '../../../controllers/empleado_form_controller.dart';
 import '../../../controllers/usuario_empleado_controller.dart';
 import '../../../models/empleado_form_state.dart' as form_model;
-import '../../../models/usuario.dart'; // Agregar importación del modelo de Usuario 
-// Agregar importación del modelo de Empleado
 
 class DetalleEmpleadoScreen extends StatefulWidget {
   final UsuarioEmpleadoController controller;
@@ -55,21 +54,25 @@ class _DetalleEmpleadoScreenState extends State<DetalleEmpleadoScreen> {
         if (empleadoData != null) {
           _idUsuario = empleadoData.usuario.id;
           _formController.nombreController.text = empleadoData.usuario.nombre;
-          _formController.apellidoController.text = empleadoData.usuario.apellido;
+          _formController.apellidoController.text =
+              empleadoData.usuario.apellido;
           _formController.apellidoMaternoController.text =
               empleadoData.empleado.apellidoMaterno ?? '';
           _formController.nombreUsuarioController.text =
               empleadoData.usuario.nombreUsuario;
           _formController.correoController.text = empleadoData.empleado.correo;
-          _formController.telefonoController.text = empleadoData.empleado.telefono;
-          _formController.direccionController.text = empleadoData.empleado.direccion;
+          _formController.telefonoController.text =
+              empleadoData.empleado.telefono;
+          _formController.direccionController.text =
+              empleadoData.empleado.direccion;
           _formController.claveSistemaController.text =
               empleadoData.empleado.claveSistema;
           _formController.cargoController.text = empleadoData.empleado.cargo;
           _formController.sueldoController.text =
               empleadoData.empleado.sueldoActual.toString();
 
-          _formState.fechaContratacion = empleadoData.empleado.fechaContratacion;
+          _formState.fechaContratacion =
+              empleadoData.empleado.fechaContratacion;
           _imagenPerfil = empleadoData.usuario.imagenPerfil;
         }
       } catch (e) {
@@ -112,7 +115,12 @@ class _DetalleEmpleadoScreenState extends State<DetalleEmpleadoScreen> {
       );
 
       if (widget.idEmpleado == null) {
-        await widget.controller.crearEmpleado(usuarioConImagen, empleado);
+        // CORRECCIÓN: Cambiar crearEmpleado por crearUsuarioEmpleado y pasar la contraseña
+        await widget.controller.crearUsuarioEmpleado(
+          usuarioConImagen,
+          empleado,
+          _formController.contrasenaController.text,
+        );
       } else {
         await widget.controller.actualizarEmpleado(
           _idUsuario!,
@@ -150,85 +158,87 @@ class _DetalleEmpleadoScreenState extends State<DetalleEmpleadoScreen> {
     return AppScaffold(
       title: widget.idEmpleado == null ? 'Nuevo Empleado' : 'Editar Empleado',
       currentRoute: '/detalle_empleado',
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  if (_errorMessage != null)
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade100,
-                        borderRadius: BorderRadius.circular(8),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    if (_errorMessage != null)
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
                       ),
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
+                    EmpleadoUsuarioForm(
+                      nombreController: _formController.nombreController,
+                      apellidoController: _formController.apellidoController,
+                      apellidoMaternoController:
+                          _formController.apellidoMaternoController,
+                      nombreUsuarioController:
+                          _formController.nombreUsuarioController,
+                      contrasenaController:
+                          _formController.contrasenaController,
+                      correoController: _formController.correoController,
+                      isEditando: widget.idEmpleado != null,
+                      verificandoUsuario: _formController.verificandoUsuario,
+                      nombreUsuarioExiste: _formController.nombreUsuarioExiste,
+                      controller: widget.controller,
+                      imagenPerfil: _imagenPerfil,
+                      onImagenPerfilChanged: _onImagenPerfilChanged,
+                      onUserDataChanged: (
+                        String nombre,
+                        String apellido,
+                        String correo,
+                      ) {
+                        _formController.nombreController.text = nombre;
+                        _formController.apellidoController.text = apellido;
+                        _formController.correoController.text = correo;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    EmpleadoLaboralForm(
+                      claveSistemaController:
+                          _formController.claveSistemaController,
+                      telefonoController: _formController.telefonoController,
+                      direccionController: _formController.direccionController,
+                      cargoController: _formController.cargoController,
+                      sueldoController: _formController.sueldoController,
+                      nombreController: _formController.nombreController,
+                      apellidoController: _formController.apellidoController,
+                      correoController: _formController.correoController,
+                      fechaContratacion: _formState.fechaContratacion,
+                      onFechaContratacionChanged: _onFechaContratacionChanged,
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _guardar,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child:
+                            _isSaving
+                                ? const CircularProgressIndicator()
+                                : Text(
+                                  widget.idEmpleado == null
+                                      ? 'Crear Empleado'
+                                      : 'Actualizar Empleado',
+                                ),
                       ),
                     ),
-                  EmpleadoUsuarioForm(
-                    nombreController: _formController.nombreController,
-                    apellidoController: _formController.apellidoController,
-                    apellidoMaternoController:
-                        _formController.apellidoMaternoController,
-                    nombreUsuarioController:
-                        _formController.nombreUsuarioController,
-                    contrasenaController:
-                        _formController.contrasenaController,
-                    correoController: _formController.correoController,
-                    isEditando: widget.idEmpleado != null,
-                    verificandoUsuario: _formController.verificandoUsuario,
-                    nombreUsuarioExiste: _formController.nombreUsuarioExiste,
-                    controller: widget.controller,
-                    imagenPerfil: _imagenPerfil,
-                    onImagenPerfilChanged: _onImagenPerfilChanged,
-                    onUserDataChanged: (
-                      String nombre,
-                      String apellido,
-                      String correo,
-                    ) {
-                      _formController.nombreController.text = nombre;
-                      _formController.apellidoController.text = apellido;
-                      _formController.correoController.text = correo;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  EmpleadoLaboralForm(
-                    claveSistemaController:
-                        _formController.claveSistemaController,
-                    telefonoController: _formController.telefonoController,
-                    direccionController: _formController.direccionController,
-                    cargoController: _formController.cargoController,
-                    sueldoController: _formController.sueldoController,
-                    nombreController: _formController.nombreController,
-                    apellidoController: _formController.apellidoController,
-                    correoController: _formController.correoController,
-                    fechaContratacion: _formState.fechaContratacion,
-                    onFechaContratacionChanged: _onFechaContratacionChanged,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _guardar,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: _isSaving
-                          ? const CircularProgressIndicator()
-                          : Text(
-                              widget.idEmpleado == null
-                                  ? 'Crear Empleado'
-                                  : 'Actualizar Empleado',
-                            ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
     );
   }
 }

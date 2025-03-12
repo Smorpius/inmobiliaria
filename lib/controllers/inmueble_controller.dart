@@ -61,9 +61,9 @@ class InmuebleController {
       _logger.info('Insertando inmueble: $inmueble');
       final db = await dbHelper.connection;
 
-      // Usar el procedimiento almacenado CrearInmueble
-      final result = await db.query(
-        'CALL CrearInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      // Modificar la llamada para usar el parámetro OUT
+      await db.query(
+        'CALL CrearInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_inmueble_out)',
         [
           inmueble.nombre,
           inmueble.calle ?? '',
@@ -85,10 +85,18 @@ class InmuebleController {
         ],
       );
 
-      _logger.info(
-        'Inmueble insertado: ID=${result.insertId}, Filas afectadas=${result.affectedRows}',
-      );
-      return result.insertId ?? -1;
+      // Obtener el ID generado por el procedimiento almacenado
+      final idResult = await db.query('SELECT @id_inmueble_out as id');
+
+      if (idResult.isEmpty || idResult.first.fields['id'] == null) {
+        _logger.severe('No se pudo obtener el ID del inmueble creado');
+        throw Exception('No se pudo obtener el ID del inmueble creado');
+      }
+
+      final int inmuebleId = idResult.first.fields['id'] as int;
+      _logger.info('Inmueble insertado con ID: $inmuebleId');
+
+      return inmuebleId;
     } catch (e) {
       _logger.severe('Error al insertar inmueble: $e');
       throw Exception('Error al insertar inmueble: $e');
