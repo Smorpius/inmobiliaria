@@ -2,7 +2,7 @@
 CREATE DATABASE IF NOT EXISTS Proyecto_Prueba CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Proyecto_Prueba;
 
--- Eliminar primero los procedimientos almacenados y funciones existentes
+-- Eliminar procedimientos almacenados y funciones existentes
 DROP PROCEDURE IF EXISTS CrearUsuario;
 DROP PROCEDURE IF EXISTS ActualizarUsuario;
 DROP PROCEDURE IF EXISTS InactivarUsuario;
@@ -32,7 +32,7 @@ DROP PROCEDURE IF EXISTS InactivarUsuarioEmpleado;
 DROP PROCEDURE IF EXISTS ReactivarUsuarioEmpleado;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
--- Primero eliminamos las tablas en orden correcto respetando dependencias
+-- Eliminar tablas respetando dependencias
 DROP TABLE IF EXISTS historial_usuarios;
 DROP TABLE IF EXISTS inmuebles_imagenes;
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;
@@ -45,13 +45,13 @@ DROP TABLE IF EXISTS usuarios;
 DROP TABLE IF EXISTS direcciones;
 DROP TABLE IF EXISTS estados;
 
--- Inicializar estados con ID fijo
-CREATE TABLE IF NOT EXISTS estados (
+-- Crear tabla de estados con IDs fijos
+CREATE TABLE estados (
     id_estado INT PRIMARY KEY,
     nombre_estado VARCHAR(20) NOT NULL UNIQUE
 );
 
--- Insertar estados con ID específicos
+-- Insertar estados predefinidos
 INSERT INTO estados (id_estado, nombre_estado) 
 VALUES 
     (1, 'activo'),
@@ -62,7 +62,7 @@ VALUES
     (6, 'en_negociacion')
 ON DUPLICATE KEY UPDATE nombre_estado = VALUES(nombre_estado);
 
--- Crear tabla de direcciones normalizadas con campos completos
+-- Crear tabla de direcciones
 CREATE TABLE direcciones (
     id_direccion INT AUTO_INCREMENT PRIMARY KEY,
     calle VARCHAR(100) NOT NULL,
@@ -76,7 +76,7 @@ CREATE TABLE direcciones (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
--- Crear tabla de Usuarios con campo para imagen
+-- Crear tabla de usuarios
 CREATE TABLE usuarios (
     id_usuario INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -93,7 +93,7 @@ CREATE TABLE usuarios (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
--- Crear tabla de historial de usuarios para registrar cambios
+-- Crear tabla de historial de usuarios
 CREATE TABLE historial_usuarios (
     id_historial INT AUTO_INCREMENT PRIMARY KEY,
     id_usuario INT NOT NULL,
@@ -105,7 +105,7 @@ CREATE TABLE historial_usuarios (
     FOREIGN KEY (id_estado_nuevo) REFERENCES estados(id_estado)
 );
 
--- Crear tabla de Clientes con las modificaciones solicitadas
+-- Crear tabla de clientes
 CREATE TABLE clientes (
     id_cliente INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -113,7 +113,7 @@ CREATE TABLE clientes (
     apellido_materno VARCHAR(100),
     id_direccion INT,
     telefono_cliente VARCHAR(20),
-    rfc VARCHAR(13) NOT NULL, 
+    rfc VARCHAR(13) NOT NULL,
     curp VARCHAR(18) NOT NULL,
     tipo_cliente ENUM('comprador', 'arrendatario', 'ambos') NOT NULL DEFAULT 'comprador',
     correo_cliente VARCHAR(100),
@@ -124,7 +124,7 @@ CREATE TABLE clientes (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
--- Crear tabla de Proveedores con validación de correo
+-- Crear tabla de proveedores
 CREATE TABLE proveedores (
     id_proveedor INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -139,7 +139,7 @@ CREATE TABLE proveedores (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
--- Crear tabla de Empleados con campo para imagen
+-- Crear tabla de empleados
 CREATE TABLE empleados (
     id_empleado INT AUTO_INCREMENT PRIMARY KEY,
     id_usuario INT,
@@ -160,7 +160,7 @@ CREATE TABLE empleados (
     INDEX idx_empleados_usuario (id_usuario)
 );
 
--- Crear tabla de Inmuebles con valores por defecto y campos adicionales
+-- Crear tabla de inmuebles
 CREATE TABLE inmuebles (
     id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
     nombre_inmueble VARCHAR(100) NOT NULL,
@@ -182,7 +182,7 @@ CREATE TABLE inmuebles (
 );
 
 -- Crear tabla para clientes interesados
-CREATE TABLE IF NOT EXISTS inmuebles_clientes_interesados (
+CREATE TABLE inmuebles_clientes_interesados (
     id INT AUTO_INCREMENT PRIMARY KEY,
     id_inmueble INT NOT NULL,
     id_cliente INT NOT NULL,
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS inmuebles_clientes_interesados (
 );
 
 -- Crear tabla para imágenes de inmuebles
-CREATE TABLE IF NOT EXISTS inmuebles_imagenes (
+CREATE TABLE inmuebles_imagenes (
     id_imagen INT AUTO_INCREMENT PRIMARY KEY,
     id_inmueble INT NOT NULL,
     ruta_imagen VARCHAR(255) NOT NULL,
@@ -203,11 +203,21 @@ CREATE TABLE IF NOT EXISTS inmuebles_imagenes (
     FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble)
 );
 
--- Definir los triggers
+-- Crear tabla para relacionar clientes con inmuebles
+CREATE TABLE cliente_inmueble (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    id_inmueble INT NOT NULL,
+    fecha_adquisicion DATE NOT NULL,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
+    CONSTRAINT unique_inmueble UNIQUE (id_inmueble)
+);
+
+-- Definir triggers
 DELIMITER //
 
 -- Trigger para validar correo de usuario
-DROP TRIGGER IF EXISTS validar_correo_usuario //
 CREATE TRIGGER validar_correo_usuario
 BEFORE INSERT ON usuarios
 FOR EACH ROW
@@ -215,8 +225,7 @@ BEGIN
     IF NEW.correo_cliente IS NOT NULL AND 
        NEW.correo_cliente <> '' AND
        NEW.correo_cliente NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Correo electrónico de usuario inválido';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico de usuario inválido';
     END IF;
 END //
 
@@ -227,8 +236,7 @@ FOR EACH ROW
 BEGIN
     IF NEW.telefono_cliente IS NOT NULL AND 
        NEW.telefono_cliente NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Número de teléfono inválido';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono inválido';
     END IF;
 END //
 
@@ -239,8 +247,7 @@ FOR EACH ROW
 BEGIN
     IF NEW.correo_cliente IS NOT NULL AND 
        NEW.correo_cliente NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
-        SIGNAL SQLSTATE '45000' 
-        SET MESSAGE_TEXT = 'Correo electrónico inválido';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico inválido';
     END IF;
 END //
 
@@ -258,18 +265,18 @@ BEGIN
     RETURN SHA2(CONCAT(p_contraseña, salt), 512);
 END //
 
--- Procedimiento para crear usuario con imagen
+-- Procedimiento para crear usuario
 CREATE PROCEDURE CrearUsuario(
     IN p_nombre VARCHAR(100), 
     IN p_apellido VARCHAR(100), 
     IN p_nombre_usuario VARCHAR(100), 
     IN p_contraseña VARCHAR(255),
     IN p_correo_cliente VARCHAR(100),
-    IN p_imagen_perfil VARCHAR(255)
+    IN p_imagen_perfil VARCHAR(255),
+    OUT p_id_usuario_out INT
 )
 BEGIN
     DECLARE usuario_existente INT;
-    DECLARE v_id_usuario INT;
     DECLARE v_id_estado_activo INT DEFAULT 1;
 
     IF LENGTH(p_contraseña) < 8 THEN
@@ -282,24 +289,28 @@ BEGIN
 
     IF usuario_existente > 0 THEN 
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El nombre de usuario ya existe';
-    ELSE
-        INSERT INTO usuarios (
-            nombre, apellido, nombre_usuario, contraseña_usuario, correo_cliente, imagen_perfil, id_estado
-        ) VALUES (
-            p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), p_correo_cliente, p_imagen_perfil, v_id_estado_activo
-        );
-
-        SET v_id_usuario = LAST_INSERT_ID();
-
-        INSERT INTO historial_usuarios (
-            id_usuario, id_estado_anterior, id_estado_nuevo
-        ) VALUES (
-            v_id_usuario, NULL, v_id_estado_activo
-        );
     END IF;
+
+    START TRANSACTION;
+    
+    INSERT INTO usuarios (
+        nombre, apellido, nombre_usuario, contraseña_usuario, correo_cliente, imagen_perfil, id_estado
+    ) VALUES (
+        p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), p_correo_cliente, p_imagen_perfil, v_id_estado_activo
+    );
+
+    SET p_id_usuario_out = LAST_INSERT_ID();
+
+    INSERT INTO historial_usuarios (
+        id_usuario, id_estado_anterior, id_estado_nuevo
+    ) VALUES (
+        p_id_usuario_out, NULL, v_id_estado_activo
+    );
+
+    COMMIT;
 END //
 
--- Procedimiento para actualizar usuario con imagen
+-- Procedimiento para actualizar usuario
 CREATE PROCEDURE ActualizarUsuario(
     IN p_id_usuario INT, 
     IN p_nombre VARCHAR(100), 
@@ -311,18 +322,16 @@ CREATE PROCEDURE ActualizarUsuario(
 )
 BEGIN
     DECLARE estado_actual_id INT;
-    DECLARE v_estado_nombre VARCHAR(20);
     
-    SELECT usuarios.id_estado, estados.nombre_estado INTO estado_actual_id, v_estado_nombre
+    SELECT id_estado INTO estado_actual_id
     FROM usuarios 
-    JOIN estados ON usuarios.id_estado = estados.id_estado
     WHERE id_usuario = p_id_usuario;
     
     IF estado_actual_id IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
     END IF;
     
-    IF v_estado_nombre = 'inactivo' THEN
+    IF estado_actual_id = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un usuario inactivo';
     END IF;
 
@@ -334,6 +343,8 @@ BEGIN
     ) THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Nombre de usuario ya en uso';
     END IF;
+
+    START TRANSACTION;
 
     UPDATE usuarios SET 
         nombre = p_nombre, 
@@ -347,6 +358,8 @@ BEGIN
             ELSE contraseña_usuario
         END
     WHERE id_usuario = p_id_usuario;
+
+    COMMIT;
 END //
 
 -- Procedimiento para inactivar usuario
@@ -354,18 +367,16 @@ CREATE PROCEDURE InactivarUsuario(IN p_id_usuario INT)
 BEGIN
     DECLARE estado_actual_id INT;
     DECLARE v_id_estado_inactivo INT DEFAULT 2;
-    DECLARE estado_actual_nombre VARCHAR(20);
 
-    IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id_usuario = p_id_usuario) THEN
+    SELECT id_estado INTO estado_actual_id
+    FROM usuarios 
+    WHERE id_usuario = p_id_usuario;
+
+    IF estado_actual_id IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
     END IF;
 
-    SELECT usuarios.id_estado, estados.nombre_estado INTO estado_actual_id, estado_actual_nombre
-    FROM usuarios 
-    JOIN estados ON usuarios.id_estado = estados.id_estado
-    WHERE id_usuario = p_id_usuario;
-
-    IF estado_actual_nombre = 'inactivo' THEN
+    IF estado_actual_id = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El usuario ya está inactivo';
     END IF;
 
@@ -384,7 +395,7 @@ BEGIN
     COMMIT;
 END //
 
--- Procedimientos CRUD para Clientes
+-- Procedimiento para crear cliente (corregido y completo)
 CREATE PROCEDURE CrearCliente(
     IN p_nombre VARCHAR(100),
     IN p_apellido_paterno VARCHAR(100),
@@ -400,7 +411,8 @@ CREATE PROCEDURE CrearCliente(
     IN p_rfc VARCHAR(13),
     IN p_curp VARCHAR(18),
     IN p_correo_cliente VARCHAR(100),
-    IN p_tipo_cliente ENUM('comprador', 'arrendatario', 'ambos')
+    IN p_tipo_cliente ENUM('comprador', 'arrendatario', 'ambos'),
+    OUT p_id_cliente_out INT
 )
 BEGIN
     DECLARE v_id_direccion INT;
@@ -413,6 +425,8 @@ BEGIN
     IF NOT (p_curp REGEXP '^[A-Z][AEIOUX][A-Z]{2}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]$') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Formato de CURP inválido';
     END IF;
+    
+    START TRANSACTION;
     
     INSERT INTO direcciones (
         calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias, id_estado
@@ -430,8 +444,13 @@ BEGIN
         p_nombre, p_apellido_paterno, p_apellido_materno, v_id_direccion, p_telefono_cliente, 
         UPPER(p_rfc), UPPER(p_curp), COALESCE(p_tipo_cliente, 'comprador'), p_correo_cliente, v_id_estado_activo
     );
+    
+    SET p_id_cliente_out = LAST_INSERT_ID();
+    
+    COMMIT;
 END //
 
+-- Procedimiento para leer clientes (corregido y completo)
 CREATE PROCEDURE LeerClientes()
 BEGIN
     SELECT 
@@ -447,20 +466,21 @@ BEGIN
         c.correo_cliente,
         c.id_estado,
         c.fecha_registro,
-        d.calle, 
-        d.numero, 
+        d.calle,
+        d.numero,
         d.colonia,
-        d.ciudad, 
+        d.ciudad,
         d.estado_geografico,
         d.codigo_postal,
         d.referencias,
         e.nombre_estado AS estado_cliente
     FROM clientes c
-    JOIN direcciones d ON c.id_direccion = d.id_direccion
-    JOIN estados e ON c.id_estado = e.id_estado
-    WHERE e.nombre_estado = 'activo';
+    LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_estado = 1; -- Solo clientes activos
 END //
 
+-- Procedimiento para actualizar cliente
 CREATE PROCEDURE ActualizarCliente(
     IN p_id_cliente INT,
     IN p_nombre VARCHAR(100),
@@ -481,18 +501,17 @@ CREATE PROCEDURE ActualizarCliente(
 )
 BEGIN
     DECLARE v_id_direccion INT;
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_estado_actual INT;
     
-    SELECT c.id_direccion, e.nombre_estado INTO v_id_direccion, v_estado_actual
-    FROM clientes c
-    JOIN estados e ON c.id_estado = e.id_estado
-    WHERE c.id_cliente = p_id_cliente;
+    SELECT id_direccion, id_estado INTO v_id_direccion, v_estado_actual
+    FROM clientes 
+    WHERE id_cliente = p_id_cliente;
     
     IF v_id_direccion IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
     END IF;
     
-    IF v_estado_actual != 'activo' THEN
+    IF v_estado_actual != 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un cliente inactivo';
     END IF;
     
@@ -503,6 +522,8 @@ BEGIN
     IF NOT (p_curp REGEXP '^[A-Z][AEIOUX][A-Z]{2}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[HM](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[0-9A-Z][0-9]$') THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Formato de CURP inválido';
     END IF;
+    
+    START TRANSACTION;
     
     UPDATE direcciones SET
         calle = p_direccion_calle,
@@ -524,60 +545,62 @@ BEGIN
         tipo_cliente = COALESCE(p_tipo_cliente, 'comprador'),
         correo_cliente = p_correo_cliente
     WHERE id_cliente = p_id_cliente;
+    
+    COMMIT;
 END //
 
+-- Procedimiento para inactivar cliente
 CREATE PROCEDURE InactivarCliente(IN p_id_cliente INT)
 BEGIN
-    DECLARE v_id_estado_inactivo INT;
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_id_estado_inactivo INT DEFAULT 2;
+    DECLARE v_estado_actual INT;
     
-    SELECT id_estado INTO v_id_estado_inactivo
-    FROM estados 
-    WHERE nombre_estado = 'inactivo';
-    
-    SELECT e.nombre_estado INTO v_estado_actual
-    FROM clientes c
-    JOIN estados e ON c.id_estado = e.id_estado
-    WHERE c.id_cliente = p_id_cliente;
+    SELECT id_estado INTO v_estado_actual
+    FROM clientes 
+    WHERE id_cliente = p_id_cliente;
     
     IF v_estado_actual IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
     END IF;
     
-    IF v_estado_actual = 'inactivo' THEN
+    IF v_estado_actual = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El cliente ya está inactivo';
     END IF;
+    
+    START TRANSACTION;
     
     UPDATE clientes 
     SET id_estado = v_id_estado_inactivo
     WHERE id_cliente = p_id_cliente;
+    
+    COMMIT;
 END //
 
+-- Procedimiento para reactivar cliente
 CREATE PROCEDURE ReactivarCliente(IN p_id_cliente INT)
 BEGIN
-    DECLARE v_id_estado_activo INT;
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_id_estado_activo INT DEFAULT 1;
+    DECLARE v_estado_actual INT;
     
-    SELECT id_estado INTO v_id_estado_activo
-    FROM estados 
-    WHERE nombre_estado = 'activo';
-    
-    SELECT e.nombre_estado INTO v_estado_actual
-    FROM clientes c
-    JOIN estados e ON c.id_estado = e.id_estado
-    WHERE c.id_cliente = p_id_cliente;
+    SELECT id_estado INTO v_estado_actual
+    FROM clientes 
+    WHERE id_cliente = p_id_cliente;
     
     IF v_estado_actual IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cliente no encontrado';
     END IF;
     
-    IF v_estado_actual = 'activo' THEN
+    IF v_estado_actual = 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El cliente ya está activo';
     END IF;
+    
+    START TRANSACTION;
     
     UPDATE clientes 
     SET id_estado = v_id_estado_activo
     WHERE id_cliente = p_id_cliente;
+    
+    COMMIT;
 END //
 
 -- Procedimiento para crear inmueble
@@ -598,11 +621,14 @@ CREATE PROCEDURE CrearInmueble(
     IN p_id_estado INT,
     IN p_id_cliente INT,
     IN p_id_empleado INT,
-    IN p_caracteristicas TEXT
+    IN p_caracteristicas TEXT,
+    OUT p_id_inmueble_out INT
 )
 BEGIN
     DECLARE v_id_direccion INT;
     DECLARE v_id_estado INT DEFAULT 3; -- 'disponible' por defecto
+    
+    START TRANSACTION;
     
     INSERT INTO direcciones (
         calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias, id_estado
@@ -625,6 +651,10 @@ BEGIN
         COALESCE(p_tipo_operacion, 'venta'), p_precio_venta, p_precio_renta, v_id_estado, 
         p_id_cliente, p_id_empleado, p_caracteristicas
     );
+    
+    SET p_id_inmueble_out = LAST_INSERT_ID();
+    
+    COMMIT;
 END //
 
 -- Procedimiento para actualizar inmueble
@@ -656,28 +686,23 @@ BEGIN
     WHERE id_inmueble = p_id_inmueble;
 
     IF v_id_direccion IS NULL THEN
-        INSERT INTO direcciones (
-            calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias, id_estado
-        ) VALUES (
-            p_direccion_calle, p_direccion_numero, p_direccion_colonia, p_direccion_ciudad, 
-            p_direccion_estado_geografico, p_direccion_codigo_postal, p_direccion_referencias, 1
-        );
-        SET v_id_direccion = LAST_INSERT_ID();
-    ELSE
-        UPDATE direcciones SET
-            calle = p_direccion_calle,
-            numero = p_direccion_numero,
-            colonia = p_direccion_colonia,
-            ciudad = p_direccion_ciudad,
-            estado_geografico = p_direccion_estado_geografico,
-            codigo_postal = p_direccion_codigo_postal,
-            referencias = p_direccion_referencias
-        WHERE id_direccion = v_id_direccion;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Inmueble no encontrado';
     END IF;
+
+    START TRANSACTION;
+
+    UPDATE direcciones SET
+        calle = p_direccion_calle,
+        numero = p_direccion_numero,
+        colonia = p_direccion_colonia,
+        ciudad = p_direccion_ciudad,
+        estado_geografico = p_direccion_estado_geografico,
+        codigo_postal = p_direccion_codigo_postal,
+        referencias = p_direccion_referencias
+    WHERE id_direccion = v_id_direccion;
 
     UPDATE inmuebles SET
         nombre_inmueble = p_nombre_inmueble,
-        id_direccion = v_id_direccion,
         monto_total = p_monto_total,
         tipo_inmueble = COALESCE(p_tipo_inmueble, 'casa'),
         tipo_operacion = COALESCE(p_tipo_operacion, 'venta'),
@@ -688,9 +713,11 @@ BEGIN
         id_empleado = p_id_empleado,
         caracteristicas = p_caracteristicas
     WHERE id_inmueble = p_id_inmueble;
+
+    COMMIT;
 END //
 
--- Procedimientos CRUD para Proveedores
+-- Procedimiento para crear proveedor
 CREATE PROCEDURE CrearProveedor(
     IN p_nombre VARCHAR(100), 
     IN p_nombre_empresa VARCHAR(150), 
@@ -698,30 +725,45 @@ CREATE PROCEDURE CrearProveedor(
     IN p_direccion VARCHAR(255), 
     IN p_telefono VARCHAR(15), 
     IN p_correo VARCHAR(100), 
-    IN p_tipo_servicio VARCHAR(100)
+    IN p_tipo_servicio VARCHAR(100),
+    OUT p_id_proveedor_out INT
 )
 BEGIN
-    DECLARE v_id_estado_activo INT;
+    DECLARE v_id_estado_activo INT DEFAULT 1;
     
-    SELECT id_estado INTO v_id_estado_activo 
-    FROM estados 
-    WHERE nombre_estado = 'activo';
+    START TRANSACTION;
     
     INSERT INTO proveedores (
         nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio, id_estado
     ) VALUES (
         p_nombre, p_nombre_empresa, p_nombre_contacto, p_direccion, p_telefono, p_correo, p_tipo_servicio, v_id_estado_activo
     );
+    
+    SET p_id_proveedor_out = LAST_INSERT_ID();
+    
+    COMMIT;
 END //
 
+-- Procedimiento para leer proveedores
 CREATE PROCEDURE LeerProveedores()
 BEGIN
-    SELECT p.*, e.nombre_estado AS estado_proveedor
+    SELECT 
+        p.id_proveedor,
+        p.nombre,
+        p.nombre_empresa,
+        p.nombre_contacto,
+        p.direccion,
+        p.telefono,
+        p.correo,
+        p.tipo_servicio,
+        p.id_estado,
+        e.nombre_estado AS estado_proveedor
     FROM proveedores p
-    JOIN estados e ON p.id_estado = e.id_estado
-    WHERE e.nombre_estado = 'activo';
+    LEFT JOIN estados e ON p.id_estado = e.id_estado
+    WHERE p.id_estado = 1; -- Solo proveedores activos
 END //
 
+-- Procedimiento para actualizar proveedor
 CREATE PROCEDURE ActualizarProveedor(
     IN p_id_proveedor INT,
     IN p_nombre VARCHAR(100), 
@@ -733,14 +775,21 @@ CREATE PROCEDURE ActualizarProveedor(
     IN p_tipo_servicio VARCHAR(100)
 )
 BEGIN
-    DECLARE v_id_estado_activo INT;
+    DECLARE v_estado_actual INT;
 
-    SELECT id_estado INTO v_id_estado_activo 
-    FROM estados WHERE nombre_estado = 'activo';
+    SELECT id_estado INTO v_estado_actual 
+    FROM proveedores 
+    WHERE id_proveedor = p_id_proveedor;
 
-    IF v_id_estado_activo IS NULL THEN
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
+    END IF;
+
+    IF v_estado_actual != 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un proveedor inactivo';
     END IF;
+
+    START TRANSACTION;
 
     UPDATE proveedores SET 
         nombre = p_nombre, 
@@ -751,32 +800,38 @@ BEGIN
         correo = p_correo, 
         tipo_servicio = p_tipo_servicio
     WHERE id_proveedor = p_id_proveedor;
+
+    COMMIT;
 END //
 
+-- Procedimiento para inactivar proveedor
 CREATE PROCEDURE InactivarProveedor(IN p_id_proveedor INT)
 BEGIN
-    DECLARE v_id_estado_inactivo INT;
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_id_estado_inactivo INT DEFAULT 2;
+    DECLARE v_estado_actual INT;
     
-    SELECT id_estado INTO v_id_estado_inactivo
-    FROM estados 
-    WHERE nombre_estado = 'inactivo';
+    SELECT id_estado INTO v_estado_actual
+    FROM proveedores 
+    WHERE id_proveedor = p_id_proveedor;
     
-    SELECT e.nombre_estado INTO v_estado_actual
-    FROM proveedores p
-    JOIN estados e ON p.id_estado = e.id_estado
-    WHERE p.id_proveedor = p_id_proveedor;
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
+    END IF;
     
-    IF v_estado_actual = 'inactivo' THEN
+    IF v_estado_actual = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor ya está inactivo';
     END IF;
+    
+    START TRANSACTION;
     
     UPDATE proveedores 
     SET id_estado = v_id_estado_inactivo
     WHERE id_proveedor = p_id_proveedor;
+    
+    COMMIT;
 END //
 
--- CRUD para Empleados con imagen
+-- Procedimiento para crear empleado
 CREATE PROCEDURE CrearEmpleado(
     IN p_clave_sistema VARCHAR(20),
     IN p_nombre VARCHAR(100),
@@ -788,14 +843,13 @@ CREATE PROCEDURE CrearEmpleado(
     IN p_cargo VARCHAR(100),
     IN p_sueldo_actual DECIMAL(10,2),
     IN p_fecha_contratacion DATE,
-    IN p_imagen_empleado VARCHAR(255)
+    IN p_imagen_empleado VARCHAR(255),
+    OUT p_id_empleado_out INT
 )
 BEGIN
-    DECLARE v_id_estado_activo INT;
+    DECLARE v_id_estado_activo INT DEFAULT 1;
     
-    SELECT id_estado INTO v_id_estado_activo 
-    FROM estados 
-    WHERE nombre_estado = 'activo';
+    START TRANSACTION;
     
     INSERT INTO empleados (
         clave_sistema, nombre, apellido_paterno, apellido_materno, correo, telefono, 
@@ -804,16 +858,37 @@ BEGIN
         p_clave_sistema, p_nombre, p_apellido_paterno, p_apellido_materno, p_correo, p_telefono, 
         p_direccion, p_cargo, p_sueldo_actual, p_fecha_contratacion, p_imagen_empleado, v_id_estado_activo
     );
+    
+    SET p_id_empleado_out = LAST_INSERT_ID();
+    
+    COMMIT;
 END //
 
+-- Procedimiento para leer empleados
 CREATE PROCEDURE LeerEmpleados()
 BEGIN
-    SELECT e.*, est.nombre_estado AS estado_empleado
+    SELECT 
+        e.id_empleado,
+        e.id_usuario,
+        e.clave_sistema,
+        e.nombre,
+        e.apellido_paterno,
+        e.apellido_materno,
+        e.correo,
+        e.telefono,
+        e.direccion,
+        e.cargo,
+        e.sueldo_actual,
+        e.fecha_contratacion,
+        e.imagen_empleado,
+        e.id_estado,
+        est.nombre_estado AS estado_empleado
     FROM empleados e
-    JOIN estados est ON e.id_estado = est.id_estado
-    WHERE est.nombre_estado = 'activo';
+    LEFT JOIN estados est ON e.id_estado = est.id_estado
+    WHERE e.id_estado = 1; -- Solo empleados activos
 END //
 
+-- Procedimiento para actualizar empleado
 CREATE PROCEDURE ActualizarEmpleado(
     IN p_id_empleado INT,
     IN p_clave_sistema VARCHAR(20),
@@ -828,16 +903,21 @@ CREATE PROCEDURE ActualizarEmpleado(
     IN p_imagen_empleado VARCHAR(255)
 )
 BEGIN
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_estado_actual INT;
     
-    SELECT e.nombre_estado INTO v_estado_actual
-    FROM empleados emp
-    JOIN estados e ON emp.id_estado = e.id_estado
-    WHERE emp.id_empleado = p_id_empleado;
+    SELECT id_estado INTO v_estado_actual
+    FROM empleados 
+    WHERE id_empleado = p_id_empleado;
     
-    IF v_estado_actual != 'activo' THEN
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empleado no encontrado';
+    END IF;
+    
+    IF v_estado_actual != 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un empleado inactivo';
     END IF;
+    
+    START TRANSACTION;
     
     UPDATE empleados SET 
         clave_sistema = p_clave_sistema,
@@ -851,70 +931,130 @@ BEGIN
         sueldo_actual = p_sueldo_actual,
         imagen_empleado = p_imagen_empleado
     WHERE id_empleado = p_id_empleado;
+    
+    COMMIT;
 END //
 
+-- Procedimiento para inactivar empleado
 CREATE PROCEDURE InactivarEmpleado(IN p_id_empleado INT)
 BEGIN
-    DECLARE v_id_estado_inactivo INT;
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_id_estado_inactivo INT DEFAULT 2;
+    DECLARE v_estado_actual INT;
     
-    SELECT id_estado INTO v_id_estado_inactivo
-    FROM estados 
-    WHERE nombre_estado = 'inactivo';
+    SELECT id_estado INTO v_estado_actual
+    FROM empleados 
+    WHERE id_empleado = p_id_empleado;
     
-    SELECT e.nombre_estado INTO v_estado_actual
-    FROM empleados emp
-    JOIN estados e ON emp.id_estado = e.id_estado
-    WHERE emp.id_empleado = p_id_empleado;
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empleado no encontrado';
+    END IF;
     
-    IF v_estado_actual = 'inactivo' THEN
+    IF v_estado_actual = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El empleado ya está inactivo';
     END IF;
+    
+    START TRANSACTION;
     
     UPDATE empleados 
     SET id_estado = v_id_estado_inactivo
     WHERE id_empleado = p_id_empleado;
+    
+    COMMIT;
 END //
 
--- Procedimientos de búsqueda
+-- Procedimiento para buscar cliente por RFC
 CREATE PROCEDURE BuscarClientePorRFC(IN p_rfc VARCHAR(13))
 BEGIN
     SELECT 
-        c.*, 
-        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico, d.codigo_postal, d.referencias,
+        c.id_cliente,
+        c.nombre,
+        c.apellido_paterno,
+        c.apellido_materno,
+        c.id_direccion,
+        c.telefono_cliente,
+        c.rfc,
+        c.curp,
+        c.tipo_cliente,
+        c.correo_cliente,
+        c.id_estado,
+        c.fecha_registro,
+        d.calle,
+        d.numero,
+        d.colonia,
+        d.ciudad,
+        d.estado_geografico,
+        d.codigo_postal,
+        d.referencias,
         e.nombre_estado AS estado_cliente
     FROM clientes c
-    JOIN direcciones d ON c.id_direccion = d.id_direccion
-    JOIN estados e ON c.id_estado = e.id_estado
-    WHERE c.rfc = p_rfc;
+    LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.rfc = UPPER(p_rfc);
 END //
 
+-- Procedimiento para buscar cliente por nombre
 CREATE PROCEDURE BuscarClientePorNombre(IN p_texto VARCHAR(100))
 BEGIN
     SELECT 
-        c.*, 
-        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico, d.codigo_postal, d.referencias,
+        c.id_cliente,
+        c.nombre,
+        c.apellido_paterno,
+        c.apellido_materno,
+        c.id_direccion,
+        c.telefono_cliente,
+        c.rfc,
+        c.curp,
+        c.tipo_cliente,
+        c.correo_cliente,
+        c.id_estado,
+        c.fecha_registro,
+        d.calle,
+        d.numero,
+        d.colonia,
+        d.ciudad,
+        d.estado_geografico,
+        d.codigo_postal,
+        d.referencias,
         e.nombre_estado AS estado_cliente
     FROM clientes c
-    JOIN direcciones d ON c.id_direccion = d.id_direccion
-    JOIN estados e ON c.id_estado = e.id_estado
+    LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON c.id_estado = e.id_estado
     WHERE CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', IFNULL(c.apellido_materno, '')) 
           LIKE CONCAT('%', p_texto, '%');
 END //
 
+-- Procedimiento para buscar inmueble por cliente
 CREATE PROCEDURE BuscarInmueblePorCliente(IN p_id_cliente INT)
 BEGIN
     SELECT 
-        i.*, 
-        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico, d.codigo_postal, d.referencias,
+        i.id_inmueble,
+        i.nombre_inmueble,
+        i.id_direccion,
+        i.monto_total,
+        i.tipo_inmueble,
+        i.tipo_operacion,
+        i.precio_venta,
+        i.precio_renta,
+        i.id_estado,
+        i.id_cliente,
+        i.id_empleado,
+        i.caracteristicas,
+        i.fecha_registro,
+        d.calle,
+        d.numero,
+        d.colonia,
+        d.ciudad,
+        d.estado_geografico,
+        d.codigo_postal,
+        d.referencias,
         e.nombre_estado AS estado_inmueble
     FROM inmuebles i
-    JOIN direcciones d ON i.id_direccion = d.id_direccion
-    JOIN estados e ON i.id_estado = e.id_estado
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON i.id_estado = e.id_estado
     WHERE i.id_cliente = p_id_cliente;
 END //
 
--- Procedimiento para crear usuario y empleado con imágenes (MODIFICADO)
+-- Procedimiento para crear usuario y empleado
 CREATE PROCEDURE CrearUsuarioEmpleado(
     IN p_nombre VARCHAR(100),
     IN p_apellido VARCHAR(100),
@@ -930,10 +1070,11 @@ CREATE PROCEDURE CrearUsuarioEmpleado(
     IN p_sueldo_actual DECIMAL(10,2),
     IN p_fecha_contratacion DATE,
     IN p_correo_contacto VARCHAR(100),
-    IN p_imagen_empleado VARCHAR(255)
+    IN p_imagen_empleado VARCHAR(255),
+    OUT p_id_usuario_out INT,
+    OUT p_id_empleado_out INT
 )
 BEGIN
-    DECLARE v_id_usuario INT;
     DECLARE v_id_estado_activo INT DEFAULT 1;
     
     SET p_correo = CASE WHEN p_correo IS NULL OR p_correo = '' THEN p_correo_contacto ELSE p_correo END;
@@ -954,20 +1095,22 @@ BEGIN
         p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), p_correo, p_imagen_perfil, v_id_estado_activo
     );
     
-    SET v_id_usuario = LAST_INSERT_ID();
+    SET p_id_usuario_out = LAST_INSERT_ID();
     
     INSERT INTO historial_usuarios (id_usuario, id_estado_anterior, id_estado_nuevo)
-    VALUES (v_id_usuario, NULL, v_id_estado_activo);
+    VALUES (p_id_usuario_out, NULL, v_id_estado_activo);
     
     INSERT INTO empleados (
         id_usuario, clave_sistema, nombre, apellido_paterno, apellido_materno, 
         correo, telefono, direccion, cargo, sueldo_actual, fecha_contratacion, 
         imagen_empleado, id_estado
     ) VALUES (
-        v_id_usuario, p_clave_sistema, p_nombre, p_apellido, p_apellido_materno,
+        p_id_usuario_out, p_clave_sistema, p_nombre, p_apellido, p_apellido_materno,
         p_correo_contacto, p_telefono, p_direccion, p_cargo, p_sueldo_actual, 
         p_fecha_contratacion, p_imagen_empleado, v_id_estado_activo
     );
+    
+    SET p_id_empleado_out = LAST_INSERT_ID();
     
     COMMIT;
 END //
@@ -976,26 +1119,57 @@ END //
 CREATE PROCEDURE LeerEmpleadosConUsuarios()
 BEGIN
     SELECT 
-        e.*,
-        u.id_usuario, u.nombre, u.apellido, u.nombre_usuario, u.correo_cliente, u.imagen_perfil,
+        e.id_empleado,
+        e.id_usuario,
+        e.clave_sistema,
+        e.nombre,
+        e.apellido_paterno,
+        e.apellido_materno,
+        e.correo,
+        e.telefono,
+        e.direccion,
+        e.cargo,
+        e.sueldo_actual,
+        e.fecha_contratacion,
+        e.imagen_empleado,
+        e.id_estado,
+        u.nombre_usuario,
+        u.correo_cliente,
+        u.imagen_perfil,
         u.id_estado AS usuario_estado,
         est.nombre_estado AS estado_empleado
     FROM empleados e
-    JOIN usuarios u ON e.id_usuario = u.id_usuario
-    JOIN estados est ON e.id_estado = est.id_estado;
+    LEFT JOIN usuarios u ON e.id_usuario = u.id_usuario
+    LEFT JOIN estados est ON e.id_estado = est.id_estado
+    WHERE e.id_estado = 1; -- Solo empleados activos
 END //
 
--- Procedimiento para obtener empleado específico con usuario
+-- Procedimiento para obtener empleado con usuario
 CREATE PROCEDURE ObtenerEmpleadoUsuario(IN p_id_empleado INT)
 BEGIN
     SELECT 
-        e.*,
-        u.id_usuario, u.nombre, u.apellido, u.nombre_usuario, u.correo_cliente, u.imagen_perfil,
+        e.id_empleado,
+        e.id_usuario,
+        e.clave_sistema,
+        e.nombre,
+        e.apellido_paterno,
+        e.apellido_materno,
+        e.correo,
+        e.telefono,
+        e.direccion,
+        e.cargo,
+        e.sueldo_actual,
+        e.fecha_contratacion,
+        e.imagen_empleado,
+        e.id_estado,
+        u.nombre_usuario,
+        u.correo_cliente,
+        u.imagen_perfil,
         u.id_estado AS usuario_estado,
         est.nombre_estado AS estado_empleado
     FROM empleados e
-    JOIN usuarios u ON e.id_usuario = u.id_usuario
-    JOIN estados est ON e.id_estado = est.id_estado
+    LEFT JOIN usuarios u ON e.id_usuario = u.id_usuario
+    LEFT JOIN estados est ON e.id_estado = est.id_estado
     WHERE e.id_empleado = p_id_empleado;
 END //
 
@@ -1018,14 +1192,17 @@ CREATE PROCEDURE ActualizarUsuarioEmpleado(
     IN p_imagen_empleado VARCHAR(255)
 )
 BEGIN
-    DECLARE v_estado_actual VARCHAR(20);
+    DECLARE v_estado_actual INT;
     
-    SELECT e.nombre_estado INTO v_estado_actual
-    FROM empleados emp
-    JOIN estados e ON emp.id_estado = e.id_estado
-    WHERE emp.id_empleado = p_id_empleado;
+    SELECT id_estado INTO v_estado_actual
+    FROM empleados 
+    WHERE id_empleado = p_id_empleado;
     
-    IF v_estado_actual != 'activo' THEN
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empleado no encontrado';
+    END IF;
+    
+    IF v_estado_actual != 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un empleado inactivo';
     END IF;
 
@@ -1070,25 +1247,26 @@ BEGIN
     DECLARE v_id_estado_inactivo INT DEFAULT 2;
     DECLARE v_estado_actual_usuario INT;
     DECLARE v_estado_actual_empleado INT;
-    DECLARE v_estado_nombre VARCHAR(20);
     
-    SELECT usuarios.id_estado, estados.nombre_estado 
-    INTO v_estado_actual_usuario, v_estado_nombre
+    SELECT id_estado INTO v_estado_actual_usuario
     FROM usuarios 
-    JOIN estados ON usuarios.id_estado = estados.id_estado
     WHERE id_usuario = p_id_usuario;
     
     IF v_estado_actual_usuario IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
     END IF;
     
-    IF v_estado_nombre = 'inactivo' THEN
+    IF v_estado_actual_usuario = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El usuario ya está inactivo';
     END IF;
     
     SELECT id_estado INTO v_estado_actual_empleado
     FROM empleados
     WHERE id_empleado = p_id_empleado;
+    
+    IF v_estado_actual_empleado IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empleado no encontrado';
+    END IF;
     
     START TRANSACTION;
     
@@ -1112,25 +1290,26 @@ BEGIN
     DECLARE v_id_estado_activo INT DEFAULT 1;
     DECLARE v_estado_actual_usuario INT;
     DECLARE v_estado_actual_empleado INT;
-    DECLARE v_estado_nombre VARCHAR(20);
     
-    SELECT usuarios.id_estado, estados.nombre_estado 
-    INTO v_estado_actual_usuario, v_estado_nombre
+    SELECT id_estado INTO v_estado_actual_usuario
     FROM usuarios 
-    JOIN estados ON usuarios.id_estado = estados.id_estado
     WHERE id_usuario = p_id_usuario;
     
     IF v_estado_actual_usuario IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Usuario no encontrado';
     END IF;
     
-    IF v_estado_nombre = 'activo' THEN
+    IF v_estado_actual_usuario = 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El usuario ya está activo';
     END IF;
     
     SELECT id_estado INTO v_estado_actual_empleado
     FROM empleados
     WHERE id_empleado = p_id_empleado;
+    
+    IF v_estado_actual_empleado IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Empleado no encontrado';
+    END IF;
     
     START TRANSACTION;
     
@@ -1150,21 +1329,8 @@ END //
 
 DELIMITER ;
 
--- Crear tabla para relacionar clientes con inmuebles
-CREATE TABLE IF NOT EXISTS cliente_inmueble (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  id_cliente INT NOT NULL,
-  id_inmueble INT NOT NULL,
-  fecha_adquisicion DATE NOT NULL,
-  FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
-  FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
-  CONSTRAINT unique_inmueble UNIQUE (id_inmueble)
-);
-
--- Índice para mejorar el rendimiento de las consultas
+-- Índices para mejorar el rendimiento
 CREATE INDEX idx_cliente_inmueble_cliente ON cliente_inmueble(id_cliente);
-
--- Índices adicionales
 CREATE INDEX idx_usuarios_estado ON usuarios(id_estado);
 CREATE INDEX idx_inmuebles_cliente ON inmuebles(id_cliente);
 CREATE INDEX idx_inmuebles_estado ON inmuebles(id_estado);

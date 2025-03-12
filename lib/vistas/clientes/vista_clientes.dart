@@ -79,33 +79,70 @@ class _VistaClientesState extends State<VistaClientes> {
     super.dispose();
   }
 
-  Future<void> _cargarDatos() async {
+  Future<void> _cargarDatos([bool forzarRefresco = false]) async {
     if (!mounted) return;
+
+    developer.log('Iniciando carga de datos de clientes...');
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      await _obtenerClientes();
+      // Limpiar lista actual para evitar duplicados
+      _clientes.clear();
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar clientes: $e'),
-            backgroundColor: Colors.red,
-          ),
+      // Cargar datos actualizados con tiempo de espera entre operaciones
+      final activos = await _controller.getClientes();
+      await Future.delayed(const Duration(milliseconds: 200));
+      final inactivos = await _controller.getClientesInactivos();
+
+      developer.log(
+        'CLIENTES CARGADOS - Activos: ${activos.length}, Inactivos: ${inactivos.length}',
+      );
+
+      // Mostrar detalles para depuración
+      if (activos.isNotEmpty) {
+        developer.log(
+          'ÚLTIMO CLIENTE ACTIVO - ID: ${activos.first.id}, Nombre: ${activos.first.nombre}, Estado: ${activos.first.idEstado}',
         );
       }
+
+      if (!mounted) return;
+
+      setState(() {
+        // Actualizar la lista combinada
+        _clientes = [...activos, ...inactivos];
+
+        // Actualizar el stream con los nuevos datos
+        _clientesController.add(_clientes);
+
+        _isLoading = false;
+      });
+
+      developer.log(
+        'ESTADO DE FILTRO - Mostrando inactivos: $_mostrandoInactivos',
+      );
+
+      if (_selectedCliente != null) {
+        developer.log(
+          'Cliente seleccionado - ID: ${_selectedCliente!.id}, Estado: ${_selectedCliente!.idEstado}',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      developer.log('ERROR al cargar clientes: $e', error: e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar clientes: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -288,31 +325,57 @@ class _VistaClientesState extends State<VistaClientes> {
                   // Panel izquierdo con lista de clientes usando StreamBuilder
                   Expanded(
                     flex: 3,
-                    child: StreamBuilder<List<Cliente>>(
+                    child: // Parte del StreamBuilder donde se filtra la lista
+                        StreamBuilder<List<Cliente>>(
                       stream: _clientesStream,
                       initialData: _clientes,
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
+                          developer.log(
+                            'Error en el stream: ${snapshot.error}',
+                          );
                           return Center(
                             child: Text('Error: ${snapshot.error}'),
                           );
                         }
 
-                        if (!snapshot.hasData) {
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
                           return const Center(
-                            child: CircularProgressIndicator(),
+                            child: Text('No hay clientes registrados'),
                           );
                         }
 
                         final clientes = snapshot.data!;
+                        developer.log(
+                          'STREAM RECIBIDO - ${clientes.length} clientes',
+                        );
+
+                        // Corregir el filtrado para garantizar comparaciones numéricas correctas
                         final filteredClientes =
                             _mostrandoInactivos
                                 ? clientes
-                                    .where((c) => c.idEstado != 1)
+                                    .where(
+                                      (c) =>
+                                          c.idEstado != null && c.idEstado != 1,
+                                    )
                                     .toList()
                                 : clientes
-                                    .where((c) => c.idEstado == 1)
+                                    .where(
+                                      (c) =>
+                                          c.idEstado == null || c.idEstado == 1,
+                                    )
                                     .toList();
+
+                        developer.log(
+                          'CLIENTES FILTRADOS - ${filteredClientes.length} clientes después del filtro (mostrandoInactivos: $_mostrandoInactivos)',
+                        );
+
+                        if (filteredClientes.isNotEmpty) {
+                          final primerCliente = filteredClientes.first;
+                          developer.log(
+                            'PRIMER CLIENTE FILTRADO - ID: ${primerCliente.id}, Nombre: ${primerCliente.nombre}, Estado: ${primerCliente.idEstado}',
+                          );
+                        }
 
                         return ClienteListView(
                           clientes: filteredClientes,

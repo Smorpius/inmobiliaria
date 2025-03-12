@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
 import '../models/cliente_model.dart';
 import '../services/mysql_helper.dart';
@@ -12,14 +13,20 @@ class ClienteController {
     final conn = await _dbService.connection;
 
     try {
-      // Llamar al procedimiento almacenado con todos los parámetros requeridos
-      var result = await conn.query(
-        'CALL CrearCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      _logger.info(
+        'Iniciando inserción de cliente: ${cliente.nombre} ${cliente.apellidoPaterno}',
+      );
+      developer.log(
+        'Guardando cliente en BD: ${cliente.nombre}, Estado: ${cliente.idEstado ?? 1}',
+      );
+
+      // CORRECCIÓN: Añadir variable OUT al final de la llamada
+      await conn.query(
+        'CALL CrearCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_cliente_out)',
         [
           cliente.nombre,
           cliente.apellidoPaterno,
           cliente.apellidoMaterno ?? '',
-          // Campos de dirección completos
           cliente.calle ?? '',
           cliente.numero ?? '',
           cliente.colonia ?? '',
@@ -27,7 +34,6 @@ class ClienteController {
           cliente.estadoGeografico ?? '',
           cliente.codigoPostal ?? '',
           cliente.referencias ?? '',
-          // Resto de campos del cliente
           cliente.telefono,
           cliente.rfc,
           cliente.curp,
@@ -36,11 +42,38 @@ class ClienteController {
         ],
       );
 
-      _logger.info('Cliente insertado exitosamente con ID: ${result.insertId}');
-      await getClientes(); // Actualizar la lista de clientes
-      return result.insertId ?? -1;
+      // Obtener el ID generado usando la variable OUT
+      final idResult = await conn.query('SELECT @id_cliente_out as id');
+
+      if (idResult.isEmpty || idResult.first.fields['id'] == null) {
+        developer.log(
+          'No se pudo obtener ID mediante variable OUT, intentando con LAST_INSERT_ID()',
+        );
+        final altResult = await conn.query('SELECT LAST_INSERT_ID() as id');
+
+        if (altResult.isEmpty || altResult.first.fields['id'] == null) {
+          developer.log('No se pudo obtener ID del cliente creado');
+          return -1;
+        }
+
+        final idCliente = altResult.first.fields['id'] as int;
+        developer.log('Cliente insertado con ID alternativo: $idCliente');
+        return idCliente;
+      }
+
+      final idCliente = idResult.first.fields['id'] as int;
+      developer.log(
+        'Cliente insertado con ID: $idCliente, Estado: ${cliente.idEstado ?? 1}',
+      );
+
+      // Forzar actualización inmediata
+      await Future.delayed(const Duration(milliseconds: 300));
+      await getClientes();
+
+      return idCliente;
     } catch (e) {
       _logger.severe('Error al insertar cliente: $e');
+      developer.log('Error al insertar cliente: $e');
       throw Exception('Error al insertar cliente: $e');
     }
   }
@@ -50,6 +83,7 @@ class ClienteController {
     final conn = await _dbService.connection;
 
     try {
+      developer.log('Consultando clientes activos...');
       final results = await conn.query('''
         SELECT 
           c.*,
@@ -57,31 +91,50 @@ class ClienteController {
           d.codigo_postal, d.referencias,
           e.nombre_estado AS estado_cliente
         FROM clientes c
-        JOIN direcciones d ON c.id_direccion = d.id_direccion
-        JOIN estados e ON c.id_estado = e.id_estado
-        WHERE e.nombre_estado = 'activo'
+        LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+        LEFT JOIN estados e ON c.id_estado = e.id_estado
+        WHERE c.id_estado = 1
+        ORDER BY c.fecha_registro DESC
       ''');
 
-      _logger.info('Clientes activos obtenidos: ${results.length}');
+      developer.log('Clientes activos recibidos de BD: ${results.length}');
 
       if (results.isEmpty) return [];
 
       final List<Cliente> clientesList = [];
 
+      // Depurar los datos recibidos
+      if (results.isNotEmpty) {
+        developer.log('Datos del primer cliente: ${results.first.fields}');
+      }
+
       for (var row in results) {
         try {
+          developer.log(
+            'Intentando procesar cliente: ${row.fields['nombre']} ${row.fields['apellido_paterno']}',
+          );
           final cliente = Cliente.fromMap(row.fields);
           clientesList.add(cliente);
+          developer.log('Cliente procesado exitosamente: ${cliente.nombre}');
         } catch (e) {
           _logger.warning(
-            'Error al procesar cliente: ${row.fields['id_cliente']}: $e',
+            'Error al procesar cliente: ${row.fields['nombre']}: $e',
           );
+          developer.log('ERROR al procesar cliente: $e', error: e);
         }
+      }
+
+      developer.log('Clientes activos procesados: ${clientesList.length}');
+      if (clientesList.isNotEmpty) {
+        developer.log(
+          'Primer cliente activo: ID=${clientesList.first.id}, Nombre=${clientesList.first.nombre}',
+        );
       }
 
       return clientesList;
     } catch (e) {
       _logger.severe('Error al obtener clientes activos: $e');
+      developer.log('ERROR AL OBTENER CLIENTES ACTIVOS: $e', error: e);
       throw Exception('Error al obtener clientes: $e');
     }
   }
@@ -91,6 +144,8 @@ class ClienteController {
     final conn = await _dbService.connection;
 
     try {
+      developer.log('Consultando clientes inactivos...');
+      // Usar consulta directa para mayor control
       final results = await conn.query('''
         SELECT 
           c.*,
@@ -98,12 +153,13 @@ class ClienteController {
           d.codigo_postal, d.referencias,
           e.nombre_estado AS estado_cliente
         FROM clientes c
-        JOIN direcciones d ON c.id_direccion = d.id_direccion
-        JOIN estados e ON c.id_estado = e.id_estado
-        WHERE e.nombre_estado = 'inactivo'
+        LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+        LEFT JOIN estados e ON c.id_estado = e.id_estado
+        WHERE c.id_estado != 1
+        ORDER BY c.fecha_registro DESC
       ''');
 
-      _logger.info('Clientes inactivos obtenidos: ${results.length}');
+      developer.log('Clientes inactivos recibidos de BD: ${results.length}');
 
       if (results.isEmpty) return [];
 
@@ -120,9 +176,17 @@ class ClienteController {
         }
       }
 
+      developer.log('Clientes inactivos procesados: ${clientesList.length}');
+      if (clientesList.isNotEmpty) {
+        developer.log(
+          'Primer cliente inactivo: ID=${clientesList.first.id}, Estado=${clientesList.first.idEstado}',
+        );
+      }
+
       return clientesList;
     } catch (e) {
       _logger.severe('Error al obtener clientes inactivos: $e');
+      developer.log('ERROR AL OBTENER CLIENTES INACTIVOS: $e');
       throw Exception('Error al obtener clientes inactivos: $e');
     }
   }

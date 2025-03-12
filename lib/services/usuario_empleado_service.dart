@@ -335,6 +335,8 @@ class UsuarioEmpleadoService {
   }
 
   // MÉTODO CORREGIDO: Agregar parámetro contrasena
+  // Reemplaza el código actual por este:
+
   Future<int> crearUsuarioEmpleado(
     Usuario usuario,
     Empleado empleado,
@@ -353,13 +355,18 @@ class UsuarioEmpleadoService {
       final correoContacto = empleado.correo;
 
       developer.log('Ejecutando CrearUsuarioEmpleado con parámetros');
+
+      // Primero, preparar los valores de salida
+      await conn.query('SET @id_usuario = 0, @id_empleado = 0');
+
+      // Luego llamar al procedimiento con los 15 parámetros de entrada y 2 de salida
       await conn.query(
-        'CALL CrearUsuarioEmpleado(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL CrearUsuarioEmpleado(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_usuario, @id_empleado)',
         [
           usuario.nombre,
           usuario.apellido,
           usuario.nombreUsuario,
-          contrasena, // Usar el parámetro contrasena en lugar de usuario.contrasena
+          contrasena,
           usuario.correo,
           usuario.imagenPerfil,
           empleado.claveSistema,
@@ -374,45 +381,25 @@ class UsuarioEmpleadoService {
         ],
       );
 
-      developer.log('Obteniendo ID del usuario creado');
-      try {
-        final resultId = await conn.query('SELECT LAST_INSERT_ID() as id');
-        if (resultId.isEmpty) {
-          developer.log(
-            'No se pudo obtener el ID del usuario creado (resultados vacíos)',
-          );
-          try {
-            final altResult = await conn.query(
-              'SELECT MAX(id_usuario) as id FROM usuarios',
-            );
-            if (altResult.isNotEmpty && altResult.first.fields['id'] != null) {
-              int id = altResult.first.fields['id'] as int;
-              developer.log('Usuario empleado creado con ID alternativo: $id');
-              return id;
-            }
-          } catch (e) {
-            developer.log('Error al obtener ID alternativo: $e');
-          }
-          return -1;
-        }
-
-        if (resultId.first.fields['id'] == null) {
-          developer.log(
-            'No se pudo obtener el ID del usuario creado (valor null)',
-          );
-          return -1;
-        }
-
-        int id = resultId.first.fields['id'] as int;
-        developer.log('Usuario empleado creado con ID: $id');
-        return id;
-      } catch (e) {
-        developer.log(
-          'Error al obtener el ID del usuario creado: $e',
-          error: e,
-        );
-        return -1;
+      // Recuperar los valores de salida
+      final outResults = await conn.query(
+        'SELECT @id_usuario as id_usuario, @id_empleado as id_empleado',
+      );
+      if (outResults.isNotEmpty) {
+        final idUsuario = outResults.first.fields['id_usuario'] as int;
+        developer.log('Usuario empleado creado con ID: $idUsuario');
+        return idUsuario;
       }
+
+      // Si no se puede obtener el ID mediante parámetros OUT, intentar el método anterior
+      final resultId = await conn.query('SELECT LAST_INSERT_ID() as id');
+      if (resultId.isNotEmpty && resultId.first.fields['id'] != null) {
+        int id = resultId.first.fields['id'] as int;
+        developer.log('Usuario empleado creado con ID alternativo: $id');
+        return id;
+      }
+
+      return -1;
     } catch (e) {
       developer.log(
         'Error en crearUsuarioEmpleado(): $e',

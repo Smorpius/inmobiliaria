@@ -1,5 +1,7 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
-
 class Cliente {
   static final Logger _logger = Logger('Cliente');
 
@@ -49,43 +51,61 @@ class Cliente {
     this.referencias,
   });
 
-  factory Cliente.fromMap(Map<String, dynamic> map) {
-    DateTime? fechaRegistro;
+    factory Cliente.fromMap(Map<String, dynamic> map) {
     try {
-      if (map['fecha_registro'] != null) {
-        if (map['fecha_registro'] is DateTime) {
-          fechaRegistro = map['fecha_registro'];
-        } else {
-          fechaRegistro = DateTime.parse(map['fecha_registro'].toString());
+      developer.log('Procesando datos del cliente: ${map['id_cliente']} - ${map['nombre']}');
+      
+      // Función para convertir BLOBs a String de manera segura
+      String? blobToString(dynamic value) {
+        if (value == null) return null;
+        
+        // Si es un BLOB, convertir a String
+        if (value is Uint8List) {
+          return utf8.decode(value);
         }
+        
+        // Si ya es String, devolverlo directamente
+        if (value is String) {
+          return value;
+        }
+        
+        // Otro caso, convertir a String
+        return value.toString();
       }
-    } catch (e) {
-      _logger.warning('Error al parsear fecha_registro: $e');
+      
+      return Cliente(
+        id: map['id_cliente'] is int ? map['id_cliente'] : int.tryParse(map['id_cliente'].toString()),
+        nombre: map['nombre'] as String,
+        apellidoPaterno: map['apellido_paterno'] as String,
+        apellidoMaterno: blobToString(map['apellido_materno']),
+        idDireccion: map['id_direccion'] is int ? map['id_direccion'] : int.tryParse(map['id_direccion'].toString()),
+        telefono: blobToString(map['telefono_cliente']) ?? '',
+        rfc: blobToString(map['rfc']) ?? '',
+        curp: blobToString(map['curp']) ?? '',
+        tipoCliente: blobToString(map['tipo_cliente']) ?? 'comprador',
+        correo: blobToString(map['correo_cliente']),
+        idEstado: map['id_estado'] is int ? map['id_estado'] : int.tryParse(map['id_estado'].toString()),
+        fechaRegistro: map['fecha_registro'] != null ? 
+            (map['fecha_registro'] is DateTime ? 
+                map['fecha_registro'] : 
+                DateTime.parse(map['fecha_registro'].toString())) : 
+            null,
+        
+        // Campos de dirección - usando la función para manejar BLOBs
+        calle: blobToString(map['calle']),
+        numero: blobToString(map['numero']),
+        colonia: blobToString(map['colonia']),
+        ciudad: blobToString(map['ciudad']),
+        estadoGeografico: blobToString(map['estado_geografico']),
+        codigoPostal: blobToString(map['codigo_postal']),
+        referencias: blobToString(map['referencias']),
+      );
+    } catch (e, stackTrace) {
+      _logger.severe('Error al convertir mapa a Cliente: $e');
+      developer.log('ERROR en Cliente.fromMap: $e', error: e, stackTrace: stackTrace);
+      developer.log('Datos recibidos: $map');
+      throw Exception('Error al convertir datos de cliente: $e');
     }
-
-    return Cliente(
-      id: map['id_cliente'],
-      nombre: map['nombre'] ?? '',
-      apellidoPaterno: map['apellido_paterno'] ?? '',
-      apellidoMaterno: map['apellido_materno'],
-      idDireccion: map['id_direccion'],
-      telefono: map['telefono_cliente'] ?? '',
-      rfc: map['rfc'] ?? '',
-      curp: map['curp'] ?? '',
-      tipoCliente: map['tipo_cliente'] ?? 'comprador',
-      correo: map['correo_cliente'],
-      idEstado: map['id_estado'],
-      fechaRegistro: fechaRegistro,
-      estadoCliente: map['estado_cliente'],
-      // Campos de dirección completos
-      calle: map['calle'],
-      numero: map['numero'],
-      colonia: map['colonia'],
-      ciudad: map['ciudad'],
-      estadoGeografico: map['estado_geografico'],
-      codigoPostal: map['codigo_postal'],
-      referencias: map['referencias'],
-    );
   }
 
   Map<String, dynamic> toMap() {

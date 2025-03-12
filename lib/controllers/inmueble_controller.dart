@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
 import '../models/inmueble_model.dart';
 import '../services/mysql_helper.dart';
@@ -14,8 +15,10 @@ class InmuebleController {
   Future<List<Inmueble>> getInmuebles() async {
     try {
       _logger.info('Iniciando consulta de inmuebles...');
+      developer.log('Consultando todos los inmuebles...');
       final db = await dbHelper.connection;
 
+      // Usar LEFT JOIN para no perder registros si falta alguna relación
       final results = await db.query('''
         SELECT 
           i.*,
@@ -28,10 +31,15 @@ class InmuebleController {
         ORDER BY i.fecha_registro DESC
       ''');
 
-      _logger.info('Resultados obtenidos: ${results.length} inmuebles');
+      _logger.info('Inmuebles obtenidos de BD: ${results.length}');
+      developer.log('Inmuebles recibidos de BD: ${results.length}');
+
+      if (results.isEmpty) return [];
 
       if (results.isNotEmpty) {
-        _logger.info('Primer registro: ${results.first.fields}');
+        developer.log(
+          'Primer registro: ID=${results.first.fields['id_inmueble']}, Estado=${results.first.fields['id_estado']}',
+        );
       }
 
       final List<Inmueble> inmuebles = [];
@@ -40,28 +48,43 @@ class InmuebleController {
         try {
           final inmueble = Inmueble.fromMap(row.fields);
           inmuebles.add(inmueble);
-          _logger.fine('Inmueble procesado: $inmueble');
         } catch (e) {
           _logger.warning(
-            'Error procesando inmueble: ${row.fields}, error: $e',
+            'Error procesando inmueble: ${row.fields['id_inmueble'] ?? 'desconocido'}, error: $e',
           );
+          developer.log('Error al procesar inmueble: ${e.toString()}');
         }
       }
 
-      _logger.info('Inmuebles procesados: ${inmuebles.length}');
+      _logger.info('Inmuebles procesados correctamente: ${inmuebles.length}');
+      developer.log('Inmuebles procesados: ${inmuebles.length}');
+
+      if (inmuebles.isNotEmpty) {
+        developer.log(
+          'Primer inmueble - ID: ${inmuebles.first.id}, Nombre: ${inmuebles.first.nombre}, Estado: ${inmuebles.first.idEstado}',
+        );
+      }
+
       return inmuebles;
     } catch (e) {
       _logger.severe('Error al obtener inmuebles: $e');
+      developer.log('ERROR AL OBTENER INMUEBLES: $e', error: e);
       throw Exception('Error al obtener inmuebles: $e');
     }
   }
 
   Future<int> insertInmueble(Inmueble inmueble) async {
     try {
-      _logger.info('Insertando inmueble: $inmueble');
+      // Asegurar que el inmueble tenga un estado válido (3 = disponible por defecto)
+      final estadoInmueble = inmueble.idEstado ?? 3;
+
+      developer.log(
+        'Insertando inmueble: ${inmueble.nombre}, Estado: $estadoInmueble',
+      );
+
       final db = await dbHelper.connection;
 
-      // Modificar la llamada para usar el parámetro OUT
+      // Modificar la llamada para usar el parámetro OUT con estado explícito
       await db.query(
         'CALL CrearInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_inmueble_out)',
         [
@@ -78,7 +101,7 @@ class InmuebleController {
           inmueble.tipoOperacion,
           inmueble.precioVenta,
           inmueble.precioRenta,
-          inmueble.idEstado ?? 3, // 3 = disponible por defecto
+          estadoInmueble,
           inmueble.idCliente,
           inmueble.idEmpleado,
           inmueble.caracteristicas,
@@ -93,8 +116,13 @@ class InmuebleController {
         throw Exception('No se pudo obtener el ID del inmueble creado');
       }
 
-      final int inmuebleId = idResult.first.fields['id'] as int;
-      _logger.info('Inmueble insertado con ID: $inmuebleId');
+      final inmuebleId = idResult.first.fields['id'] as int;
+      developer.log(
+        'Inmueble creado con ID: $inmuebleId, Estado: $estadoInmueble',
+      );
+
+      // Esperar a que la transacción se complete completamente
+      await Future.delayed(const Duration(milliseconds: 300));
 
       return inmuebleId;
     } catch (e) {

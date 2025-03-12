@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
 
 class Inmueble {
@@ -51,175 +54,155 @@ class Inmueble {
     this.referencias,
   });
 
-  factory Inmueble.fromMap(Map<String, dynamic> map) {
-    _logger.info('Procesando datos del inmueble: $map');
-
-    // Manejo seguro del monto total
-    double montoTotal;
-    try {
-      if (map['monto_total'] == null) {
-        montoTotal = 0.0;
-        _logger.warning('Advertencia: monto_total es nulo, usando 0.0');
-      } else if (map['monto_total'] is String) {
-        montoTotal = double.parse(map['monto_total']);
-      } else if (map['monto_total'] is int) {
-        montoTotal = (map['monto_total'] as int).toDouble();
-      } else {
-        montoTotal = (map['monto_total'] as double?) ?? 0.0;
-      }
-    } catch (e) {
-      _logger.severe(
-        'Error al convertir monto_total: ${map['monto_total']}, error: $e',
-      );
-      montoTotal = 0.0;
-    }
-
-    // Procesamiento seguro de precios
-    double? precioVenta;
-    try {
-      if (map['precio_venta'] != null) {
-        if (map['precio_venta'] is String) {
-          precioVenta = double.parse(map['precio_venta']);
-        } else if (map['precio_venta'] is int) {
-          precioVenta = (map['precio_venta'] as int).toDouble();
-        } else {
-          precioVenta = map['precio_venta'] as double?;
-        }
-      }
-    } catch (e) {
-      _logger.warning(
-        'Error al convertir precio_venta: ${map['precio_venta']}, error: $e',
-      );
-    }
-
-    double? precioRenta;
-    try {
-      if (map['precio_renta'] != null) {
-        if (map['precio_renta'] is String) {
-          precioRenta = double.parse(map['precio_renta']);
-        } else if (map['precio_renta'] is int) {
-          precioRenta = (map['precio_renta'] as int).toDouble();
-        } else {
-          precioRenta = map['precio_renta'] as double?;
-        }
-      }
-    } catch (e) {
-      _logger.warning(
-        'Error al convertir precio_renta: ${map['precio_renta']}, error: $e',
-      );
-    }
-
-    // Convertir fechaRegistro con manejo seguro
-    DateTime? fechaRegistro;
-    try {
-      if (map['fecha_registro'] != null) {
-        if (map['fecha_registro'] is DateTime) {
-          fechaRegistro = map['fecha_registro'] as DateTime;
-        } else if (map['fecha_registro'] is String) {
-          fechaRegistro = DateTime.parse(map['fecha_registro']);
-        }
-      }
-    } catch (e) {
-      _logger.severe(
-        'Error al parsear fecha_registro: ${map['fecha_registro']}, error: $e',
-      );
-      fechaRegistro = null;
-    }
-
-    return Inmueble(
-      id:
-          map['id_inmueble'] is int
-              ? map['id_inmueble']
-              : (map['id_inmueble'] is String
-                  ? int.tryParse(map['id_inmueble'])
-                  : null),
-      nombre: (map['nombre_inmueble'] as String?) ?? 'Sin nombre',
-      idDireccion:
-          map['id_direccion'] is int
-              ? map['id_direccion']
-              : (map['id_direccion'] is String
-                  ? int.tryParse(map['id_direccion'])
-                  : null),
-      montoTotal: montoTotal,
-      tipoInmueble: (map['tipo_inmueble'] as String?) ?? 'casa',
-      tipoOperacion: (map['tipo_operacion'] as String?) ?? 'venta',
-      precioVenta: precioVenta,
-      precioRenta: precioRenta,
-      caracteristicas: map['caracteristicas'] as String?,
-      idEstado:
-          map['id_estado'] is int
-              ? map['id_estado']
-              : (map['id_estado'] is String
-                  ? int.tryParse(map['id_estado'])
-                  : 3),
-      idCliente:
-          map['id_cliente'] is int
-              ? map['id_cliente']
-              : (map['id_cliente'] is String
-                  ? int.tryParse(map['id_cliente'])
-                  : null),
-      idEmpleado:
-          map['id_empleado'] is int
-              ? map['id_empleado']
-              : (map['id_empleado'] is String
-                  ? int.tryParse(map['id_empleado'])
-                  : null),
-      fechaRegistro: fechaRegistro,
-      // Datos de dirección
-      calle: map['calle'] as String?,
-      numero: map['numero'] as String?,
-      colonia: map['colonia'] as String?,
-      ciudad: map['ciudad'] as String?,
-      estadoGeografico: map['estado_geografico'] as String?,
-      codigoPostal: map['codigo_postal'] as String?,
-      referencias: map['referencias'] as String?,
-    );
-  }
-
   Map<String, dynamic> toMap() {
     return {
       'id_inmueble': id,
       'nombre_inmueble': nombre,
       'id_direccion': idDireccion,
       'monto_total': montoTotal,
+      'id_estado': idEstado,
+      'id_cliente': idCliente,
+      'id_empleado': idEmpleado,
+      'fecha_registro': fechaRegistro?.toIso8601String(),
       'tipo_inmueble': tipoInmueble,
       'tipo_operacion': tipoOperacion,
       'precio_venta': precioVenta,
       'precio_renta': precioRenta,
       'caracteristicas': caracteristicas,
-      'id_estado': idEstado,
-      'id_cliente': idCliente,
-      'id_empleado': idEmpleado,
+      'calle': calle,
+      'numero': numero,
+      'colonia': colonia,
+      'ciudad': ciudad,
+      'estado_geografico': estadoGeografico,
+      'codigo_postal': codigoPostal,
+      'referencias': referencias,
     };
+  }
+
+  // AQUÍ ESTÁ EL MÉTODO QUE FALTABA - fromMap
+  factory Inmueble.fromMap(Map<String, dynamic> map) {
+    try {
+      _logger.info(
+        'Procesando inmueble ID: ${map['id_inmueble']}',
+      ); // Usando el logger
+      developer.log(
+        'Procesando datos del inmueble: ${map['id_inmueble']} - ${map['nombre_inmueble']}',
+      );
+
+      // Función auxiliar para convertir BLOBs a String de manera más robusta
+      String? blobToString(dynamic value) {
+        if (value == null) return null;
+
+        // Si es un BLOB, convertir a String - CORREGIDO
+        if (value is Uint8List) {
+          try {
+            return utf8.decode(value);
+          } catch (e) {
+            _logger.warning(
+              'Error al decodificar BLOB: $e',
+            ); // Usando el logger
+            developer.log('Error al decodificar BLOB: $e');
+            return String.fromCharCodes(value); // Alternativa de decodificación
+          }
+        }
+
+        // Si ya es String, devolverlo directamente
+        if (value is String) {
+          return value;
+        }
+
+        // Otro caso, convertir a String de forma segura
+        return value.toString();
+      }
+
+      // Función segura para convertir numeros
+      double? parseDoubleSafely(dynamic value) {
+        if (value == null) return null;
+        if (value is num) return value.toDouble();
+        try {
+          return double.parse(value.toString());
+        } catch (e) {
+          _logger.warning(
+            'Error al convertir a double: $value - $e',
+          ); // Usando el logger
+          return null;
+        }
+      }
+
+      // Función segura para convertir enteros
+      int? parseIntSafely(dynamic value) {
+        if (value == null) return null;
+        if (value is int) return value;
+        try {
+          return int.parse(value.toString());
+        } catch (e) {
+          _logger.warning(
+            'Error al convertir a int: $value - $e',
+          ); // Usando el logger
+          return null;
+        }
+      }
+
+      return Inmueble(
+        id: parseIntSafely(map['id_inmueble']),
+        nombre: blobToString(map['nombre_inmueble']) ?? 'Sin nombre',
+        idDireccion: parseIntSafely(map['id_direccion']),
+        montoTotal: parseDoubleSafely(map['monto_total']) ?? 0.0,
+        idEstado: parseIntSafely(map['id_estado']),
+        idCliente: parseIntSafely(map['id_cliente']),
+        idEmpleado: parseIntSafely(map['id_empleado']),
+        fechaRegistro:
+            map['fecha_registro'] != null
+                ? (map['fecha_registro'] is DateTime
+                    ? map['fecha_registro']
+                    : DateTime.parse(map['fecha_registro'].toString()))
+                : null,
+
+        // Nuevos campos específicos - CORREGIDOS
+        tipoInmueble: blobToString(map['tipo_inmueble']) ?? 'casa',
+        tipoOperacion: blobToString(map['tipo_operacion']) ?? 'venta',
+        precioVenta: parseDoubleSafely(map['precio_venta']),
+        precioRenta: parseDoubleSafely(map['precio_renta']),
+        caracteristicas: blobToString(map['caracteristicas']),
+
+        // Campos de dirección - CORREGIDOS
+        calle: blobToString(map['calle']),
+        numero: blobToString(map['numero']),
+        colonia: blobToString(map['colonia']),
+        ciudad: blobToString(map['ciudad']),
+        estadoGeografico: blobToString(map['estado_geografico']),
+        codigoPostal: blobToString(map['codigo_postal']),
+        referencias: blobToString(map['referencias']),
+      );
+    } catch (e, stackTrace) {
+      _logger.severe(
+        'Error al procesar inmueble: $e',
+        e,
+        stackTrace,
+      ); // Usando el logger
+      developer.log(
+        'ERROR en Inmueble.fromMap: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      throw Exception('Error al procesar inmueble: $e');
+    }
   }
 
   // Propiedad para obtener la dirección completa
   String get direccionCompleta {
-    final List<String> partes = [];
+    List<String?> direccionParts = [
+      calle,
+      numero,
+      colonia,
+      ciudad,
+      estadoGeografico,
+      codigoPostal,
+    ];
 
-    if (calle != null && calle!.isNotEmpty) {
-      String parte = calle!;
-      if (numero != null && numero!.isNotEmpty) parte += ' $numero';
-      partes.add(parte);
-    }
-
-    if (colonia != null && colonia!.isNotEmpty) {
-      partes.add('Col. $colonia');
-    }
-
-    if (ciudad != null && ciudad!.isNotEmpty) {
-      String parte = ciudad!;
-      if (estadoGeografico != null && estadoGeografico!.isNotEmpty) {
-        parte += ', $estadoGeografico';
-      }
-      partes.add(parte);
-    }
-
-    if (codigoPostal != null && codigoPostal!.isNotEmpty) {
-      partes.add('C.P. $codigoPostal');
-    }
-
-    return partes.isNotEmpty ? partes.join(', ') : 'Dirección no disponible';
+    return direccionParts
+        .where((part) => part != null && part.trim().isNotEmpty)
+        .join(', ');
   }
 
   @override

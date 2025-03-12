@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../controllers/cliente_controller.dart';
@@ -105,8 +106,8 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       curp: curpController.text,
       tipoCliente: tipoCliente,
       correo: correoController.text.isNotEmpty ? correoController.text : null,
-
-      // Todos los campos de dirección
+      idEstado: 1, // CORRECCIÓN: Asegurar estado activo explícitamente
+      // Campos de dirección
       calle: calleController.text.isNotEmpty ? calleController.text : null,
       numero: numeroController.text.isNotEmpty ? numeroController.text : null,
       colonia:
@@ -124,14 +125,34 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
     );
 
     try {
-      await widget.controller.insertCliente(nuevoCliente);
+      developer.log(
+        'Guardando cliente: ${nuevoCliente.nombre}, Estado: ${nuevoCliente.idEstado}',
+      );
+      final id = await widget.controller.insertCliente(nuevoCliente);
 
+      // Verificar si el widget sigue montado después de operación asíncrona
       if (!mounted) return;
+
+      // Esperamos un momento para que la BD termine de procesar
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Verificar nuevamente si sigue montado después de otra operación asíncrona
+      if (!mounted) return;
+
+      // Cerramos el diálogo
       Navigator.of(context).pop();
-      widget.onClienteAdded();
+
+      // Llamada explícita para recargar datos
+      developer.log('Cliente creado ID: $id, llamando a actualizar vista');
+      await widget.onClienteAdded();
+
+      // Verificar nuevamente si el widget sigue montado
+      if (!mounted) return;
 
       _mostrarSnackBar('Cliente agregado exitosamente', Colors.green);
     } catch (e) {
+      developer.log('Error al agregar cliente: $e');
+
       if (!mounted) return;
       _mostrarSnackBar('Error al agregar cliente: $e', Colors.red);
     }
