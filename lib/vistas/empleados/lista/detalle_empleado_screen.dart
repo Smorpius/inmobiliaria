@@ -158,12 +158,14 @@ class _DetalleEmpleadoScreenState extends State<DetalleEmpleadoScreen> {
     return AppScaffold(
       title: widget.idEmpleado == null ? 'Nuevo Empleado' : 'Editar Empleado',
       currentRoute: '/detalle_empleado',
+      showDrawer: false,
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
               : SingleChildScrollView(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (_errorMessage != null)
                       Container(

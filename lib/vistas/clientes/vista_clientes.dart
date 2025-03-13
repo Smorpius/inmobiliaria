@@ -6,16 +6,13 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../controllers/cliente_controller.dart';
+import '../../widgets/app_scaffold.dart'; // Importación necesaria
 
 class VistaClientes extends StatefulWidget {
   final ClienteController? controller;
-  final Cliente? clienteInicial; // Cambiado a opcional
+  final Cliente? clienteInicial;
 
-  const VistaClientes({
-    super.key,
-    this.controller,
-    this.clienteInicial, // Ya no es requerido
-  });
+  const VistaClientes({super.key, this.controller, this.clienteInicial});
 
   @override
   State<VistaClientes> createState() => _VistaClientesState();
@@ -26,56 +23,48 @@ class _VistaClientesState extends State<VistaClientes> {
   Cliente? _selectedCliente;
   bool _isLoading = true;
   bool _mostrandoInactivos = false;
-
-  // Timer para actualización automática
   Timer? _autoRefreshTimer;
+  List<Cliente> _clientes = [];
+  final StreamController<List<Cliente>> _clientesController =
+      StreamController<List<Cliente>>.broadcast();
+
+  Stream<List<Cliente>> get _clientesStream => _clientesController.stream;
 
   @override
   void initState() {
     super.initState();
     _controller = widget.controller ?? ClienteController();
 
-    // Si hay un cliente inicial, seleccionarlo
     if (widget.clienteInicial != null) {
       _selectedCliente = widget.clienteInicial;
     }
 
-    // Cargar clientes inicialmente
     _cargarDatos();
-
-    // Iniciar actualización automática
     _iniciarActualizacionAutomatica();
   }
 
   void _iniciarActualizacionAutomatica() {
-    // Cancelar timer existente si hay uno
     _autoRefreshTimer?.cancel();
-
-    // Crear nuevo timer que se ejecuta cada 30 segundos
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) {
         developer.log('Ejecutando actualización automática de clientes');
-        // Cargar datos sin mostrar indicador de carga para no interrumpir al usuario
         _actualizarSilenciosamente();
       }
     });
   }
 
-  // Cargar datos sin mostrar indicador de carga
   Future<void> _actualizarSilenciosamente() async {
     try {
       await _obtenerClientes(true);
     } catch (e) {
       developer.log('Error en actualización automática: $e');
-      // No mostrar errores al usuario para actualizaciones en segundo plano
     }
   }
 
   @override
   void dispose() {
-    // Cancelar el timer de actualización automática
     _autoRefreshTimer?.cancel();
-    _clientesController.close(); // Cerrar el StreamController
+    _clientesController.close();
     super.dispose();
   }
 
@@ -89,10 +78,7 @@ class _VistaClientesState extends State<VistaClientes> {
     });
 
     try {
-      // Limpiar lista actual para evitar duplicados
       _clientes.clear();
-
-      // Cargar datos actualizados con tiempo de espera entre operaciones
       final activos = await _controller.getClientes();
       await Future.delayed(const Duration(milliseconds: 200));
       final inactivos = await _controller.getClientesInactivos();
@@ -101,7 +87,6 @@ class _VistaClientesState extends State<VistaClientes> {
         'CLIENTES CARGADOS - Activos: ${activos.length}, Inactivos: ${inactivos.length}',
       );
 
-      // Mostrar detalles para depuración
       if (activos.isNotEmpty) {
         developer.log(
           'ÚLTIMO CLIENTE ACTIVO - ID: ${activos.first.id}, Nombre: ${activos.first.nombre}, Estado: ${activos.first.idEstado}',
@@ -111,12 +96,8 @@ class _VistaClientesState extends State<VistaClientes> {
       if (!mounted) return;
 
       setState(() {
-        // Actualizar la lista combinada
         _clientes = [...activos, ...inactivos];
-
-        // Actualizar el stream con los nuevos datos
         _clientesController.add(_clientes);
-
         _isLoading = false;
       });
 
@@ -181,15 +162,6 @@ class _VistaClientesState extends State<VistaClientes> {
     }
   }
 
-  // Almacenamiento local de clientes para el StreamBuilder personalizado
-  List<Cliente> _clientes = [];
-
-  // StreamController personalizado para simular un stream de actualizaciones
-  final StreamController<List<Cliente>> _clientesController =
-      StreamController<List<Cliente>>.broadcast();
-
-  Stream<List<Cliente>> get _clientesStream => _clientesController.stream;
-
   void _agregarCliente() {
     if (!mounted) return;
 
@@ -220,7 +192,6 @@ class _VistaClientesState extends State<VistaClientes> {
   Future<void> _toggleEstadoCliente(Cliente cliente) async {
     if (!mounted) return;
 
-    // Capturar context al comienzo para evitar el uso después de operación asíncrona
     final ScaffoldMessengerState messengerState = ScaffoldMessenger.of(context);
     final bool estaInactivo = _mostrandoInactivos;
 
@@ -231,7 +202,6 @@ class _VistaClientesState extends State<VistaClientes> {
         await _controller.reactivarCliente(cliente.id!);
         success = true;
 
-        // Verificar que el widget sigue montado antes de mostrar SnackBar
         if (mounted) {
           messengerState.showSnackBar(
             const SnackBar(
@@ -244,7 +214,6 @@ class _VistaClientesState extends State<VistaClientes> {
         await _controller.inactivarCliente(cliente.id!);
         success = true;
 
-        // Verificar que el widget sigue montado antes de mostrar SnackBar
         if (mounted) {
           messengerState.showSnackBar(
             const SnackBar(
@@ -255,17 +224,14 @@ class _VistaClientesState extends State<VistaClientes> {
         }
       }
 
-      // Deseleccionar cliente actual y actualizar datos solo si sigue montado
       if (mounted && success) {
         setState(() {
           _selectedCliente = null;
         });
 
-        // Actualizar la lista de clientes
         await _cargarDatos();
       }
     } catch (e) {
-      // Verificar que el widget sigue montado antes de mostrar error
       if (mounted) {
         messengerState.showSnackBar(
           SnackBar(
@@ -282,157 +248,161 @@ class _VistaClientesState extends State<VistaClientes> {
 
     setState(() {
       _mostrandoInactivos = !_mostrandoInactivos;
-      _selectedCliente = null; // Reset de la selección
+      _selectedCliente = null;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Cada vez que se construye el widget, actualizamos el stream
     if (_clientes.isNotEmpty) {
       _clientesController.add(_clientes);
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gestión de Clientes'),
-        actions: [
-          // Botón para actualización manual (opcional)
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Actualizar lista',
-            onPressed: _cargarDatos,
+    return AppScaffold(
+      title: 'Gestión de Clientes',
+      currentRoute: '/clientes',
+      showDrawer: true, // Ocultar la barra lateral
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Actualizar lista',
+          onPressed: _cargarDatos,
+        ),
+        IconButton(
+          onPressed: _toggleMostrarInactivos,
+          icon: Icon(
+            _mostrandoInactivos ? Icons.person : Icons.person_off,
+            color: _mostrandoInactivos ? Colors.red : null,
           ),
-          // Botón para alternar entre activos e inactivos
-          IconButton(
-            onPressed: _toggleMostrarInactivos,
-            icon: Icon(
-              _mostrandoInactivos ? Icons.person : Icons.person_off,
-              color: _mostrandoInactivos ? Colors.red : null,
-            ),
-            tooltip:
-                _mostrandoInactivos
-                    ? 'Ver clientes activos'
-                    : 'Ver clientes inactivos',
-          ),
-        ],
-      ),
+          tooltip:
+              _mostrandoInactivos
+                  ? 'Ver clientes activos'
+                  : 'Ver clientes inactivos',
+        ),
+      ],
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : Row(
+              : Stack(
                 children: [
-                  // Panel izquierdo con lista de clientes usando StreamBuilder
-                  Expanded(
-                    flex: 3,
-                    child: // Parte del StreamBuilder donde se filtra la lista
-                        StreamBuilder<List<Cliente>>(
-                      stream: _clientesStream,
-                      initialData: _clientes,
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) {
-                          developer.log(
-                            'Error en el stream: ${snapshot.error}',
-                          );
-                          return Center(
-                            child: Text('Error: ${snapshot.error}'),
-                          );
-                        }
+                  Row(
+                    children: [
+                      // Panel izquierdo con lista de clientes usando StreamBuilder
+                      Expanded(
+                        flex: 3,
+                        child: StreamBuilder<List<Cliente>>(
+                          stream: _clientesStream,
+                          initialData: _clientes,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              developer.log(
+                                'Error en el stream: ${snapshot.error}',
+                              );
+                              return Center(
+                                child: Text('Error: ${snapshot.error}'),
+                              );
+                            }
 
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return const Center(
-                            child: Text('No hay clientes registrados'),
-                          );
-                        }
+                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                              return const Center(
+                                child: Text('No hay clientes registrados'),
+                              );
+                            }
 
-                        final clientes = snapshot.data!;
-                        developer.log(
-                          'STREAM RECIBIDO - ${clientes.length} clientes',
-                        );
+                            final clientes = snapshot.data!;
+                            developer.log(
+                              'STREAM RECIBIDO - ${clientes.length} clientes',
+                            );
 
-                        // Corregir el filtrado para garantizar comparaciones numéricas correctas
-                        final filteredClientes =
-                            _mostrandoInactivos
-                                ? clientes
-                                    .where(
-                                      (c) =>
-                                          c.idEstado != null && c.idEstado != 1,
-                                    )
-                                    .toList()
-                                : clientes
-                                    .where(
-                                      (c) =>
-                                          c.idEstado == null || c.idEstado == 1,
-                                    )
-                                    .toList();
+                            final filteredClientes =
+                                _mostrandoInactivos
+                                    ? clientes
+                                        .where(
+                                          (c) =>
+                                              c.idEstado != null &&
+                                              c.idEstado != 1,
+                                        )
+                                        .toList()
+                                    : clientes
+                                        .where(
+                                          (c) =>
+                                              c.idEstado == null ||
+                                              c.idEstado == 1,
+                                        )
+                                        .toList();
 
-                        developer.log(
-                          'CLIENTES FILTRADOS - ${filteredClientes.length} clientes después del filtro (mostrandoInactivos: $_mostrandoInactivos)',
-                        );
+                            developer.log(
+                              'CLIENTES FILTRADOS - ${filteredClientes.length} clientes después del filtro (mostrandoInactivos: $_mostrandoInactivos)',
+                            );
 
-                        if (filteredClientes.isNotEmpty) {
-                          final primerCliente = filteredClientes.first;
-                          developer.log(
-                            'PRIMER CLIENTE FILTRADO - ID: ${primerCliente.id}, Nombre: ${primerCliente.nombre}, Estado: ${primerCliente.idEstado}',
-                          );
-                        }
+                            if (filteredClientes.isNotEmpty) {
+                              final primerCliente = filteredClientes.first;
+                              developer.log(
+                                'PRIMER CLIENTE FILTRADO - ID: ${primerCliente.id}, Nombre: ${primerCliente.nombre}, Estado: ${primerCliente.idEstado}',
+                              );
+                            }
 
-                        return ClienteListView(
-                          clientes: filteredClientes,
-                          selectedCliente: _selectedCliente,
-                          onClienteSelected: (cliente) {
-                            setState(() {
-                              _selectedCliente = cliente;
-                            });
+                            return ClienteListView(
+                              clientes: filteredClientes,
+                              selectedCliente: _selectedCliente,
+                              onClienteSelected: (cliente) {
+                                setState(() {
+                                  _selectedCliente = cliente;
+                                });
+                              },
+                              onRefresh: _cargarDatos,
+                              onEdit: _editarCliente,
+                              onDelete: _toggleEstadoCliente,
+                              mostrandoInactivos: _mostrandoInactivos,
+                            );
                           },
-                          onRefresh: _cargarDatos,
-                          onEdit: _editarCliente,
-                          onDelete: _toggleEstadoCliente,
-                          mostrandoInactivos: _mostrandoInactivos,
-                        );
-                      },
+                        ),
+                      ),
+                      // Panel derecho con detalles del cliente seleccionado
+                      Expanded(
+                        flex: 5,
+                        child:
+                            _selectedCliente == null
+                                ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.person_search,
+                                        size: 80,
+                                        color: Colors.grey.shade300,
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Seleccione un cliente para ver sus detalles',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                                : Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: _buildClienteDetail(_selectedCliente!),
+                                ),
+                      ),
+                    ],
+                  ),
+                  // Botón flotante colocado dentro del Stack
+                  if (!_mostrandoInactivos)
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: FloatingActionButton(
+                        onPressed: _agregarCliente,
+                        tooltip: 'Agregar Cliente',
+                        child: const Icon(Icons.person_add),
+                      ),
                     ),
-                  ),
-                  // Panel derecho con detalles del cliente seleccionado
-                  Expanded(
-                    flex: 5,
-                    child:
-                        _selectedCliente == null
-                            ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.person_search,
-                                    size: 80,
-                                    color: Colors.grey.shade300,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'Seleccione un cliente para ver sus detalles',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                            : Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: _buildClienteDetail(_selectedCliente!),
-                            ),
-                  ),
                 ],
               ),
-      floatingActionButton:
-          !_mostrandoInactivos
-              ? FloatingActionButton(
-                onPressed: _agregarCliente,
-                tooltip: 'Agregar Cliente',
-                child: const Icon(Icons.person_add),
-              )
-              : null,
     );
   }
 

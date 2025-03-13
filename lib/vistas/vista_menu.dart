@@ -12,7 +12,7 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         title: const Center(
           child: Text(
-            "Inmobiliaria CASITAS REAL ESATEE",
+            "CASITAS REAL ESATEE",
             style: TextStyle(
               color: Colors.teal,
               fontWeight: FontWeight.bold,
