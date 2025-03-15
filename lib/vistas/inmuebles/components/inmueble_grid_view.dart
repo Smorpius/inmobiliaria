@@ -1,7 +1,7 @@
+import 'inmueble_card.dart';
 import 'package:flutter/material.dart';
 import '../../../models/inmueble_model.dart';
 import '../../../models/inmueble_imagen.dart';
-import 'package:inmobiliaria/utils/inmueble_utils.dart';
 
 class InmuebleGridView extends StatelessWidget {
   final List<Inmueble> inmuebles;
@@ -26,9 +26,9 @@ class InmuebleGridView extends StatelessWidget {
     return GridView.builder(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.7,
+        crossAxisSpacing: 8, // Reducido de 10 a 8
+        mainAxisSpacing: 8, // Reducido de 10 a 8
+        childAspectRatio: 0.99, // Aumentado para tarjetas menos altas
       ),
       itemCount: inmuebles.length,
       itemBuilder: (context, index) {
@@ -50,12 +50,14 @@ class InmuebleGridView extends StatelessWidget {
 
   int _calculateCrossAxisCount(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth < 600) {
-      return 1;
-    } else if (screenWidth < 900) {
+    if (screenWidth < 400) {
+      return 2; // 2 columnas en pantallas pequeñas
+    } else if (screenWidth < 600) {
       return 2;
+    } else if (screenWidth < 900) {
+      return 3; // 3 columnas en pantallas medianas
     } else {
-      return 3;
+      return 4; // 4 columnas en pantallas grandes
     }
   }
 }
