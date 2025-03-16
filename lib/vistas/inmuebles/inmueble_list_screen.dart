@@ -38,6 +38,20 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
       title: 'Inmuebles',
       currentRoute: '/inmuebles',
       actions: [
+        // Nuevo botón para mostrar inmuebles inactivos
+        ValueListenableBuilder(
+          valueListenable: _viewModel.mostrarInactivosNotifier,
+          builder: (context, mostrarInactivos, child) {
+            return IconButton(
+              icon: Icon(
+                mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+                color: mostrarInactivos ? Colors.red : null,
+              ),
+              onPressed: _viewModel.toggleMostrarInactivos,
+              tooltip: mostrarInactivos ? 'Mostrar todos' : 'Mostrar inactivos',
+            );
+          },
+        ),
         IconButton(
           icon: const Icon(Icons.refresh),
           onPressed: _viewModel.cargarInmuebles,
@@ -52,35 +66,69 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
             onLimpiar: _viewModel.limpiarFiltros,
           ),
 
-          // Indicador de filtros activos
+          // Indicador de filtros activos o modo inactivos
           ValueListenableBuilder(
             valueListenable: _viewModel.isFilteringNotifier,
             builder: (context, isFiltering, _) {
-              if (isFiltering && !_viewModel.isLoadingNotifier.value) {
-                return Container(
-                  color: Colors.amber.shade100,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.filter_list, color: Colors.amber),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Filtros aplicados',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+              // Mostrar banner de inmuebles inactivos si está activado ese modo
+              return ValueListenableBuilder(
+                valueListenable: _viewModel.mostrarInactivosNotifier,
+                builder: (context, mostrarInactivos, _) {
+                  if (mostrarInactivos) {
+                    return Container(
+                      color: Colors.red.shade100,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 16,
                       ),
-                      const Spacer(),
-                      Text(
-                        '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
-                        style: const TextStyle(fontStyle: FontStyle.italic),
+                      child: Row(
+                        children: [
+                          Icon(Icons.visibility_off, color: Colors.red[800]),
+                          const SizedBox(width: 8),
+                          Text(
+                            'INMUEBLES INACTIVOS',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.red[800],
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
+                            style: const TextStyle(fontStyle: FontStyle.italic),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
+                    );
+                  } else if (isFiltering &&
+                      !_viewModel.isLoadingNotifier.value) {
+                    // Si hay filtros activos pero no es modo inactivos
+                    return Container(
+                      color: Colors.amber.shade100,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 16,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.filter_list, color: Colors.amber),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Filtros aplicados',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
+                            style: const TextStyle(fontStyle: FontStyle.italic),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink(); // Sin filtros ni modo inactivos
+                },
+              );
             },
           ),
 
@@ -131,12 +179,51 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
               valueListenable: _viewModel.inmueblesFiltradosNotifier,
               builder: (context, inmueblesFiltrados, _) {
                 if (inmueblesFiltrados.isEmpty) {
+                  // Personalizar mensaje de vacío para modo de inactivos
                   return ValueListenableBuilder(
-                    valueListenable: _viewModel.isFilteringNotifier,
-                    builder: (context, isFiltering, _) {
-                      return InmuebleEmptyState(
-                        isFiltering: isFiltering,
-                        onLimpiarFiltros: _viewModel.limpiarFiltros,
+                    valueListenable: _viewModel.mostrarInactivosNotifier,
+                    builder: (context, mostrarInactivos, _) {
+                      if (mostrarInactivos) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.visibility_off,
+                                  size: 80,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No hay inmuebles inactivos',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Todos los inmuebles están disponibles actualmente.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      // Estado vacío normal
+                      return ValueListenableBuilder(
+                        valueListenable: _viewModel.isFilteringNotifier,
+                        builder: (context, isFiltering, _) {
+                          return InmuebleEmptyState(
+                            isFiltering: isFiltering,
+                            onLimpiarFiltros: _viewModel.limpiarFiltros,
+                          );
+                        },
                       );
                     },
                   );
@@ -230,10 +317,10 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
     }
   }
 
-  // Método corregido para manejar la inactivación de inmuebles
+  // Método para manejar la inactivación de inmuebles
   void _inactivarInmueble(Inmueble inmueble) async {
     final success = await _viewModel.cambiarEstadoInmueble(inmueble, context);
-    
+
     // Si fue exitoso, recargar la lista para reflejar los cambios
     if (success && mounted) {
       _viewModel.cargarInmuebles();

@@ -20,9 +20,14 @@ class InmuebleListViewModel {
   final ValueNotifier<String?> errorMessageNotifier = ValueNotifier<String?>(
     null,
   );
+  // Nuevo notificador para controlar mostrar solo inmuebles inactivos
+  final ValueNotifier<bool> mostrarInactivosNotifier = ValueNotifier<bool>(
+    false,
+  );
 
   // Datos internos
   List<Inmueble> _inmuebles = [];
+  List<Inmueble> _inmueblesSinFiltrar = []; // Lista completa sin filtros
 
   InmuebleListViewModel({
     required this.inmuebleController,
@@ -56,8 +61,11 @@ class InmuebleListViewModel {
         }
       }
 
-      _inmuebles = inmuebles;
-      inmueblesFiltradosNotifier.value = inmuebles;
+      _inmueblesSinFiltrar = inmuebles; // Guardar todos los inmuebles
+      _aplicarFiltroInactivos(
+        inmuebles,
+      ); // Aplicar filtro según el estado actual
+
       imagenesPrincipalesNotifier.value = nuevasImagenesPrincipales;
       rutasImagenesPrincipalesNotifier.value = nuevasRutasImagenes;
       isFilteringNotifier.value = false;
@@ -66,6 +74,28 @@ class InmuebleListViewModel {
       errorMessageNotifier.value = e.toString();
     } finally {
       isLoadingNotifier.value = false;
+    }
+  }
+
+  // Nuevo método para alternar mostrar inmuebles inactivos
+  void toggleMostrarInactivos() {
+    mostrarInactivosNotifier.value = !mostrarInactivosNotifier.value;
+    _aplicarFiltroInactivos(_inmueblesSinFiltrar);
+  }
+
+  // Método privado para aplicar filtro de inactivos
+  void _aplicarFiltroInactivos(List<Inmueble> inmuebles) {
+    if (mostrarInactivosNotifier.value) {
+      // Filtrar solo inmuebles inactivos (idEstado == 2)
+      _inmuebles =
+          inmuebles.where((inmueble) => inmueble.idEstado == 2).toList();
+      inmueblesFiltradosNotifier.value = _inmuebles;
+      isFilteringNotifier.value = true;
+    } else {
+      // Mostrar todos los inmuebles
+      _inmuebles = inmuebles;
+      inmueblesFiltradosNotifier.value = inmuebles;
+      isFilteringNotifier.value = false;
     }
   }
 
@@ -88,8 +118,9 @@ class InmuebleListViewModel {
           precioMax == null &&
           ciudad == null &&
           idEstado == null) {
-        inmueblesFiltradosNotifier.value = _inmuebles;
-        isFilteringNotifier.value = false;
+        // Al limpiar filtros, aplicamos solo el filtro de inactivos
+        _aplicarFiltroInactivos(_inmueblesSinFiltrar);
+        isFilteringNotifier.value = mostrarInactivosNotifier.value;
         return;
       }
 
@@ -103,7 +134,16 @@ class InmuebleListViewModel {
         idEstado: idEstado,
       );
 
-      inmueblesFiltradosNotifier.value = inmueblesFiltrados;
+      // Si estamos en modo "mostrar inactivos", aplicar ese filtro también
+      if (mostrarInactivosNotifier.value) {
+        inmueblesFiltradosNotifier.value =
+            inmueblesFiltrados
+                .where((inmueble) => inmueble.idEstado == 2)
+                .toList();
+      } else {
+        inmueblesFiltradosNotifier.value = inmueblesFiltrados;
+      }
+
       isFilteringNotifier.value = true;
     } catch (e) {
       errorMessageNotifier.value = 'Error al filtrar: $e';
@@ -113,11 +153,11 @@ class InmuebleListViewModel {
   }
 
   void limpiarFiltros() {
-    inmueblesFiltradosNotifier.value = _inmuebles;
-    isFilteringNotifier.value = false;
+    _aplicarFiltroInactivos(_inmueblesSinFiltrar);
+    isFilteringNotifier.value = mostrarInactivosNotifier.value;
   }
 
-  // Método mejorado para cambiar el estado del inmueble
+  // Método para cambiar el estado del inmueble
   Future<bool> cambiarEstadoInmueble(
     Inmueble inmueble,
     BuildContext context,
