@@ -142,32 +142,31 @@ class InmuebleController {
 
       // Usar el procedimiento almacenado ActualizarInmueble
       final result = await db.query(
-        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
-          inmueble.id,
-          inmueble.nombre,
-          inmueble.calle ?? '',
-          inmueble.numero ?? '',
-          inmueble.colonia ?? '',
-          inmueble.ciudad ?? '',
-          inmueble.estadoGeografico ?? '',
-          inmueble.codigoPostal ?? '',
-          inmueble.referencias ?? '',
-          inmueble.montoTotal,
-          inmueble.tipoInmueble,
-          inmueble.tipoOperacion,
-          inmueble.precioVenta,
-          inmueble.precioRenta,
-          inmueble.idEstado ?? 3,
-          inmueble.idCliente,
-          inmueble.idEmpleado,
-          inmueble.caracteristicas,
+          inmueble.id, // p_id_inmueble
+          inmueble.nombre, // p_nombre_inmueble
+          inmueble.calle, // p_direccion_calle
+          inmueble.numero, // p_direccion_numero
+          inmueble.colonia, // p_direccion_colonia
+          inmueble.ciudad, // p_direccion_ciudad
+          inmueble.estadoGeografico, // p_direccion_estado_geografico
+          inmueble.codigoPostal, // p_direccion_codigo_postal
+          inmueble
+              .referencias, // p_direccion_referencias - ESTE ERA EL PARÁMETRO FALTANTE
+          inmueble.montoTotal, // p_monto_total
+          inmueble.tipoInmueble, // p_tipo_inmueble
+          inmueble.tipoOperacion, // p_tipo_operacion
+          inmueble.precioVenta, // p_precio_venta
+          inmueble.precioRenta, // p_precio_renta
+          inmueble.idEstado, // p_id_estado
+          inmueble.idCliente, // p_id_cliente
+          inmueble.idEmpleado, // p_id_empleado
+          inmueble.caracteristicas, // p_caracteristicas
         ],
       );
 
-      _logger.info(
-        'Inmueble actualizado: ID=${inmueble.id}, Filas afectadas=${result.affectedRows}',
-      );
+      _logger.info('Inmueble actualizado con éxito. ID: ${inmueble.id}');
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al actualizar inmueble: $e');

@@ -9,6 +9,7 @@ class InmuebleGridView extends StatelessWidget {
   final Map<int, String?> rutasImagenesPrincipales;
   final Function(Inmueble) onTapInmueble;
   final Function(Inmueble) onEditInmueble;
+  final Function(Inmueble) onInactivateInmueble;
 
   const InmuebleGridView({
     super.key,
@@ -17,6 +18,7 @@ class InmuebleGridView extends StatelessWidget {
     required this.rutasImagenesPrincipales,
     required this.onTapInmueble,
     required this.onEditInmueble,
+    required this.onInactivateInmueble,
   });
 
   @override
@@ -43,6 +45,7 @@ class InmuebleGridView extends StatelessWidget {
                   : null,
           onTap: () => onTapInmueble(inmueble),
           onEdit: () => onEditInmueble(inmueble),
+          onInactivate: () => onInactivateInmueble(inmueble),
         );
       },
     );

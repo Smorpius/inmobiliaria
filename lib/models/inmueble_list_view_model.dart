@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../models/inmueble_model.dart';
-import '../../../models/inmueble_imagen.dart';
-import '../../../services/image_service.dart';
-import '../../../controllers/inmueble_controller.dart';
+import '../models/inmueble_model.dart';
+import '../models/inmueble_imagen.dart';
+import '../services/image_service.dart';
+import '../controllers/inmueble_controller.dart';
 
 class InmuebleListViewModel {
   final InmuebleController inmuebleController;
@@ -117,13 +117,28 @@ class InmuebleListViewModel {
     isFilteringNotifier.value = false;
   }
 
+  // Método mejorado para cambiar el estado del inmueble
   Future<bool> cambiarEstadoInmueble(
     Inmueble inmueble,
     BuildContext context,
   ) async {
     try {
-      // Determinar el nuevo estado
-      int nuevoEstado = (inmueble.idEstado == 3) ? 4 : 3;
+      // Determinar el nuevo estado basado en el estado actual
+      int nuevoEstado;
+      String mensaje;
+      Color colorMensaje;
+
+      if (inmueble.idEstado == 2) {
+        // Si está inactivo
+        nuevoEstado = 3; // Marcar como disponible
+        mensaje = 'Inmueble marcado como Disponible';
+        colorMensaje = Colors.green;
+      } else {
+        // Si está disponible u otro estado
+        nuevoEstado = 2; // Marcar como no disponible
+        mensaje = 'Inmueble marcado como No Disponible';
+        colorMensaje = Colors.red;
+      }
 
       // Crear una copia actualizada del inmueble con el nuevo estado
       final inmuebleActualizado = Inmueble(
@@ -156,12 +171,9 @@ class InmuebleListViewModel {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              nuevoEstado == 3
-                  ? 'Inmueble marcado como Disponible'
-                  : 'Inmueble marcado como No Disponible',
-            ),
-            backgroundColor: nuevoEstado == 3 ? Colors.green : Colors.red,
+            content: Text(mensaje),
+            backgroundColor: colorMensaje,
+            duration: const Duration(seconds: 2),
           ),
         );
       }

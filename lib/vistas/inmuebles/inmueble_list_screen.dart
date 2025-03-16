@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:inmobiliaria/widgets/app_scaffold.dart';
 import 'package:inmobiliaria/models/inmueble_model.dart';
+import 'package:inmobiliaria/services/image_service.dart';
 import 'package:inmobiliaria/controllers/inmueble_controller.dart';
 import 'package:inmobiliaria/models/inmueble_list_view_model.dart';
 import 'package:inmobiliaria/widgets/inmueble_filtro_avanzado.dart';
@@ -10,7 +11,6 @@ import 'package:inmobiliaria/vistas/inmuebles/inmueble_detail_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_grid_view.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_empty_state.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_error_state.dart';
-import 'package:inmobiliaria/services/image_service.dart'; // Cambiado a la ruta correcta
 
 class InmuebleListScreen extends StatefulWidget {
   const InmuebleListScreen({super.key});
@@ -155,6 +155,8 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
                             _navegarDetalleInmueble(context, inmueble),
                     onEditInmueble:
                         (inmueble) => _navegarEditarInmueble(context, inmueble),
+                    onInactivateInmueble:
+                        (inmueble) => _inactivarInmueble(inmueble),
                   ),
                 );
               },
@@ -224,6 +226,16 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
 
     if (!mounted) return;
     if (result == true) {
+      _viewModel.cargarInmuebles();
+    }
+  }
+
+  // Método corregido para manejar la inactivación de inmuebles
+  void _inactivarInmueble(Inmueble inmueble) async {
+    final success = await _viewModel.cambiarEstadoInmueble(inmueble, context);
+    
+    // Si fue exitoso, recargar la lista para reflejar los cambios
+    if (success && mounted) {
       _viewModel.cargarInmuebles();
     }
   }
