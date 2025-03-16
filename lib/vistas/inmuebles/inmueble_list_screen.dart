@@ -9,7 +9,6 @@ import 'package:inmobiliaria/vistas/inmuebles/add_inmueble_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/inmueble_edit_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/inmueble_detail_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_grid_view.dart';
-import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_empty_state.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_error_state.dart';
 
 class InmuebleListScreen extends StatefulWidget {
@@ -38,17 +37,18 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
       title: 'Inmuebles',
       currentRoute: '/inmuebles',
       actions: [
-        // Nuevo botón para mostrar inmuebles inactivos
+        // Botón para mostrar activos/inactivos con texto actualizado
         ValueListenableBuilder(
           valueListenable: _viewModel.mostrarInactivosNotifier,
           builder: (context, mostrarInactivos, child) {
             return IconButton(
               icon: Icon(
                 mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-                color: mostrarInactivos ? Colors.red : null,
+                color: mostrarInactivos ? Colors.red : Colors.green,
               ),
               onPressed: _viewModel.toggleMostrarInactivos,
-              tooltip: mostrarInactivos ? 'Mostrar todos' : 'Mostrar inactivos',
+              tooltip:
+                  mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
             );
           },
         ),
@@ -68,67 +68,63 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
 
           // Indicador de filtros activos o modo inactivos
           ValueListenableBuilder(
-            valueListenable: _viewModel.isFilteringNotifier,
-            builder: (context, isFiltering, _) {
-              // Mostrar banner de inmuebles inactivos si está activado ese modo
-              return ValueListenableBuilder(
-                valueListenable: _viewModel.mostrarInactivosNotifier,
-                builder: (context, mostrarInactivos, _) {
-                  if (mostrarInactivos) {
-                    return Container(
-                      color: Colors.red.shade100,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 16,
+            valueListenable: _viewModel.mostrarInactivosNotifier,
+            builder: (context, mostrarInactivos, _) {
+              if (mostrarInactivos) {
+                // Banner para inmuebles inactivos
+                return Container(
+                  color: Colors.red.shade100,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.visibility_off, color: Colors.red[800]),
+                      const SizedBox(width: 8),
+                      Text(
+                        'INMUEBLES INACTIVOS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red[800],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.visibility_off, color: Colors.red[800]),
-                          const SizedBox(width: 8),
-                          Text(
-                            'INMUEBLES INACTIVOS',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red[800],
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
-                            style: const TextStyle(fontStyle: FontStyle.italic),
-                          ),
-                        ],
+                      const Spacer(),
+                      Text(
+                        '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
+                        style: const TextStyle(fontStyle: FontStyle.italic),
                       ),
-                    );
-                  } else if (isFiltering &&
-                      !_viewModel.isLoadingNotifier.value) {
-                    // Si hay filtros activos pero no es modo inactivos
-                    return Container(
-                      color: Colors.amber.shade100,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 16,
+                    ],
+                  ),
+                );
+              } else {
+                // Nuevo banner para inmuebles activos
+                return Container(
+                  color: Colors.green.shade100,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.visibility, color: Colors.green[800]),
+                      const SizedBox(width: 8),
+                      Text(
+                        'INMUEBLES ACTIVOS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[800],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.filter_list, color: Colors.amber),
-                          const SizedBox(width: 8),
-                          const Text(
-                            'Filtros aplicados',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
-                            style: const TextStyle(fontStyle: FontStyle.italic),
-                          ),
-                        ],
+                      const Spacer(),
+                      Text(
+                        '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
+                        style: const TextStyle(fontStyle: FontStyle.italic),
                       ),
-                    );
-                  }
-                  return const SizedBox.shrink(); // Sin filtros ni modo inactivos
-                },
-              );
+                    ],
+                  ),
+                );
+              }
             },
           ),
 
@@ -179,11 +175,12 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
               valueListenable: _viewModel.inmueblesFiltradosNotifier,
               builder: (context, inmueblesFiltrados, _) {
                 if (inmueblesFiltrados.isEmpty) {
-                  // Personalizar mensaje de vacío para modo de inactivos
+                  // Personalizar mensaje de vacío para cada modo
                   return ValueListenableBuilder(
                     valueListenable: _viewModel.mostrarInactivosNotifier,
                     builder: (context, mostrarInactivos, _) {
                       if (mostrarInactivos) {
+                        // Mensaje para cuando no hay inmuebles inactivos
                         return Center(
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -191,9 +188,9 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  Icons.visibility_off,
+                                  Icons.check_circle_outline,
                                   size: 80,
-                                  color: Colors.grey[400],
+                                  color: Colors.green[400],
                                 ),
                                 const SizedBox(height: 16),
                                 const Text(
@@ -213,18 +210,48 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
                             ),
                           ),
                         );
+                      } else {
+                        // Mensaje para cuando no hay inmuebles activos
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.home_outlined,
+                                  size: 80,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No hay inmuebles activos',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'No se encontraron inmuebles disponibles.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                                const SizedBox(height: 20),
+                                ElevatedButton.icon(
+                                  onPressed: _viewModel.toggleMostrarInactivos,
+                                  icon: const Icon(Icons.visibility_off),
+                                  label: const Text('Ver inmuebles inactivos'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red[100],
+                                    foregroundColor: Colors.red[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
                       }
-
-                      // Estado vacío normal
-                      return ValueListenableBuilder(
-                        valueListenable: _viewModel.isFilteringNotifier,
-                        builder: (context, isFiltering, _) {
-                          return InmuebleEmptyState(
-                            isFiltering: isFiltering,
-                            onLimpiarFiltros: _viewModel.limpiarFiltros,
-                          );
-                        },
-                      );
                     },
                   );
                 }
