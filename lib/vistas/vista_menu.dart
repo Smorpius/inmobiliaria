@@ -101,7 +101,8 @@ class HomePage extends StatelessWidget {
                           'title': 'Proveedores',
                           'icon': Icons.inventory,
                           'color': Colors.purple,
-                          'route': null,
+                          'route':
+                              '/proveedores', // MODIFICADO: Agregar ruta correcta
                         },
                       ];
 

@@ -7,13 +7,16 @@ import 'services/image_service.dart';
 import 'vistas/inmuebles/index.dart';
 import 'package:flutter/material.dart';
 import 'services/usuario_service.dart';
+import 'services/proveedores_service.dart';
 import 'controllers/usuario_controller.dart';
 import 'vistas/clientes/vista_clientes.dart';
 import 'controllers/empleado_controller.dart';
+import 'controllers/proveedor_controller.dart';
 import 'services/usuario_empleado_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'controllers/usuario_empleado_controller.dart';
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
+import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,7 +53,6 @@ Future<void> main() async {
   );
 
   // Inicializar el controlador de empleados en segundo plano
-  // para tener los datos disponibles cuando se abra la pantalla
   usuarioEmpleadoController
       .inicializar()
       .then((_) {
@@ -61,7 +63,23 @@ Future<void> main() async {
           'Error al pre-inicializar el controlador de empleados: $e',
           error: e,
         );
-        // No bloqueamos la UI con este error, se manejará en la pantalla si es necesario
+      });
+
+  // MODIFICADO: Inicializar el controlador de proveedores usando el dbService existente
+  final proveedoresService = ProveedoresService(dbService);
+  final proveedorController = ProveedorController(proveedoresService);
+
+  // Pre-inicializar el controlador de proveedores
+  proveedorController
+      .inicializar()
+      .then((_) {
+        developer.log('Controlador de proveedores inicializado correctamente');
+      })
+      .catchError((e) {
+        developer.log(
+          'Error al pre-inicializar el controlador de proveedores: $e',
+          error: e,
+        );
       });
 
   runApp(
@@ -70,6 +88,7 @@ Future<void> main() async {
       authService: authService,
       usuarioEmpleadoController: usuarioEmpleadoController,
       empleadoController: empleadoController,
+      proveedorController: proveedorController,
     ),
   );
 }
@@ -79,6 +98,7 @@ class MyApp extends StatelessWidget {
   final AuthService authService;
   final UsuarioEmpleadoController usuarioEmpleadoController;
   final EmpleadoController empleadoController;
+  final ProveedorController proveedorController;
 
   const MyApp({
     super.key,
@@ -86,6 +106,7 @@ class MyApp extends StatelessWidget {
     required this.authService,
     required this.usuarioEmpleadoController,
     required this.empleadoController,
+    required this.proveedorController,
   });
 
   @override
@@ -102,13 +123,14 @@ class MyApp extends StatelessWidget {
       routes: {
         '/usuario':
             (context) => UsuarioPage(usuarioController: usuarioController),
-        '/clientes':
-            (context) =>
-                const VistaClientes(), // Ya no da error porque clienteInicial es opcional
+        '/clientes': (context) => const VistaClientes(),
         '/inmuebles': (context) => const InmuebleListScreen(),
         '/empleados':
             (context) =>
                 ListaEmpleadosScreen(controller: usuarioEmpleadoController),
+        '/proveedores':
+            (context) =>
+                ListaProveedoresScreen(controller: proveedorController),
       },
     );
   }

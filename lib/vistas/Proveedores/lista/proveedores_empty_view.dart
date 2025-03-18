@@ -17,7 +17,8 @@ class ProveedoresEmptyView extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.business_off,
+            Icons
+                .business_center_outlined, // Corregido: usando un icono que sí existe
             size: 80,
             color: Colors.grey,
           ),
@@ -43,10 +44,7 @@ class ProveedoresEmptyView extends StatelessWidget {
             icon: const Icon(Icons.add),
             label: const Text('Nuevo Proveedor'),
             style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
         ],

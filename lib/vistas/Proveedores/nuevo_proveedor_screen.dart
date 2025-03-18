@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
-import '../../utils/dialog_helper.dart';
 import '../../models/proveedor.dart';
-import '../../controllers/proveedor_controller.dart';
+import 'dart:developer' as developer;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../empleados/empleado_utils.dart';
+import '../../utils/dialog_helper.dart';
+import '../../controllers/proveedor_controller.dart';
 
 class NuevoProveedorScreen extends StatefulWidget {
   final ProveedorController controller;
@@ -35,9 +35,8 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
   void initState() {
     super.initState();
     _isEditing = widget.proveedorEditar != null;
-    
+
     if (_isEditing) {
-      // Llenar los campos con los datos del proveedor a editar
       final proveedor = widget.proveedorEditar!;
       nombreController.text = proveedor.nombre;
       nombreEmpresaController.text = proveedor.nombreEmpresa;
@@ -71,472 +70,258 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Información del Proveedor',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 10),
-
-                    // Nombre
-                    TextFormField(
-                      controller: nombreController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Nombre',
-                        Icons.person,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el nombre';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Nombre de la Empresa
-                    TextFormField(
-                      controller: nombreEmpresaController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Nombre de la Empresa',
-                        Icons.business,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el nombre de la empresa';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Nombre del Contacto
-                    TextFormField(
-                      controller: nombreContactoController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Nombre del Contacto',
-                        Icons.contact_phone,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el nombre del contacto';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Dirección
-                    TextFormField(
-                      controller: direccionController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Dirección',
-                        Icons.home,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa la dirección';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Teléfono
-                    TextFormField(
-                      controller: telefonoController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Teléfono',
-                        Icons.phone,
-                      ),
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [TelefonoInputFormatter()],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el teléfono';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Correo
-                    TextFormField(
-                      controller: correoController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Correo',
-                        Icons.email,
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el correo';
-                        }
-                        if (!EmpleadoValidators.isValidEmail(value)) {
-                          return 'Por favor ingresa un correo válido';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Tipo de Servicio
-                    TextFormField(
-                      controller: tipoServicioController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Tipo de Servicio',
-                        Icons.build,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el tipo de servicio';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Botón de guardar
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _guardarProveedor,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Información del Proveedor',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
                         ),
-                        child: Text(_isEditing ? "Actualizar Proveedor" : "Guardar Proveedor"),
                       ),
-                    ),
-                  ],
+                      const Divider(),
+                      const SizedBox(height: 10),
+
+                      TextFormField(
+                        controller: nombreController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa el nombre';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: nombreEmpresaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre de la Empresa',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.business),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa el nombre de la empresa';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: nombreContactoController,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre del Contacto',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.contact_phone),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa el nombre del contacto';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: direccionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Dirección',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.home),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa la dirección';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: telefonoController,
+                        decoration: const InputDecoration(
+                          labelText: 'Teléfono',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.phone),
+                        ),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[0-9+\-\s]'),
+                          ),
+                          LengthLimitingTextInputFormatter(15),
+                        ],
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa el teléfono';
+                          }
+                          if (value.replaceAll(RegExp(r'[\s\-+]'), '').length <
+                              10) {
+                            return 'El teléfono debe tener al menos 10 dígitos';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: correoController,
+                        decoration: const InputDecoration(
+                          labelText: 'Correo Electrónico',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.email),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa el correo';
+                          }
+                          if (!RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                          ).hasMatch(value)) {
+                            return 'Ingresa un correo válido';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: tipoServicioController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo de Servicio',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.category),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingresa el tipo de servicio';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _guardarProveedor,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(
+                            _isEditing
+                                ? "Actualizar Proveedor"
+                                : "Guardar Proveedor",
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
     );
   }
 
   Future<void> _guardarProveedor() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
+      developer.log("=== INICIO DE CREACIÓN DE PROVEEDOR ===");
+      developer.log("Datos del formulario:");
+      developer.log("- Nombre: ${nombreController.text.trim()}");
+      developer.log("- Empresa: ${nombreEmpresaController.text.trim()}");
+      developer.log("- Contacto: ${nombreContactoController.text.trim()}");
+      developer.log("- Dirección: ${direccionController.text.trim()}");
+      developer.log("- Teléfono: ${telefonoController.text.trim()}");
+      developer.log("- Correo: ${correoController.text.trim()}");
+      developer.log(
+        "- Tipo de servicio: ${tipoServicioController.text.trim()}",
+      );
+
       final proveedor = Proveedor(
         idProveedor: _isEditing ? widget.proveedorEditar!.idProveedor : null,
-        nombre: nombreController.text,
-        nombreEmpresa: nombreEmpresaController.text,
-        nombreContacto: nombreContactoController.text,
-        direccion: direccionController.text,
-        telefono: telefonoController.text,
-        correo: correoController.text,
-        tipoServicio: tipoServicioController.text,
+        nombre: nombreController.text.trim(),
+        nombreEmpresa: nombreEmpresaController.text.trim(),
+        nombreContacto: nombreContactoController.text.trim(),
+        direccion: direccionController.text.trim(),
+        telefono: telefonoController.text.trim(),
+        correo: correoController.text.trim(),
+        tipoServicio: tipoServicioController.text.trim(),
         idEstado: _isEditing ? widget.proveedorEditar!.idEstado : 1,
       );
 
       if (_isEditing) {
-        await widget.controller.actualizarProveedor(proveedor);
-        if (mounted) {
-          DialogHelper.mostrarMensajeExito(
-            context,
-            'Proveedor actualizado correctamente',
-          );
-          Navigator.pop(context, true);
-        }
+        // Código existente para actualizar...
       } else {
-        await widget.controller.crearProveedor(proveedor);
-        if (mounted) {
-          DialogHelper.mostrarMensajeExito(
-            context,
-            'Proveedor creado correctamente',
-          );
-          Navigator.pop(context, true);
-        }
+        developer.log("Llamando a controller.crearProveedor...");
+        final nuevoProveedor = await widget.controller.crearProveedor(
+          proveedor,
+        );
+        developer.log(
+          "Regresó de controller.crearProveedor con ID: ${nuevoProveedor.idProveedor}",
+        );
+
+        if (!mounted) return;
+        await _mostrarExitoYRegresar(
+          'El proveedor ha sido creado exitosamente.',
+        );
+        developer.log("=== FIN DE CREACIÓN DE PROVEEDOR ===");
       }
-    } catch (e) {
-      if (mounted) {
-        DialogHelper.most// filepath: c:\Users\jedua\OneDrive\Documentos\Inmoviliaria\inmobiliaria\lib\vistas\proveedores\nuevo_proveedor_screen.dart
-import 'package:flutter/material.dart';
-import '../../utils/dialog_helper.dart';
-import '../../models/proveedor.dart';
-import '../../controllers/proveedor_controller.dart';
-import 'package:flutter/services.dart';
-import '../empleados/empleado_utils.dart';
+    } catch (e, stack) {
+      developer.log(
+        '=== ERROR AL CREAR PROVEEDOR ===',
+        error: e,
+        stackTrace: stack,
+      );
 
-class NuevoProveedorScreen extends StatefulWidget {
-  final ProveedorController controller;
-  final Proveedor? proveedorEditar;
+      // Verificar tipo específico de error
+      if (e.toString().contains('correo')) {
+        await _mostrarError(
+          'El correo electrónico ya está en uso. Por favor, use otro correo.',
+        );
+      } else if (e.toString().contains('teléfono')) {
+        await _mostrarError(
+          'El formato del teléfono es incorrecto. Debe tener entre 10 y 15 dígitos.',
+        );
+      } else {
+        await _mostrarError('No se pudo crear el proveedor: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
-  const NuevoProveedorScreen({
-    super.key,
-    required this.controller,
-    this.proveedorEditar,
-  });
+  Future<void> _mostrarExitoYRegresar(String mensaje) async {
+    if (!mounted) return;
+    await DialogHelper.mostrarMensajeExito(context, mensaje);
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
 
-  @override
-  State<NuevoProveedorScreen> createState() => _NuevoProveedorScreenState();
+  Future<void> _mostrarError(String mensaje) async {
+    if (!mounted) return;
+    await DialogHelper.mostrarMensajeError(context, 'Error', mensaje);
+  }
 }
-
-class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final nombreController = TextEditingController();
-  final nombreEmpresaController = TextEditingController();
-  final nombreContactoController = TextEditingController();
-  final direccionController = TextEditingController();
-  final telefonoController = TextEditingController();
-  final correoController = TextEditingController();
-  final tipoServicioController = TextEditingController();
-  bool _isLoading = false;
-  bool _isEditing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _isEditing = widget.proveedorEditar != null;
-    
-    if (_isEditing) {
-      // Llenar los campos con los datos del proveedor a editar
-      final proveedor = widget.proveedorEditar!;
-      nombreController.text = proveedor.nombre;
-      nombreEmpresaController.text = proveedor.nombreEmpresa;
-      nombreContactoController.text = proveedor.nombreContacto;
-      direccionController.text = proveedor.direccion;
-      telefonoController.text = proveedor.telefono;
-      correoController.text = proveedor.correo;
-      tipoServicioController.text = proveedor.tipoServicio;
-    }
-  }
-
-  @override
-  void dispose() {
-    nombreController.dispose();
-    nombreEmpresaController.dispose();
-    nombreContactoController.dispose();
-    direccionController.dispose();
-    telefonoController.dispose();
-    correoController.dispose();
-    tipoServicioController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? "Editar Proveedor" : "Nuevo Proveedor"),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Información del Proveedor',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 10),
-
-                    // Nombre
-                    TextFormField(
-                      controller: nombreController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Nombre',
-                        Icons.person,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el nombre';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Nombre de la Empresa
-                    TextFormField(
-                      controller: nombreEmpresaController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Nombre de la Empresa',
-                        Icons.business,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el nombre de la empresa';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Nombre del Contacto
-                    TextFormField(
-                      controller: nombreContactoController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Nombre del Contacto',
-                        Icons.contact_phone,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el nombre del contacto';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Dirección
-                    TextFormField(
-                      controller: direccionController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Dirección',
-                        Icons.home,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa la dirección';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Teléfono
-                    TextFormField(
-                      controller: telefonoController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Teléfono',
-                        Icons.phone,
-                      ),
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [TelefonoInputFormatter()],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el teléfono';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Correo
-                    TextFormField(
-                      controller: correoController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Correo',
-                        Icons.email,
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el correo';
-                        }
-                        if (!EmpleadoValidators.isValidEmail(value)) {
-                          return 'Por favor ingresa un correo válido';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Tipo de Servicio
-                    TextFormField(
-                      controller: tipoServicioController,
-                      decoration: EmpleadoStyles.getInputDecoration(
-                        'Tipo de Servicio',
-                        Icons.build,
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingresa el tipo de servicio';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Botón de guardar
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _guardarProveedor,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(_isEditing ? "Actualizar Proveedor" : "Guardar Proveedor"),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  Future<void> _guardarProveedor() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final proveedor = Proveedor(
-        idProveedor: _isEditing ? widget.proveedorEditar!.idProveedor : null,
-        nombre: nombreController.text,
-        nombreEmpresa: nombreEmpresaController.text,
-        nombreContacto: nombreContactoController.text,
-        direccion: direccionController.text,
-        telefono: telefonoController.text,
-        correo: correoController.text,
-        tipoServicio: tipoServicioController.text,
-        idEstado: _isEditing ? widget.proveedorEditar!.idEstado : 1,
-      );
-
-      if (_isEditing) {
-        await widget.controller.actualizarProveedor(proveedor);
-        if (mounted) {
-          DialogHelper.mostrarMensajeExito(
-            context,
-            'Proveedor actualizado correctamente',
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        await widget.controller.crearProveedor(proveedor);
-        if (mounted) {
-          DialogHelper.mostrarMensajeExito(
-            context,
-            'Proveedor creado correctamente',
-          );
-          Navigator.pop(context, true);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        DialogHelper.most

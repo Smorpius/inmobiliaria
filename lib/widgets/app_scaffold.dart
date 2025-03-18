@@ -134,6 +134,14 @@ class AppScaffold extends StatelessWidget {
               currentRoute: currentRoute,
               context: context,
             ),
+            // NUEVO: Botón para Proveedores
+            _buildDrawerButton(
+              icon: Icons.inventory,
+              label: "Proveedores",
+              route: '/proveedores',
+              currentRoute: currentRoute,
+              context: context,
+            ),
             _buildDrawerButton(
               icon: Icons.shopping_cart,
               label: "Ventas",

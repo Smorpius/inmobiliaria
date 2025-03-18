@@ -15,8 +15,11 @@ DROP PROCEDURE IF EXISTS CrearInmueble;
 DROP PROCEDURE IF EXISTS ActualizarInmueble;
 DROP PROCEDURE IF EXISTS CrearProveedor;
 DROP PROCEDURE IF EXISTS LeerProveedores;
+DROP PROCEDURE IF EXISTS ObtenerProveedores;
 DROP PROCEDURE IF EXISTS ActualizarProveedor;
 DROP PROCEDURE IF EXISTS InactivarProveedor;
+DROP PROCEDURE IF EXISTS ReactivarProveedor;
+DROP PROCEDURE IF EXISTS BuscarProveedores;
 DROP PROCEDURE IF EXISTS CrearEmpleado;
 DROP PROCEDURE IF EXISTS LeerEmpleados;
 DROP PROCEDURE IF EXISTS ActualizarEmpleado;
@@ -34,6 +37,8 @@ DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Eliminar tablas respetando dependencias
 DROP TABLE IF EXISTS historial_usuarios;
+DROP TABLE IF EXISTS historial_proveedores;
+DROP TABLE IF EXISTS historial_proveedores_detallado;
 DROP TABLE IF EXISTS inmuebles_imagenes;
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;
 DROP TABLE IF EXISTS cliente_inmueble;
@@ -135,8 +140,37 @@ CREATE TABLE proveedores (
     correo VARCHAR(100) NOT NULL,
     tipo_servicio VARCHAR(100) NOT NULL,
     id_estado INT DEFAULT 1,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE INDEX idx_proveedores_correo (correo),
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
+);
+
+-- Crear tabla de historial de proveedores
+CREATE TABLE historial_proveedores (
+    id_historial INT AUTO_INCREMENT PRIMARY KEY,
+    id_proveedor INT NOT NULL,
+    id_estado_anterior INT,
+    id_estado_nuevo INT NOT NULL,
+    fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    usuario_modificacion INT,
+    FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor) ON DELETE CASCADE,
+    FOREIGN KEY (id_estado_anterior) REFERENCES estados(id_estado),
+    FOREIGN KEY (id_estado_nuevo) REFERENCES estados(id_estado),
+    FOREIGN KEY (usuario_modificacion) REFERENCES usuarios(id_usuario)
+);
+
+-- Crear tabla de historial detallado de proveedores
+CREATE TABLE historial_proveedores_detallado (
+    id_historial INT AUTO_INCREMENT PRIMARY KEY,
+    id_proveedor INT NOT NULL,
+    campo_modificado VARCHAR(50) NOT NULL,
+    valor_anterior TEXT,
+    valor_nuevo TEXT,
+    usuario_modificacion INT,
+    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_modificacion) REFERENCES usuarios(id_usuario)
 );
 
 -- Crear tabla de empleados
@@ -170,7 +204,7 @@ CREATE TABLE inmuebles (
     tipo_operacion ENUM('venta', 'renta') NOT NULL DEFAULT 'venta',
     precio_venta DECIMAL(12,2) DEFAULT NULL,
     precio_renta DECIMAL(12,2) DEFAULT NULL,
-    id_estado INT DEFAULT 3, -- 'disponible' por defecto
+    id_estado INT DEFAULT 3,
     id_cliente INT,
     id_empleado INT,
     caracteristicas TEXT,
@@ -248,6 +282,26 @@ BEGIN
     IF NEW.correo_cliente IS NOT NULL AND 
        NEW.correo_cliente NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico inválido';
+    END IF;
+END //
+
+-- Trigger para validar correo de proveedor
+CREATE TRIGGER validar_correo_proveedor
+BEFORE INSERT ON proveedores
+FOR EACH ROW
+BEGIN
+    IF NEW.correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
+    END IF;
+END //
+
+-- Trigger para validar teléfono de proveedor
+CREATE TRIGGER validar_telefono_proveedor
+BEFORE INSERT ON proveedores
+FOR EACH ROW
+BEGIN
+    IF NEW.telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
     END IF;
 END //
 
@@ -395,7 +449,7 @@ BEGIN
     COMMIT;
 END //
 
--- Procedimiento para crear cliente (corregido y completo)
+-- Procedimiento para crear cliente
 CREATE PROCEDURE CrearCliente(
     IN p_nombre VARCHAR(100),
     IN p_apellido_paterno VARCHAR(100),
@@ -450,7 +504,7 @@ BEGIN
     COMMIT;
 END //
 
--- Procedimiento para leer clientes (corregido y completo)
+-- Procedimiento para leer clientes
 CREATE PROCEDURE LeerClientes()
 BEGIN
     SELECT 
@@ -477,7 +531,7 @@ BEGIN
     FROM clientes c
     LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
     LEFT JOIN estados e ON c.id_estado = e.id_estado
-    WHERE c.id_estado = 1; -- Solo clientes activos
+    WHERE c.id_estado = 1;
 END //
 
 -- Procedimiento para actualizar cliente
@@ -626,7 +680,7 @@ CREATE PROCEDURE CrearInmueble(
 )
 BEGIN
     DECLARE v_id_direccion INT;
-    DECLARE v_id_estado INT DEFAULT 3; -- 'disponible' por defecto
+    DECLARE v_id_estado INT DEFAULT 3;
     
     START TRANSACTION;
     
@@ -726,20 +780,39 @@ CREATE PROCEDURE CrearProveedor(
     IN p_telefono VARCHAR(15), 
     IN p_correo VARCHAR(100), 
     IN p_tipo_servicio VARCHAR(100),
+    IN p_usuario_modificacion INT,
     OUT p_id_proveedor_out INT
 )
 BEGIN
     DECLARE v_id_estado_activo INT DEFAULT 1;
     
+    -- Validaciones previas
+    IF p_correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
+    END IF;
+    
+    IF p_telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
+    END IF;
+
     START TRANSACTION;
     
+    -- Inserción en la tabla proveedores
     INSERT INTO proveedores (
         nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio, id_estado
     ) VALUES (
         p_nombre, p_nombre_empresa, p_nombre_contacto, p_direccion, p_telefono, p_correo, p_tipo_servicio, v_id_estado_activo
     );
     
+    -- Asignar el ID generado a la variable de salida
     SET p_id_proveedor_out = LAST_INSERT_ID();
+    
+    -- Registrar en el historial
+    INSERT INTO historial_proveedores (
+        id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
+    ) VALUES (
+        p_id_proveedor_out, NULL, v_id_estado_activo, p_usuario_modificacion
+    );
     
     COMMIT;
 END //
@@ -757,10 +830,32 @@ BEGIN
         p.correo,
         p.tipo_servicio,
         p.id_estado,
+        p.fecha_creacion,
+        p.fecha_modificacion,
         e.nombre_estado AS estado_proveedor
     FROM proveedores p
     LEFT JOIN estados e ON p.id_estado = e.id_estado
-    WHERE p.id_estado = 1; -- Solo proveedores activos
+    WHERE p.id_estado = 1;
+END //
+
+-- Procedimiento para obtener todos los proveedores
+CREATE PROCEDURE ObtenerProveedores()
+BEGIN
+    SELECT 
+        p.id_proveedor,
+        p.nombre,
+        p.nombre_empresa,
+        p.nombre_contacto,
+        p.direccion,
+        p.telefono,
+        p.correo,
+        p.tipo_servicio,
+        p.id_estado,
+        p.fecha_creacion,
+        p.fecha_modificacion,
+        e.nombre_estado AS estado_proveedor
+    FROM proveedores p
+    LEFT JOIN estados e ON p.id_estado = e.id_estado;
 END //
 
 -- Procedimiento para actualizar proveedor
@@ -772,12 +867,21 @@ CREATE PROCEDURE ActualizarProveedor(
     IN p_direccion VARCHAR(255), 
     IN p_telefono VARCHAR(15), 
     IN p_correo VARCHAR(100), 
-    IN p_tipo_servicio VARCHAR(100)
+    IN p_tipo_servicio VARCHAR(100),
+    IN p_usuario_modificacion INT
 )
 BEGIN
     DECLARE v_estado_actual INT;
+    DECLARE v_nombre_actual VARCHAR(100);
+    DECLARE v_empresa_actual VARCHAR(150);
+    DECLARE v_contacto_actual VARCHAR(100);
+    DECLARE v_direccion_actual VARCHAR(255);
+    DECLARE v_telefono_actual VARCHAR(15);
+    DECLARE v_correo_actual VARCHAR(100);
+    DECLARE v_servicio_actual VARCHAR(100);
 
-    SELECT id_estado INTO v_estado_actual 
+    SELECT id_estado, nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio
+    INTO v_estado_actual, v_nombre_actual, v_empresa_actual, v_contacto_actual, v_direccion_actual, v_telefono_actual, v_correo_actual, v_servicio_actual
     FROM proveedores 
     WHERE id_proveedor = p_id_proveedor;
 
@@ -801,13 +905,93 @@ BEGIN
         tipo_servicio = p_tipo_servicio
     WHERE id_proveedor = p_id_proveedor;
 
+    IF v_nombre_actual != p_nombre THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'nombre', v_nombre_actual, p_nombre, p_usuario_modificacion);
+    END IF;
+    IF v_empresa_actual != p_nombre_empresa THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'nombre_empresa', v_empresa_actual, p_nombre_empresa, p_usuario_modificacion);
+    END IF;
+    IF v_contacto_actual != p_nombre_contacto THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'nombre_contacto', v_contacto_actual, p_nombre_contacto, p_usuario_modificacion);
+    END IF;
+    IF v_direccion_actual != p_direccion THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'direccion', v_direccion_actual, p_direccion, p_usuario_modificacion);
+    END IF;
+    IF v_telefono_actual != p_telefono THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'telefono', v_telefono_actual, p_telefono, p_usuario_modificacion);
+    END IF;
+    IF v_correo_actual != p_correo THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'correo', v_correo_actual, p_correo, p_usuario_modificacion);
+    END IF;
+    IF v_servicio_actual != p_tipo_servicio THEN
+        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
+        VALUES (p_id_proveedor, 'tipo_servicio', v_servicio_actual, p_tipo_servicio, p_usuario_modificacion);
+    END IF;
+
     COMMIT;
 END //
 
--- Procedimiento para inactivar proveedor
-CREATE PROCEDURE InactivarProveedor(IN p_id_proveedor INT)
+-- Procedimiento para inactivar proveedor (VERSIÓN CORREGIDA)
+CREATE PROCEDURE InactivarProveedor(
+    IN p_id_proveedor INT,
+    IN p_usuario_modificacion INT
+)
 BEGIN
     DECLARE v_id_estado_inactivo INT DEFAULT 2;
+    DECLARE v_estado_actual INT;
+    
+    -- Verificar si el proveedor existe y obtener su estado actual
+    SELECT id_estado INTO v_estado_actual
+    FROM proveedores 
+    WHERE id_proveedor = p_id_proveedor;
+    
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
+    END IF;
+    
+    -- Verificar si ya está inactivo
+    IF v_estado_actual = v_id_estado_inactivo THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor ya está inactivo';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Actualizar el estado del proveedor a inactivo
+    UPDATE proveedores 
+    SET id_estado = v_id_estado_inactivo,
+        fecha_modificacion = CURRENT_TIMESTAMP
+    WHERE id_proveedor = p_id_proveedor;
+    
+    -- Registrar el cambio en el historial
+    INSERT INTO historial_proveedores (
+        id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
+    ) VALUES (
+        p_id_proveedor, v_estado_actual, v_id_estado_inactivo, p_usuario_modificacion
+    );
+    
+    -- Registrar el cambio detallado
+    INSERT INTO historial_proveedores_detallado (
+        id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion
+    ) VALUES (
+        p_id_proveedor, 'id_estado', v_estado_actual, v_id_estado_inactivo, p_usuario_modificacion
+    );
+    
+    COMMIT;
+END //
+
+-- Procedimiento para reactivar proveedor
+CREATE PROCEDURE ReactivarProveedor(
+    IN p_id_proveedor INT,
+    IN p_usuario_modificacion INT
+)
+BEGIN
+    DECLARE v_id_estado_activo INT DEFAULT 1;
     DECLARE v_estado_actual INT;
     
     SELECT id_estado INTO v_estado_actual
@@ -818,17 +1002,54 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
     END IF;
     
-    IF v_estado_actual = 2 THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor ya está inactivo';
+    IF v_estado_actual = 1 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor ya está activo';
     END IF;
     
     START TRANSACTION;
     
     UPDATE proveedores 
-    SET id_estado = v_id_estado_inactivo
+    SET id_estado = v_id_estado_activo
     WHERE id_proveedor = p_id_proveedor;
     
+    INSERT INTO historial_proveedores (
+        id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
+    ) VALUES (
+        p_id_proveedor, v_estado_actual, v_id_estado_activo, p_usuario_modificacion
+    );
+    
+    INSERT INTO historial_proveedores_detallado (
+        id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion
+    ) VALUES (
+        p_id_proveedor, 'id_estado', v_estado_actual, v_id_estado_activo, p_usuario_modificacion
+    );
+    
     COMMIT;
+END //
+
+-- Procedimiento para buscar proveedores
+CREATE PROCEDURE BuscarProveedores(IN p_termino_busqueda VARCHAR(100))
+BEGIN
+    SELECT 
+        p.id_proveedor,
+        p.nombre,
+        p.nombre_empresa,
+        p.nombre_contacto,
+        p.direccion,
+        p.telefono,
+        p.correo,
+        p.tipo_servicio,
+        p.id_estado,
+        p.fecha_creacion,
+        p.fecha_modificacion,
+        e.nombre_estado AS estado_proveedor
+    FROM proveedores p
+    LEFT JOIN estados e ON p.id_estado = e.id_estado
+    WHERE 
+        p.nombre LIKE CONCAT('%', p_termino_busqueda, '%') OR
+        p.nombre_empresa LIKE CONCAT('%', p_termino_busqueda, '%') OR
+        p.nombre_contacto LIKE CONCAT('%', p_termino_busqueda, '%') OR
+        p.tipo_servicio LIKE CONCAT('%', p_termino_busqueda, '%');
 END //
 
 -- Procedimiento para crear empleado
@@ -885,13 +1106,13 @@ BEGIN
         est.nombre_estado AS estado_empleado
     FROM empleados e
     LEFT JOIN estados est ON e.id_estado = est.id_estado
-    WHERE e.id_estado = 1; -- Solo empleados activos
+    WHERE e.id_estado = 1;
 END //
 
 -- Procedimiento para actualizar empleado
 CREATE PROCEDURE ActualizarEmpleado(
     IN p_id_empleado INT,
-    IN p_clave_sistema VARCHAR(20),
+    IN p_clave_sistema VARCHAR(100),
     IN p_nombre VARCHAR(100),
     IN p_apellido_paterno VARCHAR(100),
     IN p_apellido_materno VARCHAR(100),
@@ -1141,7 +1362,7 @@ BEGIN
     FROM empleados e
     LEFT JOIN usuarios u ON e.id_usuario = u.id_usuario
     LEFT JOIN estados est ON e.id_estado = est.id_estado
-    WHERE e.id_estado = 1; -- Solo empleados activos
+    WHERE e.id_estado = 1;
 END //
 
 -- Procedimiento para obtener empleado con usuario
@@ -1340,3 +1561,5 @@ CREATE INDEX idx_empleados_estado ON empleados(id_estado);
 CREATE INDEX idx_inmuebles_empleado ON inmuebles(id_empleado);
 CREATE INDEX idx_inmuebles_clientes_interesados ON inmuebles_clientes_interesados(id_inmueble, id_cliente);
 CREATE INDEX idx_inmuebles_imagenes ON inmuebles_imagenes(id_inmueble);
+CREATE INDEX idx_historial_proveedores ON historial_proveedores(id_proveedor);
+CREATE INDEX idx_historial_proveedores_detallado ON historial_proveedores_detallado(id_proveedor);

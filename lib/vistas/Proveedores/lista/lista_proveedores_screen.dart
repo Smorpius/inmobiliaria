@@ -6,11 +6,11 @@ import 'proveedores_list_view.dart';
 import 'proveedores_empty_view.dart';
 import 'proveedores_error_view.dart';
 import 'dart:developer' as developer;
-import 'proveedores_error_handler.dart';
 import 'package:flutter/material.dart';
+import 'proveedores_error_handler.dart';
 import '../nuevo_proveedor_screen.dart';
-import '../../../widgets/app_scaffold.dart';
 import '../../../models/proveedor.dart';
+import '../../../widgets/app_scaffold.dart';
 import '../../../controllers/proveedor_controller.dart';
 
 class ListaProveedoresScreen extends StatefulWidget {
@@ -25,61 +25,85 @@ class ListaProveedoresScreen extends StatefulWidget {
 class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
     with ProveedoresErrorHandler, ProveedoresAcciones {
   late final ProveedoresEstado estado;
-  
+
   // Timer para actualización automática
   Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    developer.log('[Proveedores] Inicializando ListaProveedoresScreen');
+
     estado = ProveedoresEstado();
     inicializarErrorHandler(context);
-    inicializarAcciones(widget.controller, context);
+    inicializarAcciones(widget.controller, context, setState);
 
     // Inicialización después de montar el widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      developer.log('[Proveedores] Widget montado, iniciando carga inicial');
+
       if (!widget.controller.isInitialized) {
+        developer.log(
+          '[Proveedores] Controlador no inicializado, inicializando...',
+        );
         widget.controller
             .inicializar()
             .then((_) {
+              developer.log(
+                '[Proveedores] Controlador inicializado exitosamente',
+              );
               if (mounted) setState(() {});
             })
             .catchError((e) {
+              developer.log(
+                '[Proveedores] Error al inicializar controlador: $e',
+                error: e,
+              );
               if (mounted) manejarError(e);
             });
+      } else {
+        // Siempre cargar proveedores incluso si ya está inicializado
+        cargarProveedores();
       }
-      cargarProveedores();
-      
+
       // Iniciar actualización automática cada 30 segundos
       _iniciarActualizacionAutomatica();
     });
   }
-  
+
   void _iniciarActualizacionAutomatica() {
+    developer.log('[Proveedores] Configurando actualización automática (30s)');
+
     // Cancelar timer existente si hay uno
     _autoRefreshTimer?.cancel();
-    
+
     // Crear nuevo timer que se ejecuta cada 30 segundos
-    _autoRefreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (mounted) {
-          cargarProveedores();
-        }
-      },
-    );
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        developer.log('[Proveedores] Ejecutando actualización automática');
+        cargarProveedores();
+      }
+    });
   }
-  
+
   @override
   void dispose() {
+    developer.log('[Proveedores] Destruyendo ListaProveedoresScreen');
     _autoRefreshTimer?.cancel();
+    // Llamada correcta para limpiar recursos del mixin
     super.dispose();
   }
 
   Future<void> cargarProveedores() async {
-    if (estado.isLoading) return;
-    
+    if (estado.isLoading) {
+      developer.log(
+        '[Proveedores] Ignorando solicitud de carga, ya hay una carga en progreso',
+      );
+      return;
+    }
+
     try {
+      developer.log('[Proveedores] Iniciando carga de proveedores');
       setState(() {
         estado.isLoading = true;
         estado.tieneError = false;
@@ -87,15 +111,23 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
       });
 
       await widget.controller.cargarProveedores();
-      
+      developer.log('[Proveedores] Proveedores cargados exitosamente');
+
       if (mounted) {
         setState(() {
           estado.isLoading = false;
-          // Actualizar la clave del stream para forzar reconstrucción
-          estado.regenerarStreamKey();
+          // CORREGIDO: NO regenerar la clave del stream después de cada carga
+          developer.log(
+            '[Proveedores] Vista actualizada después de carga exitosa',
+          );
         });
       }
     } catch (e, stackTrace) {
+      developer.log(
+        '[Proveedores] Error al cargar proveedores: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           estado.isLoading = false;
@@ -109,21 +141,32 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
   }
 
   void _navegarANuevoProveedor() {
+    developer.log('[Proveedores] Navegando a pantalla de nuevo proveedor');
     // Navegar a la pantalla de nuevo proveedor
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => NuevoProveedorScreen(
-          controller: widget.controller,
-        ),
+        builder:
+            (context) => NuevoProveedorScreen(controller: widget.controller),
       ),
-    ).then((_) => cargarProveedores());
+    ).then((_) {
+      developer.log(
+        '[Proveedores] Regresando de pantalla de nuevo proveedor, recargando datos',
+      );
+      cargarProveedores();
+    });
   }
 
+  // CORREGIDO: No regenerar clave del streamBuilder al cambiar filtro
   void cambiarFiltroInactivos(bool mostrarInactivos) {
     if (estado.mostrarInactivos != mostrarInactivos) {
+      developer.log(
+        '[Proveedores] Cambiando filtro de inactivos: $mostrarInactivos',
+      );
       setState(() {
         estado.mostrarInactivos = mostrarInactivos;
+        // ELIMINADA LA REGENERACIÓN DE CLAVE:
+        // estado.regenerarStreamKey();
       });
     }
   }
@@ -161,6 +204,7 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
 
   Widget _buildBody() {
     if (estado.isLoading) {
+      developer.log('[Proveedores] Renderizando vista de carga');
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -174,6 +218,9 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
     }
 
     if (estado.tieneError) {
+      developer.log(
+        '[Proveedores] Renderizando vista de error: ${estado.mensajeError}',
+      );
       return ProveedoresErrorView(
         errorMessage: estado.mensajeError!,
         stackTrace: estado.stackTrace,
@@ -181,24 +228,103 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
       );
     }
 
+    developer.log('[Proveedores] Configurando StreamBuilder para proveedores');
+
     return StreamBuilder<List<Proveedor>>(
-      key: estado.streamKey,
+      key: estado.streamKey, // Usamos una clave constante
       stream: widget.controller.proveedores,
       builder: (context, snapshot) {
+        // MEJORA IMPLEMENTADA: Log adicional para depurar el estado del snapshot
+        developer.log(
+          '[StreamBuilder] Estado: hasData=${snapshot.hasData}, '
+          'connectionState=${snapshot.connectionState}, '
+          'error=${snapshot.error}, '
+          '${snapshot.hasData ? 'items=${snapshot.data!.length}' : 'no data'}',
+        );
+
+        // CORREGIDO: Solo mostrar carga si no hay datos previos
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
         if (snapshot.hasError) {
+          developer.log('[Proveedores] Error en stream: ${snapshot.error}');
           return ProveedoresErrorView(
             errorMessage: snapshot.error.toString(),
             onRetry: cargarProveedores,
           );
         }
 
-        if (!snapshot.hasData && !estado.isLoading) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          developer.log('[Proveedores] No hay datos o lista vacía');
           return ProveedoresEmptyView(
             mostrandoInactivos: estado.mostrarInactivos,
             onNuevoProveedor: _navegarANuevoProveedor,
           );
         }
 
-        if (snapshot.hasData) {
-          final proveedores = snapshot.data!;
-          final proveedoresFiltrados =
+        final proveedores = snapshot.data!;
+
+        // MEJORA IMPLEMENTADA: Conteo para logs de depuración
+        final activosCount = proveedores.where((p) => p.idEstado == 1).length;
+        final inactivosCount = proveedores.where((p) => p.idEstado != 1).length;
+
+        // Filtrado de proveedores según el estado del switch
+        final proveedoresFiltrados =
+            estado.mostrarInactivos
+                ? proveedores
+                : proveedores.where((p) => p.idEstado == 1).toList();
+
+        // MEJORA IMPLEMENTADA: Log específico para el filtrado
+        developer.log(
+          '[Proveedores] Filtrado: total=${proveedores.length}, '
+          'activos=$activosCount, inactivos=$inactivosCount, '
+          'mostrados=${proveedoresFiltrados.length} '
+          '(mostrarInactivos: ${estado.mostrarInactivos})',
+        );
+
+        if (proveedoresFiltrados.isEmpty) {
+          developer.log('[Proveedores] Lista filtrada vacía');
+          return ProveedoresEmptyView(
+            mostrandoInactivos: estado.mostrarInactivos,
+            onNuevoProveedor: _navegarANuevoProveedor,
+          );
+        }
+
+        // MEJORA IMPLEMENTADA: Usar el componente ProveedoresListView
+        developer.log(
+          '[Proveedores] Renderizando ProveedoresListView con ${proveedoresFiltrados.length} items',
+        );
+        return ProveedoresListView(
+          proveedores: proveedoresFiltrados,
+          onItemTap: (proveedor) {
+            developer.log(
+              '[Proveedores] Tap en proveedor: ${proveedor.nombre} (ID: ${proveedor.idProveedor})',
+            );
+            modificarProveedor(proveedor, onSuccess: cargarProveedores);
+          },
+          onAgregarProveedor: _navegarANuevoProveedor,
+          onEliminar: (proveedor) {
+            developer.log(
+              '[Proveedores] Eliminando proveedor: ${proveedor.nombre} (ID: ${proveedor.idProveedor})',
+            );
+            inactivarProveedor(proveedor, onSuccess: cargarProveedores);
+          },
+          onReactivar: (proveedor) {
+            developer.log(
+              '[Proveedores] Reactivando proveedor: ${proveedor.nombre} (ID: ${proveedor.idProveedor})',
+            );
+            reactivarProveedor(proveedor, onSuccess: cargarProveedores);
+          },
+          onModificar: (proveedor) {
+            developer.log(
+              '[Proveedores] Modificando proveedor: ${proveedor.nombre} (ID: ${proveedor.idProveedor})',
+            );
+            modificarProveedor(proveedor, onSuccess: cargarProveedores);
+          },
+        );
+      },
+    );
+  }
+}

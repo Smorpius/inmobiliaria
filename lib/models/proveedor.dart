@@ -35,6 +35,21 @@ class Proveedor {
     );
   }
 
+  // Método adicional para crear desde un mapa de base de datos
+  factory Proveedor.fromMap(Map<String, dynamic> map) {
+    return Proveedor(
+      idProveedor: map['id_proveedor'],
+      nombre: map['nombre'] ?? '',
+      nombreEmpresa: map['nombre_empresa'] ?? '',
+      nombreContacto: map['nombre_contacto'] ?? '',
+      direccion: map['direccion'] ?? '',
+      telefono: map['telefono'] ?? '',
+      correo: map['correo'] ?? '',
+      tipoServicio: map['tipo_servicio'] ?? '',
+      idEstado: map['id_estado'] ?? 1,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id_proveedor': idProveedor,
