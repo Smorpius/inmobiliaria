@@ -368,7 +368,11 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
         final proveedoresFiltrados =
             estado.mostrarInactivos
                 ? proveedores
-                : proveedores.where((p) => p.idEstado == 1).toList();
+                    .where((p) => p.idEstado != 1)
+                    .toList() // Solo inactivos
+                : proveedores
+                    .where((p) => p.idEstado == 1)
+                    .toList(); // Solo activos
 
         // MEJORA IMPLEMENTADA: Log específico para el filtrado
         developer.log(

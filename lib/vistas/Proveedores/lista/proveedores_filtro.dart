@@ -23,13 +23,25 @@ class ProveedoresFiltro extends StatelessWidget {
         Switch(
           value: mostrarInactivos,
           onChanged: isLoading ? null : onChanged,
-          // MEJORA: Colores personalizados para mejorar UX
-          activeColor: Colors.green,
-          activeTrackColor: Colors.greenAccent,
+          // Colores personalizados para mejorar UX
+          activeColor: Colors.orange,
+          activeTrackColor: Colors.orangeAccent,
         ),
         Text(
-          mostrarInactivos ? 'Mostrando todos' : 'Sólo activos',
-          style: const TextStyle(color: Colors.white, fontSize: 14),
+          mostrarInactivos ? 'Solo inactivos' : 'Solo activos',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            // Sombra para mejor legibilidad en cualquier fondo
+            shadows: [
+              Shadow(
+                offset: const Offset(1.0, 1.0),
+                blurRadius: 3.0,
+                color: Color.fromRGBO(0, 0, 0, 0.5), // Reemplazado withOpacity
+              ),
+            ],
+          ),
         ),
         // Botón de recargar
         IconButton(
