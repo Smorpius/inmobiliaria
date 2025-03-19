@@ -246,6 +246,36 @@ class ProveedoresService {
     }
   }
 
+  /// Busca proveedores según un término de búsqueda
+  Future<List<Proveedor>> buscarProveedores(String termino) async {
+    try {
+      final conn = await _db.connection;
+      developer.log('Buscando proveedores con término: "$termino"');
+
+      final result = await conn.query('CALL BuscarProveedores(?)', [termino]);
+
+      final proveedores =
+          result.map((row) {
+            // Mapeo completo para incluir todos los campos de tu procedimiento
+            final map = <String, dynamic>{};
+            for (var field in row.fields.keys) {
+              map[field] = row[field];
+            }
+            // Asegurarse de que el campo estado_proveedor se maneje correctamente
+            if (map.containsKey('estado_proveedor')) {
+              map['nombre_estado'] = map['estado_proveedor'];
+            }
+            return Proveedor.fromMap(map);
+          }).toList();
+
+      developer.log('Proveedores encontrados: ${proveedores.length}');
+      return proveedores;
+    } catch (e) {
+      developer.log('Error al buscar proveedores: $e', error: e);
+      rethrow;
+    }
+  }
+
   /// Reactiva un proveedor
   Future<void> reactivarProveedor(
     int idProveedor, {

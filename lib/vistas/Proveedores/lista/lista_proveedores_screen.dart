@@ -12,6 +12,7 @@ import '../nuevo_proveedor_screen.dart';
 import '../../../models/proveedor.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../controllers/proveedor_controller.dart';
+import 'proveedores_busqueda.dart'; // Nuevo componente importado
 
 class ListaProveedoresScreen extends StatefulWidget {
   final ProveedorController controller;
@@ -79,7 +80,8 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
 
     // Crear nuevo timer que se ejecuta cada 30 segundos
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) {
+      if (mounted && !estado.buscando) {
+        // No actualizar automáticamente durante búsqueda
         developer.log('[Proveedores] Ejecutando actualización automática');
         cargarProveedores();
       }
@@ -116,7 +118,10 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
       if (mounted) {
         setState(() {
           estado.isLoading = false;
-          // CORREGIDO: NO regenerar la clave del stream después de cada carga
+          // Limpiamos la búsqueda si estamos recargando
+          if (!estado.buscando) {
+            estado.terminoBusqueda = '';
+          }
           developer.log(
             '[Proveedores] Vista actualizada después de carga exitosa',
           );
@@ -125,6 +130,48 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
     } catch (e, stackTrace) {
       developer.log(
         '[Proveedores] Error al cargar proveedores: $e',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        setState(() {
+          estado.isLoading = false;
+          estado.tieneError = true;
+          estado.mensajeError = e.toString();
+          estado.stackTrace = stackTrace;
+        });
+        manejarError(e);
+      }
+    }
+  }
+
+  // Método para manejar la búsqueda (NUEVO)
+  Future<void> buscarProveedores(String termino) async {
+    if (estado.isLoading) return;
+
+    developer.log('[Proveedores] Iniciando búsqueda con término: "$termino"');
+
+    try {
+      setState(() {
+        estado.isLoading = true;
+        estado.terminoBusqueda = termino;
+        estado.buscando = termino.isNotEmpty;
+      });
+
+      if (termino.isEmpty) {
+        await widget.controller.cargarProveedores();
+      } else {
+        await widget.controller.filtrarProveedores(termino);
+      }
+
+      setState(() {
+        estado.isLoading = false;
+      });
+
+      developer.log('[Proveedores] Búsqueda completada');
+    } catch (e, stackTrace) {
+      developer.log(
+        '[Proveedores] Error en búsqueda: $e',
         error: e,
         stackTrace: stackTrace,
       );
@@ -165,8 +212,6 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
       );
       setState(() {
         estado.mostrarInactivos = mostrarInactivos;
-        // ELIMINADA LA REGENERACIÓN DE CLAVE:
-        // estado.regenerarStreamKey();
       });
     }
   }
@@ -186,8 +231,55 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
               onRefresh: cargarProveedores,
             ),
           ],
-          body: _buildBody(),
+          body: Column(
+            children: [
+              // Añadir componente de búsqueda
+              ProveedoresBusqueda(
+                onSearch: buscarProveedores,
+                isLoading: estado.isLoading,
+              ),
+
+              // Indicador de búsqueda activa
+              if (estado.buscando && estado.terminoBusqueda.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.filter_list,
+                        size: 18,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Resultados para: "${estado.terminoBusqueda}"',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed:
+                            estado.isLoading
+                                ? null
+                                : () => buscarProveedores(''),
+                        child: const Text('Limpiar filtro'),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // El resto del contenido en un Expanded para que ocupe el espacio restante
+              Expanded(child: _buildBody()),
+            ],
+          ),
         ),
+
+        // Botón flotante
         Positioned(
           right: 16,
           bottom: 16,
@@ -261,6 +353,8 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
           return ProveedoresEmptyView(
             mostrandoInactivos: estado.mostrarInactivos,
             onNuevoProveedor: _navegarANuevoProveedor,
+            terminoBusqueda: estado.buscando ? estado.terminoBusqueda : null,
+            onClearSearch: estado.buscando ? () => buscarProveedores('') : null,
           );
         }
 
@@ -289,6 +383,8 @@ class _ListaProveedoresScreenState extends State<ListaProveedoresScreen>
           return ProveedoresEmptyView(
             mostrandoInactivos: estado.mostrarInactivos,
             onNuevoProveedor: _navegarANuevoProveedor,
+            terminoBusqueda: estado.buscando ? estado.terminoBusqueda : null,
+            onClearSearch: estado.buscando ? () => buscarProveedores('') : null,
           );
         }
 

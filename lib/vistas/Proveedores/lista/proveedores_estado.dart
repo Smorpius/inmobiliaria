@@ -7,6 +7,10 @@ class ProveedoresEstado {
   StackTrace? stackTrace;
   bool mostrarInactivos = false;
 
+  // Nuevos campos para la búsqueda
+  String terminoBusqueda = '';
+  bool buscando = false;
+
   // Usar clave estática para evitar recreación constante del StreamBuilder
   // Esta clave debe mantenerse constante la mayor parte del tiempo
   static final Key _staticKey = UniqueKey();

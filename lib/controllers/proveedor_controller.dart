@@ -66,6 +66,33 @@ class ProveedorController {
     }
   }
 
+  /// Filtra los proveedores por un término de búsqueda
+  Future<void> filtrarProveedores(String termino) async {
+    try {
+      developer.log('Filtrando proveedores con término: "$termino"');
+
+      if (termino.trim().isEmpty) {
+        // Si no hay término de búsqueda, cargar todos los proveedores
+        await cargarProveedores();
+        return;
+      }
+
+      // Usar el método del servicio para buscar proveedores
+      final proveedoresFiltrados = await _service.buscarProveedores(termino);
+
+      // Actualizar la lista local y el stream
+      _proveedoresList = proveedoresFiltrados;
+      _proveedoresController.add(List<Proveedor>.from(_proveedoresList));
+
+      developer.log(
+        'Lista de proveedores filtrada: ${_proveedoresList.length} resultados',
+      );
+    } catch (e) {
+      developer.log('Error al filtrar proveedores: $e', error: e);
+      rethrow;
+    }
+  }
+
   /// Inicializa el controlador cargando los proveedores
   Future<void> inicializar() async {
     if (isInitialized) return;
