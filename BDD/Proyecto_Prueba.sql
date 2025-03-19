@@ -858,15 +858,15 @@ BEGIN
     LEFT JOIN estados e ON p.id_estado = e.id_estado;
 END //
 
--- Procedimiento para actualizar proveedor
+-- Procedimiento para actualizar proveedor (VERSIÓN CORREGIDA)
 CREATE PROCEDURE ActualizarProveedor(
     IN p_id_proveedor INT,
-    IN p_nombre VARCHAR(100), 
-    IN p_nombre_empresa VARCHAR(150), 
-    IN p_nombre_contacto VARCHAR(100), 
-    IN p_direccion VARCHAR(255), 
-    IN p_telefono VARCHAR(15), 
-    IN p_correo VARCHAR(100), 
+    IN p_nombre VARCHAR(100),
+    IN p_nombre_empresa VARCHAR(150),
+    IN p_nombre_contacto VARCHAR(100),
+    IN p_direccion VARCHAR(255),
+    IN p_telefono VARCHAR(15),
+    IN p_correo VARCHAR(100),
     IN p_tipo_servicio VARCHAR(100),
     IN p_usuario_modificacion INT
 )
@@ -880,31 +880,55 @@ BEGIN
     DECLARE v_correo_actual VARCHAR(100);
     DECLARE v_servicio_actual VARCHAR(100);
 
+    -- Verificar que el proveedor exista y obtener valores actuales
     SELECT id_estado, nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio
     INTO v_estado_actual, v_nombre_actual, v_empresa_actual, v_contacto_actual, v_direccion_actual, v_telefono_actual, v_correo_actual, v_servicio_actual
     FROM proveedores 
     WHERE id_proveedor = p_id_proveedor;
-
+    
     IF v_estado_actual IS NULL THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor especificado no existe';
     END IF;
-
+    
     IF v_estado_actual != 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un proveedor inactivo';
     END IF;
+    
+    -- Validar el correo electrónico
+    IF p_correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
+    END IF;
+    
+    -- Validar el teléfono
+    IF p_telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
+    END IF;
+
+    -- Verificar si el correo ya está en uso por otro proveedor
+    IF EXISTS (
+        SELECT 1 
+        FROM proveedores 
+        WHERE correo = p_correo 
+        AND id_proveedor != p_id_proveedor
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El correo ya está en uso por otro proveedor';
+    END IF;
 
     START TRANSACTION;
-
-    UPDATE proveedores SET 
-        nombre = p_nombre, 
-        nombre_empresa = p_nombre_empresa, 
-        nombre_contacto = p_nombre_contacto, 
-        direccion = p_direccion, 
-        telefono = p_telefono, 
-        correo = p_correo, 
-        tipo_servicio = p_tipo_servicio
+    
+    -- Actualizar los datos del proveedor
+    UPDATE proveedores 
+    SET nombre = p_nombre,
+        nombre_empresa = p_nombre_empresa,
+        nombre_contacto = p_nombre_contacto,
+        direccion = p_direccion,
+        telefono = p_telefono,
+        correo = p_correo,
+        tipo_servicio = p_tipo_servicio,
+        fecha_modificacion = CURRENT_TIMESTAMP
     WHERE id_proveedor = p_id_proveedor;
 
+    -- Registrar cambios en el historial detallado
     IF v_nombre_actual != p_nombre THEN
         INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
         VALUES (p_id_proveedor, 'nombre', v_nombre_actual, p_nombre, p_usuario_modificacion);
@@ -933,11 +957,11 @@ BEGIN
         INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
         VALUES (p_id_proveedor, 'tipo_servicio', v_servicio_actual, p_tipo_servicio, p_usuario_modificacion);
     END IF;
-
+    
     COMMIT;
 END //
 
--- Procedimiento para inactivar proveedor (VERSIÓN CORREGIDA)
+-- Procedimiento para inactivar proveedor
 CREATE PROCEDURE InactivarProveedor(
     IN p_id_proveedor INT,
     IN p_usuario_modificacion INT
@@ -1009,7 +1033,8 @@ BEGIN
     START TRANSACTION;
     
     UPDATE proveedores 
-    SET id_estado = v_id_estado_activo
+    SET id_estado = v_id_estado_activo,
+        fecha_modificacion = CURRENT_TIMESTAMP
     WHERE id_proveedor = p_id_proveedor;
     
     INSERT INTO historial_proveedores (

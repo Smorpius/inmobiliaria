@@ -248,7 +248,11 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
     setState(() => _isLoading = true);
 
     try {
-      developer.log("=== INICIO DE CREACIÓN DE PROVEEDOR ===");
+      developer.log(
+        _isEditing
+            ? "=== INICIO DE ACTUALIZACIÓN DE PROVEEDOR ==="
+            : "=== INICIO DE CREACIÓN DE PROVEEDOR ===",
+      );
       developer.log("Datos del formulario:");
       developer.log("- Nombre: ${nombreController.text.trim()}");
       developer.log("- Empresa: ${nombreEmpresaController.text.trim()}");
@@ -273,7 +277,15 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
       );
 
       if (_isEditing) {
-        // Código existente para actualizar...
+        developer.log("Llamando a controller.actualizarProveedor...");
+        await widget.controller.actualizarProveedor(proveedor);
+        developer.log("Proveedor actualizado correctamente");
+
+        if (!mounted) return;
+        await _mostrarExitoYRegresar(
+          'El proveedor ha sido actualizado exitosamente.',
+        );
+        developer.log("=== FIN DE ACTUALIZACIÓN DE PROVEEDOR ===");
       } else {
         developer.log("Llamando a controller.crearProveedor...");
         final nuevoProveedor = await widget.controller.crearProveedor(
@@ -291,7 +303,9 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
       }
     } catch (e, stack) {
       developer.log(
-        '=== ERROR AL CREAR PROVEEDOR ===',
+        _isEditing
+            ? '=== ERROR AL ACTUALIZAR PROVEEDOR ==='
+            : '=== ERROR AL CREAR PROVEEDOR ===',
         error: e,
         stackTrace: stack,
       );
@@ -306,7 +320,11 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
           'El formato del teléfono es incorrecto. Debe tener entre 10 y 15 dígitos.',
         );
       } else {
-        await _mostrarError('No se pudo crear el proveedor: $e');
+        await _mostrarError(
+          _isEditing
+              ? 'No se pudo actualizar el proveedor: $e'
+              : 'No se pudo crear el proveedor: $e',
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
