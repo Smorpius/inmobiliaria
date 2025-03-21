@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../models/inmueble_model.dart';
-import '../../controllers/cliente_controller.dart';
-import '../../controllers/inmueble_controller.dart';
+import '../../providers/providers_global.dart';
+import '../../providers/cliente_detalle_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../vistas/inmuebles/inmueble_detail_screen.dart';
 
-class ClienteDetailView extends StatefulWidget {
+class ClienteDetailView extends ConsumerStatefulWidget {
   final Cliente cliente;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -20,32 +21,10 @@ class ClienteDetailView extends StatefulWidget {
   });
 
   @override
-  State<ClienteDetailView> createState() => _ClienteDetailViewState();
+  ConsumerState<ClienteDetailView> createState() => _ClienteDetailViewState();
 }
 
-class _ClienteDetailViewState extends State<ClienteDetailView> {
-  final ClienteController _clienteController = ClienteController();
-  final InmuebleController _inmuebleController = InmuebleController();
-
-  // Añadimos esta propiedad para almacenar el Future de los inmuebles
-  late Future<List<Map<String, dynamic>>> _inmueblesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    // Inicializar los datos de inmuebles
-    _cargarInmuebles();
-  }
-
-  // Método para cargar o recargar inmuebles
-  void _cargarInmuebles() {
-    if (widget.cliente.id != null) {
-      _inmueblesFuture = _clienteController.getInmueblesPorCliente(
-        widget.cliente.id!,
-      );
-    }
-  }
-
+class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -57,27 +36,14 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Información básica del cliente
             _buildClienteHeader(),
-
             const Divider(height: 32),
-
-            // Información de contacto
             _buildContactInfo(),
-
             const Divider(height: 32),
-
-            // Dirección
             _buildAddressInfo(),
-
             const Divider(height: 32),
-
-            // Sección de inmuebles asociados (nueva)
             _buildInmueblesSection(),
-
             const SizedBox(height: 24),
-
-            // Botones de acción
             _buildActionButtons(),
           ],
         ),
@@ -144,7 +110,6 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
         ),
         if (widget.cliente.correo != null)
           _buildDetailItem(Icons.email, 'Correo', widget.cliente.correo!),
-
         if (widget.cliente.fechaRegistro != null)
           _buildDetailItem(
             Icons.calendar_today,
@@ -166,25 +131,19 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
         const SizedBox(height: 8),
         Text(widget.cliente.direccionCompleta),
         const SizedBox(height: 12),
-
-        // Componentes individuales de la dirección si están disponibles
         if (widget.cliente.calle != null && widget.cliente.calle!.isNotEmpty)
           _buildDetailItem(Icons.location_on, 'Calle', widget.cliente.calle!),
-
         if (widget.cliente.numero != null && widget.cliente.numero!.isNotEmpty)
           _buildDetailItem(Icons.home, 'Número', widget.cliente.numero!),
-
         if (widget.cliente.colonia != null &&
             widget.cliente.colonia!.isNotEmpty)
           _buildDetailItem(Icons.grid_3x3, 'Colonia', widget.cliente.colonia!),
-
         if (widget.cliente.ciudad != null && widget.cliente.ciudad!.isNotEmpty)
           _buildDetailItem(
             Icons.location_city,
             'Ciudad',
             widget.cliente.ciudad!,
           ),
-
         if (widget.cliente.estadoGeografico != null &&
             widget.cliente.estadoGeografico!.isNotEmpty)
           _buildDetailItem(
@@ -192,7 +151,6 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
             'Estado',
             widget.cliente.estadoGeografico!,
           ),
-
         if (widget.cliente.codigoPostal != null &&
             widget.cliente.codigoPostal!.isNotEmpty)
           _buildDetailItem(
@@ -200,7 +158,6 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
             'Código Postal',
             widget.cliente.codigoPostal!,
           ),
-
         if (widget.cliente.referencias != null &&
             widget.cliente.referencias!.isNotEmpty)
           _buildDetailItem(
@@ -239,25 +196,29 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
         ),
         const SizedBox(height: 16),
 
-        // FutureBuilder modificado para usar la propiedad _inmueblesFuture
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: _inmueblesFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        // Usando Consumer para observar el estado de clienteDetalleProvider
+        Consumer(
+          builder: (context, ref, child) {
+            // Obtener el estado actual del provider
+            final clienteDetalleState = ref.watch(
+              clienteDetalleProvider(widget.cliente.id!),
+            );
+
+            if (clienteDetalleState.isLoading) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            if (snapshot.hasError) {
+            if (clienteDetalleState.errorMessage != null) {
               return Center(
                 child: Text(
-                  'Error: ${snapshot.error}',
-                  style: TextStyle(color: Colors.red),
+                  'Error: ${clienteDetalleState.errorMessage}',
+                  style: const TextStyle(color: Colors.red),
                 ),
               );
             }
 
-            final inmuebles = snapshot.data;
-            if (inmuebles == null || inmuebles.isEmpty) {
+            final inmuebles = clienteDetalleState.inmuebles;
+            if (inmuebles.isEmpty) {
               return Container(
                 padding: const EdgeInsets.all(16),
                 alignment: Alignment.center,
@@ -353,8 +314,9 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
 
   void _verDetallesInmueble(int idInmueble) async {
     try {
-      // Obtener todos los inmuebles
-      final inmuebles = await _inmuebleController.getInmuebles();
+      // Usando Riverpod para obtener el controller
+      final inmuebleController = ref.read(inmuebleControllerProvider);
+      final inmuebles = await inmuebleController.getInmuebles();
 
       // Encontrar el inmueble específico
       final inmueble = inmuebles.firstWhere(
@@ -369,7 +331,7 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
         MaterialPageRoute(
           builder:
               (context) => InmuebleDetailScreen(
-                inmueble: inmueble,
+                inmuebleInicial: inmueble,
                 onEdit: () {}, // No permitimos edición desde aquí
                 onDelete: () {}, // No permitimos eliminación desde aquí
                 isInactivo: inmueble.idEstado != 3, // 3 = disponible
@@ -388,7 +350,6 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
     }
   }
 
-  // Método modificado para actualizar la vista después de desasignar
   Future<void> _desasignarInmueble(int idInmueble) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -415,24 +376,31 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
           ),
     );
 
-    if (confirmar != true) return;
+    if (confirmar != true || widget.cliente.id == null) return;
 
     try {
-      await _clienteController.desasignarInmuebleDeCliente(idInmueble);
+      // Usar el notifier para desasignar el inmueble
+      final success = await ref
+          .read(clienteDetalleProvider(widget.cliente.id!).notifier)
+          .desasignarInmueble(idInmueble);
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Inmueble desasignado correctamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Importante: Recargar los inmuebles después de desasignar
-      setState(() {
-        _cargarInmuebles();
-      });
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Inmueble desasignado correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo desasignar el inmueble'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
 
@@ -449,12 +417,19 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
     if (widget.cliente.id == null) return;
 
     try {
-      // Obtener inmuebles disponibles (sin cliente asignado o estado 3 - disponible)
-      final inmuebles = await _inmuebleController.getInmuebles();
+      // Mostrar indicador de carga
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cargando inmuebles disponibles...'),
+          duration: Duration(milliseconds: 800),
+        ),
+      );
+
+      // Obtener inmuebles disponibles usando el notifier
       final inmueblesDisponibles =
-          inmuebles
-              .where((i) => i.idCliente == null || i.idEstado == 3)
-              .toList();
+          await ref
+              .read(clienteDetalleProvider(widget.cliente.id!).notifier)
+              .getInmueblesDisponibles();
 
       if (!mounted) return;
 
@@ -493,7 +468,7 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
                           Text(inmueble.direccionCompleta),
                           Text(
                             'Monto: ${_formatMonto(inmueble.montoTotal)}',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               color: Colors.teal,
                             ),
@@ -530,32 +505,28 @@ class _ClienteDetailViewState extends State<ClienteDetailView> {
     }
   }
 
-  // Método modificado para actualizar la vista después de asignar
   Future<void> _asignarInmueble(Inmueble inmueble) async {
+    if (widget.cliente.id == null || inmueble.id == null) return;
+
     try {
-      final asignado = await _clienteController.asignarInmuebleACliente(
-        widget.cliente.id!,
-        inmueble.id!,
-      );
+      // Usar el notifier para asignar el inmueble
+      final success = await ref
+          .read(clienteDetalleProvider(widget.cliente.id!).notifier)
+          .asignarInmueble(inmueble.id!);
 
       if (!mounted) return;
 
-      if (asignado) {
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Inmueble asignado correctamente'),
             backgroundColor: Colors.green,
           ),
         );
-
-        // Importante: Recargar los inmuebles después de asignar
-        setState(() {
-          _cargarInmuebles();
-        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('El inmueble ya está asignado a otro cliente'),
+            content: Text('No se pudo asignar el inmueble'),
             backgroundColor: Colors.orange,
           ),
         );

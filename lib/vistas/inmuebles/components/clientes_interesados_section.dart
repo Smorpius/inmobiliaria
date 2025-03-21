@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../models/cliente_model.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../../controllers/cliente_controller.dart';
+import '../../../providers/cliente_providers.dart';
 import '../../../vistas/clientes/vista_clientes.dart';
-import '../../../controllers/inmueble_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../models/clientes_interesados_state.dart';
 
-class ClientesInteresadosSection extends StatefulWidget {
+class ClientesInteresadosSection extends ConsumerWidget {
   final int idInmueble;
   final bool isInactivo;
 
@@ -16,35 +17,9 @@ class ClientesInteresadosSection extends StatefulWidget {
   });
 
   @override
-  State<ClientesInteresadosSection> createState() =>
-      _ClientesInteresadosSectionState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(clientesInteresadosStateProvider(idInmueble));
 
-class _ClientesInteresadosSectionState
-    extends State<ClientesInteresadosSection> {
-  final InmuebleController _inmuebleController = InmuebleController();
-  final ClienteController _clienteController = ClienteController();
-
-  // Añadir Future como propiedad de clase
-  late Future<List<Map<String, dynamic>>> _clientesInteresadosFuture;
-  String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-    // Inicializar el Future cuando se crea el widget
-    _cargarClientesInteresados();
-  }
-
-  // Método para cargar clientes interesados
-  void _cargarClientesInteresados() {
-    _clientesInteresadosFuture = _inmuebleController.getClientesInteresados(
-      widget.idInmueble,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -53,7 +28,7 @@ class _ClientesInteresadosSectionState
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
 
-        if (!widget.isInactivo)
+        if (!isInactivo)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
             child: Row(
@@ -61,9 +36,13 @@ class _ClientesInteresadosSectionState
                 Expanded(
                   child: TextField(
                     onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value.toLowerCase();
-                      });
+                      ref
+                          .read(
+                            clientesInteresadosStateProvider(
+                              idInmueble,
+                            ).notifier,
+                          )
+                          .actualizarBusqueda(value);
                     },
                     decoration: const InputDecoration(
                       hintText: 'Buscar cliente...',
@@ -76,7 +55,8 @@ class _ClientesInteresadosSectionState
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed:
-                      () => _mostrarDialogoAgregarClienteInteresado(context),
+                      () =>
+                          _mostrarDialogoAgregarClienteInteresado(context, ref),
                   icon: const Icon(Icons.person_add),
                   label: const Text('Agregar'),
                   style: ElevatedButton.styleFrom(
@@ -88,63 +68,57 @@ class _ClientesInteresadosSectionState
             ),
           ),
 
-        // FutureBuilder modificado para usar la propiedad de clase
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: _clientesInteresadosFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            if (snapshot.hasError) {
-              return Card(
-                color: Colors.red.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Error al cargar clientes interesados: ${snapshot.error}',
+        // Mostrar error si existe
+        if (state.errorMessage != null)
+          Card(
+            color: Colors.red.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text(
+                    'Error: ${state.errorMessage}',
                     style: TextStyle(color: Colors.red.shade800),
                   ),
-                ),
-              );
-            }
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed:
+                        () =>
+                            ref
+                                .read(
+                                  clientesInteresadosStateProvider(
+                                    idInmueble,
+                                  ).notifier,
+                                )
+                                .cargarClientesInteresados(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
-            final clientes = snapshot.data;
-            if (clientes == null || clientes.isEmpty) {
-              return _buildEmptyClientesMessage();
-            }
-
-            var clientesFiltrados = clientes;
-            if (_searchQuery.isNotEmpty) {
-              clientesFiltrados =
-                  clientes.where((cliente) {
-                    final nombreCompleto =
-                        '${cliente['nombre']} ${cliente['apellido_paterno']} ${cliente['apellido_materno'] ?? ''}'
-                            .toLowerCase();
-                    final telefono =
-                        (cliente['telefono_cliente'] ?? '').toLowerCase();
-                    final correo =
-                        (cliente['correo_cliente'] ?? '').toLowerCase();
-
-                    return nombreCompleto.contains(_searchQuery) ||
-                        telefono.contains(_searchQuery) ||
-                        correo.contains(_searchQuery);
-                  }).toList();
-            }
-
-            return _buildClientesList(clientesFiltrados);
-          },
-        ),
+        // Estado de carga
+        if (state.isLoading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        // Sin clientes
+        else if (state.clientes.isEmpty)
+          _buildEmptyClientesMessage(context, ref)
+        // Lista de clientes
+        else
+          _buildClientesList(context, ref, state.clientesFiltrados),
       ],
     );
   }
 
-  Widget _buildEmptyClientesMessage() {
+  // Widget para mostrar cuando no hay clientes interesados
+  Widget _buildEmptyClientesMessage(BuildContext context, WidgetRef ref) {
     return Card(
       color: Colors.grey.shade100,
       margin: const EdgeInsets.only(top: 16),
@@ -158,12 +132,13 @@ class _ClientesInteresadosSectionState
               'No hay clientes interesados registrados',
               style: TextStyle(fontSize: 16),
             ),
-            if (!widget.isInactivo)
+            if (!isInactivo)
               Padding(
                 padding: const EdgeInsets.only(top: 16.0),
                 child: ElevatedButton.icon(
                   onPressed:
-                      () => _mostrarDialogoAgregarClienteInteresado(context),
+                      () =>
+                          _mostrarDialogoAgregarClienteInteresado(context, ref),
                   icon: const Icon(Icons.person_add),
                   label: const Text('Agregar cliente interesado'),
                   style: ElevatedButton.styleFrom(
@@ -178,7 +153,12 @@ class _ClientesInteresadosSectionState
     );
   }
 
-  Widget _buildClientesList(List<Map<String, dynamic>> clientes) {
+  // Widget para mostrar la lista de clientes interesados
+  Widget _buildClientesList(
+    BuildContext context,
+    WidgetRef ref,
+    List<Map<String, dynamic>> clientes,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -213,7 +193,7 @@ class _ClientesInteresadosSectionState
               margin: const EdgeInsets.only(bottom: 12),
               elevation: 2,
               child: InkWell(
-                onTap: () => _mostrarDetallesCliente(cliente),
+                onTap: () => _mostrarDetallesCliente(context, ref, cliente),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -265,7 +245,11 @@ class _ClientesInteresadosSectionState
                             tooltip: 'Ver perfil completo',
                             color: Colors.teal,
                             onPressed:
-                                () => _verDetallesClienteInteresado(idCliente),
+                                () => _verDetallesClienteInteresado(
+                                  context,
+                                  ref,
+                                  idCliente,
+                                ),
                           ),
                         ],
                       ),
@@ -288,7 +272,10 @@ class _ClientesInteresadosSectionState
                                 icon: const Icon(Icons.call, size: 20),
                                 color: Colors.teal,
                                 onPressed:
-                                    () => _llamarCliente(telefono.toString()),
+                                    () => _llamarCliente(
+                                      context,
+                                      telefono.toString(),
+                                    ),
                                 tooltip: 'Llamar',
                                 constraints: const BoxConstraints(
                                   minWidth: 36,
@@ -300,7 +287,10 @@ class _ClientesInteresadosSectionState
                                 icon: const Icon(Icons.message, size: 20),
                                 color: Colors.blue,
                                 onPressed:
-                                    () => _enviarMensaje(telefono.toString()),
+                                    () => _enviarMensaje(
+                                      context,
+                                      telefono.toString(),
+                                    ),
                                 tooltip: 'Mensaje SMS',
                                 constraints: const BoxConstraints(
                                   minWidth: 36,
@@ -336,7 +326,10 @@ class _ClientesInteresadosSectionState
                                 ),
                                 color: Colors.orange,
                                 onPressed:
-                                    () => _enviarEmail(correo.toString()),
+                                    () => _enviarEmail(
+                                      context,
+                                      correo.toString(),
+                                    ),
                                 tooltip: 'Enviar correo',
                                 constraints: const BoxConstraints(
                                   minWidth: 36,
@@ -395,15 +388,31 @@ class _ClientesInteresadosSectionState
     );
   }
 
-  Future<void> _verDetallesClienteInteresado(int idCliente) async {
+  // Métodos para interactuar con los clientes
+  Future<void> _verDetallesClienteInteresado(
+    BuildContext context,
+    WidgetRef ref,
+    int idCliente,
+  ) async {
     try {
-      Cliente? cliente;
-      final clientes = await _clienteController.getClientes();
+      // Indicar que está cargando
+      final notifier = ref.read(
+        clientesInteresadosStateProvider(idInmueble).notifier,
+      );
+      // Iniciar carga
+      notifier.cargarClientesInteresados(); // Esto establecerá isLoading = true
 
+      // Obtener controlador a través del provider
+      final clienteController = ref.read(clienteControllerProvider);
+      Cliente? cliente;
+
+      // Buscar primero en clientes activos
+      final clientes = await clienteController.getClientes();
       try {
         cliente = clientes.firstWhere((c) => c.id == idCliente);
       } catch (_) {
-        final inactivos = await _clienteController.getClientesInactivos();
+        // Si no se encuentra, buscar en inactivos
+        final inactivos = await clienteController.getClientesInactivos();
         try {
           cliente = inactivos.firstWhere((c) => c.id == idCliente);
         } catch (_) {
@@ -411,20 +420,26 @@ class _ClientesInteresadosSectionState
         }
       }
 
-      if (!mounted) return;
+      if (!context.mounted) return;
+
+      // La carga terminó, recargar datos para actualizar el estado
+      notifier.cargarClientesInteresados();
 
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder:
-              (context) => VistaClientes(
-                controller: _clienteController,
-                clienteInicial: cliente,
-              ),
+          builder: (context) => VistaClientes(clienteInicial: cliente),
         ),
       );
     } catch (e) {
-      if (!mounted) return;
+      if (!context.mounted) return;
+
+      // Mostrar error
+      final notifier = ref.read(
+        clientesInteresadosStateProvider(idInmueble).notifier,
+      );
+      // Recargar para restablecer el estado y mostrar el error
+      notifier.cargarClientesInteresados();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -435,12 +450,12 @@ class _ClientesInteresadosSectionState
     }
   }
 
-  void _llamarCliente(String telefono) async {
+  void _llamarCliente(BuildContext context, String telefono) async {
     final uri = Uri.parse('tel:$telefono');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se puede realizar la llamada a $telefono'),
@@ -450,12 +465,12 @@ class _ClientesInteresadosSectionState
     }
   }
 
-  void _enviarMensaje(String telefono) async {
+  void _enviarMensaje(BuildContext context, String telefono) async {
     final uri = Uri.parse('sms:$telefono');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se puede enviar mensaje a $telefono'),
@@ -465,12 +480,12 @@ class _ClientesInteresadosSectionState
     }
   }
 
-  void _enviarEmail(String email) async {
+  void _enviarEmail(BuildContext context, String email) async {
     final uri = Uri.parse('mailto:$email');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('No se puede enviar email a $email'),
@@ -480,9 +495,11 @@ class _ClientesInteresadosSectionState
     }
   }
 
-  void _mostrarDetallesCliente(Map<String, dynamic> cliente) {
-    // El resto del código para mostrar detalles...
-    // (Mantengo el código original ya que no requiere cambios)
+  void _mostrarDetallesCliente(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> cliente,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -502,8 +519,6 @@ class _ClientesInteresadosSectionState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Contenido del scrollview...
-                  // (Código original)
                   const CircleAvatar(
                     radius: 40,
                     backgroundColor: Colors.amber,
@@ -553,21 +568,30 @@ class _ClientesInteresadosSectionState
                               Icons.call,
                               'Llamar',
                               Colors.green,
-                              () => _llamarCliente(cliente['telefono_cliente']),
+                              () => _llamarCliente(
+                                context,
+                                cliente['telefono_cliente'],
+                              ),
                             ),
                           if (cliente['telefono_cliente'] != null)
                             _buildActionButton(
                               Icons.message,
                               'SMS',
                               Colors.blue,
-                              () => _enviarMensaje(cliente['telefono_cliente']),
+                              () => _enviarMensaje(
+                                context,
+                                cliente['telefono_cliente'],
+                              ),
                             ),
                           if (cliente['correo_cliente'] != null)
                             _buildActionButton(
                               Icons.email,
                               'Email',
                               Colors.orange,
-                              () => _enviarEmail(cliente['correo_cliente']),
+                              () => _enviarEmail(
+                                context,
+                                cliente['correo_cliente'],
+                              ),
                             ),
                           _buildActionButton(
                             Icons.person_search,
@@ -576,6 +600,8 @@ class _ClientesInteresadosSectionState
                             () {
                               Navigator.pop(context);
                               _verDetallesClienteInteresado(
+                                context,
+                                ref,
                                 cliente['id_cliente'],
                               );
                             },
@@ -666,9 +692,14 @@ class _ClientesInteresadosSectionState
     );
   }
 
-  // Método modificado para agregar cliente interesado con recarga de datos
-  void _mostrarDialogoAgregarClienteInteresado(BuildContext context) async {
-    final clientes = await _clienteController.getClientes();
+  // Método para mostrar el diálogo para agregar un cliente interesado
+  void _mostrarDialogoAgregarClienteInteresado(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    // Obtener controlador y clientes a través del provider
+    final clienteController = ref.read(clienteControllerProvider);
+    final clientes = await clienteController.getClientes();
 
     if (!context.mounted) return;
 
@@ -791,10 +822,14 @@ class _ClientesInteresadosSectionState
                           ? null
                           : () async {
                             try {
-                              // Registrar el cliente interesado
-                              await _inmuebleController
+                              // Registrar al cliente interesado mediante el notifier
+                              final success = await ref
+                                  .read(
+                                    clientesInteresadosStateProvider(
+                                      idInmueble,
+                                    ).notifier,
+                                  )
                                   .registrarClienteInteresado(
-                                    widget.idInmueble,
                                     clienteSeleccionado!.id!,
                                     comentariosController.text.isNotEmpty
                                         ? comentariosController.text
@@ -804,19 +839,17 @@ class _ClientesInteresadosSectionState
                               if (!context.mounted) return;
 
                               Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Cliente interesado registrado correctamente',
-                                  ),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
 
-                              // IMPORTANTE: Recargar los datos después de agregar
-                              setState(() {
-                                _cargarClientesInteresados();
-                              });
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Cliente interesado registrado correctamente',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
                             } catch (e) {
                               if (!context.mounted) return;
 

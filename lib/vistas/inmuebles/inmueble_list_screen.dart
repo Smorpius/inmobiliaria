@@ -1,300 +1,178 @@
 import 'package:flutter/material.dart';
-import 'package:inmobiliaria/widgets/app_scaffold.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/models/inmueble_model.dart';
-import 'package:inmobiliaria/services/image_service.dart';
-import 'package:inmobiliaria/controllers/inmueble_controller.dart';
-import 'package:inmobiliaria/models/inmueble_list_view_model.dart';
+import 'package:inmobiliaria/providers/inmueble_providers.dart';
 import 'package:inmobiliaria/widgets/inmueble_filtro_avanzado.dart';
 import 'package:inmobiliaria/vistas/inmuebles/add_inmueble_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/inmueble_edit_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/inmueble_detail_screen.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_grid_view.dart';
 import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_error_state.dart';
+import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_empty_state.dart';
 
-class InmuebleListScreen extends StatefulWidget {
+class InmuebleListScreen extends ConsumerWidget {
   const InmuebleListScreen({super.key});
 
   @override
-  State<InmuebleListScreen> createState() => _InmuebleListScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Observar el estado de mostrar inmuebles inactivos
+    final mostrarInactivos = ref.watch(mostrarInactivosProvider);
 
-class _InmuebleListScreenState extends State<InmuebleListScreen> {
-  late final InmuebleListViewModel _viewModel;
-
-  @override
-  void initState() {
-    super.initState();
-    _viewModel = InmuebleListViewModel(
-      inmuebleController: InmuebleController(),
-      imageService: ImageService(),
-    );
-    _viewModel.cargarInmuebles();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AppScaffold(
-      title: 'Inmuebles',
-      currentRoute: '/inmuebles',
-      actions: [
-        // Botón para mostrar activos/inactivos con texto actualizado
-        ValueListenableBuilder(
-          valueListenable: _viewModel.mostrarInactivosNotifier,
-          builder: (context, mostrarInactivos, child) {
-            return IconButton(
-              icon: Icon(
-                mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-                color: mostrarInactivos ? Colors.red : Colors.green,
-              ),
-              onPressed: _viewModel.toggleMostrarInactivos,
-              tooltip:
-                  mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
-            );
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: _viewModel.cargarInmuebles,
-          tooltip: 'Actualizar',
-        ),
-      ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Inmuebles'),
+        actions: [
+          // Botón para mostrar activos/inactivos
+          IconButton(
+            icon: Icon(
+              mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+              color: mostrarInactivos ? Colors.red : Colors.green,
+            ),
+            onPressed:
+                () =>
+                    ref.read(mostrarInactivosProvider.notifier).state =
+                        !mostrarInactivos,
+            tooltip: mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => ref.invalidate(inmueblesProvider),
+            tooltip: 'Actualizar',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // Widget de filtros avanzados
           InmuebleFiltroAvanzado(
-            onFiltrar: _viewModel.filtrarInmuebles,
-            onLimpiar: _viewModel.limpiarFiltros,
+            onFiltrar: ({
+              String? tipo,
+              String? operacion,
+              double? precioMin,
+              double? precioMax,
+              String? ciudad,
+              int? idEstado,
+            }) {
+              ref
+                  .read(filtrosInmuebleProvider.notifier)
+                  .actualizarFiltro(
+                    tipo: tipo,
+                    operacion: operacion,
+                    precioMin: precioMin,
+                    precioMax: precioMax,
+                    ciudad: ciudad,
+                    idEstado: idEstado,
+                  );
+            },
+            onLimpiar:
+                () =>
+                    ref.read(filtrosInmuebleProvider.notifier).limpiarFiltros(),
           ),
 
           // Indicador de filtros activos o modo inactivos
-          ValueListenableBuilder(
-            valueListenable: _viewModel.mostrarInactivosNotifier,
-            builder: (context, mostrarInactivos, _) {
-              if (mostrarInactivos) {
-                // Banner para inmuebles inactivos
-                return Container(
-                  color: Colors.red.shade100,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.visibility_off, color: Colors.red[800]),
-                      const SizedBox(width: 8),
-                      Text(
-                        'INMUEBLES INACTIVOS',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red[800],
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
-                        style: const TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                    ],
-                  ),
-                );
-              } else {
-                // Nuevo banner para inmuebles activos
-                return Container(
-                  color: Colors.green.shade100,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.visibility, color: Colors.green[800]),
-                      const SizedBox(width: 8),
-                      Text(
-                        'INMUEBLES ACTIVOS',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[800],
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${_viewModel.inmueblesFiltradosNotifier.value.length} resultados',
-                        style: const TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                    ],
-                  ),
-                );
-              }
-            },
-          ),
-
-          // Contenido principal
-          Expanded(
-            child: Stack(
+          Container(
+            color:
+                mostrarInactivos ? Colors.red.shade100 : Colors.green.shade100,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: Row(
               children: [
-                RefreshIndicator(
-                  onRefresh: _viewModel.cargarInmuebles,
-                  child: _buildBody(),
+                Icon(
+                  mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+                  color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
                 ),
-                Positioned(
-                  right: 16,
-                  bottom: 16,
-                  child: FloatingActionButton(
-                    onPressed: () => _navegarAgregarInmueble(context),
-                    tooltip: 'Agregar inmueble',
-                    child: const Icon(Icons.add),
+                const SizedBox(width: 8),
+                Text(
+                  mostrarInactivos
+                      ? 'INMUEBLES INACTIVOS'
+                      : 'INMUEBLES ACTIVOS',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color:
+                        mostrarInactivos ? Colors.red[800] : Colors.green[800],
                   ),
                 ),
               ],
             ),
           ),
+
+          // Listado de inmuebles
+          Expanded(child: _buildListado(context, ref)),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.add),
+        onPressed: () => _navegarAgregarInmueble(context, ref),
       ),
     );
   }
 
-  Widget _buildBody() {
-    return ValueListenableBuilder(
-      valueListenable: _viewModel.isLoadingNotifier,
-      builder: (context, isLoading, _) {
-        if (isLoading) {
-          return const Center(child: CircularProgressIndicator());
+  Widget _buildListado(BuildContext context, WidgetRef ref) {
+    // Observar el estado de los inmuebles filtrados
+    final inmueblesFiltrados = ref.watch(inmueblesBuscadosProvider);
+
+    return inmueblesFiltrados.when(
+      data: (inmuebles) {
+        if (inmuebles.isEmpty) {
+          return InmuebleEmptyState(
+            isFiltering: true,
+            onLimpiarFiltros:
+                () =>
+                    ref.read(filtrosInmuebleProvider.notifier).limpiarFiltros(),
+          );
         }
 
-        return ValueListenableBuilder(
-          valueListenable: _viewModel.errorMessageNotifier,
-          builder: (context, errorMessage, _) {
-            if (errorMessage != null) {
-              return InmuebleErrorState(
-                errorMessage: errorMessage,
-                onRetry: _viewModel.cargarInmuebles,
-              );
-            }
+        // Cargar las imágenes principales
+        final imagenesPrincipales = ref.watch(imagenesPrincipalesProvider);
+        final rutasImagenes = ref.watch(rutasImagenesPrincipalesProvider);
 
-            return ValueListenableBuilder(
-              valueListenable: _viewModel.inmueblesFiltradosNotifier,
-              builder: (context, inmueblesFiltrados, _) {
-                if (inmueblesFiltrados.isEmpty) {
-                  // Personalizar mensaje de vacío para cada modo
-                  return ValueListenableBuilder(
-                    valueListenable: _viewModel.mostrarInactivosNotifier,
-                    builder: (context, mostrarInactivos, _) {
-                      if (mostrarInactivos) {
-                        // Mensaje para cuando no hay inmuebles inactivos
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.check_circle_outline,
-                                  size: 80,
-                                  color: Colors.green[400],
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'No hay inmuebles inactivos',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'Todos los inmuebles están disponibles actualmente.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      } else {
-                        // Mensaje para cuando no hay inmuebles activos
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.home_outlined,
-                                  size: 80,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 16),
-                                const Text(
-                                  'No hay inmuebles activos',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'No se encontraron inmuebles disponibles.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                                const SizedBox(height: 20),
-                                ElevatedButton.icon(
-                                  onPressed: _viewModel.toggleMostrarInactivos,
-                                  icon: const Icon(Icons.visibility_off),
-                                  label: const Text('Ver inmuebles inactivos'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red[100],
-                                    foregroundColor: Colors.red[800],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                }
+        // Cuando se tienen datos, asegurarse de que se carguen las imágenes principales
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref
+              .read(imagenesPrincipalesProvider.notifier)
+              .cargarImagenesPrincipales(inmuebles);
+          ref
+              .read(rutasImagenesPrincipalesProvider.notifier)
+              .cargarRutasImagenes(imagenesPrincipales);
+        });
 
-                return Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: InmuebleGridView(
-                    inmuebles: inmueblesFiltrados,
-                    imagenesPrincipales:
-                        _viewModel.imagenesPrincipalesNotifier.value,
-                    rutasImagenesPrincipales:
-                        _viewModel.rutasImagenesPrincipalesNotifier.value,
-                    onTapInmueble:
-                        (inmueble) =>
-                            _navegarDetalleInmueble(context, inmueble),
-                    onEditInmueble:
-                        (inmueble) => _navegarEditarInmueble(context, inmueble),
-                    onInactivateInmueble:
-                        (inmueble) => _inactivarInmueble(inmueble),
-                  ),
-                );
-              },
-            );
-          },
+        return InmuebleGridView(
+          inmuebles: inmuebles,
+          imagenesPrincipales: imagenesPrincipales,
+          rutasImagenesPrincipales: rutasImagenes,
+          onTapInmueble:
+              (inmueble) => _navegarDetalleInmueble(context, ref, inmueble),
+          onEditInmueble:
+              (inmueble) => _navegarEditarInmueble(context, ref, inmueble),
+          onInactivateInmueble:
+              (inmueble) => _inactivarInmueble(context, ref, inmueble),
         );
       },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (error, stack) => InmuebleErrorState(
+            errorMessage: error.toString(),
+            onRetry: () => ref.invalidate(inmueblesProvider),
+          ),
     );
   }
 
-  Future<void> _navegarAgregarInmueble(BuildContext context) async {
+  Future<void> _navegarAgregarInmueble(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AgregarInmuebleScreen()),
     );
 
-    if (!mounted) return;
     if (result == true) {
-      _viewModel.cargarInmuebles();
+      ref.invalidate(inmueblesProvider);
     }
   }
 
   Future<void> _navegarDetalleInmueble(
     BuildContext context,
+    WidgetRef ref,
     Inmueble inmueble,
   ) async {
     final result = await Navigator.push(
@@ -302,33 +180,23 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
       MaterialPageRoute(
         builder:
             (context) => InmuebleDetailScreen(
-              inmueble: inmueble,
-              onEdit: () {
-                Navigator.pop(context);
-                _navegarEditarInmueble(context, inmueble);
-              },
-              onDelete: () async {
-                final contextCurrent = context;
-                final bool success = await _viewModel.cambiarEstadoInmueble(
-                  inmueble,
-                  context,
-                );
-                if (success && contextCurrent.mounted) {
-                  Navigator.pop(contextCurrent, true);
-                }
-              },
+              inmuebleInicial:
+                  inmueble, // Corregido: cambiado inmueble a inmuebleInicial
+              onEdit: () => _navegarEditarInmueble(context, ref, inmueble),
+              onDelete: () => _inactivarInmueble(context, ref, inmueble),
+              isInactivo: inmueble.idEstado == 2,
             ),
       ),
     );
 
-    if (!mounted) return;
     if (result == true) {
-      _viewModel.cargarInmuebles();
+      ref.invalidate(inmueblesProvider);
     }
   }
 
   Future<void> _navegarEditarInmueble(
     BuildContext context,
+    WidgetRef ref,
     Inmueble inmueble,
   ) async {
     final result = await Navigator.push(
@@ -338,19 +206,85 @@ class _InmuebleListScreenState extends State<InmuebleListScreen> {
       ),
     );
 
-    if (!mounted) return;
     if (result == true) {
-      _viewModel.cargarInmuebles();
+      ref.invalidate(inmueblesProvider);
     }
   }
 
   // Método para manejar la inactivación de inmuebles
-  void _inactivarInmueble(Inmueble inmueble) async {
-    final success = await _viewModel.cambiarEstadoInmueble(inmueble, context);
+  Future<void> _inactivarInmueble(
+    BuildContext context,
+    WidgetRef ref,
+    Inmueble inmueble,
+  ) async {
+    try {
+      // Determinar el nuevo estado basado en el estado actual
+      int nuevoEstado;
+      String mensaje;
+      Color colorMensaje;
 
-    // Si fue exitoso, recargar la lista para reflejar los cambios
-    if (success && mounted) {
-      _viewModel.cargarInmuebles();
+      if (inmueble.idEstado == 2) {
+        // Si está inactivo
+        nuevoEstado = 3; // Marcar como disponible
+        mensaje = 'Inmueble marcado como Disponible';
+        colorMensaje = Colors.green;
+      } else {
+        // Si está disponible u otro estado
+        nuevoEstado = 2; // Marcar como no disponible
+        mensaje = 'Inmueble marcado como No Disponible';
+        colorMensaje = Colors.red;
+      }
+
+      // Crear una copia actualizada del inmueble con el nuevo estado
+      final inmuebleActualizado = Inmueble(
+        id: inmueble.id,
+        nombre: inmueble.nombre,
+        idDireccion: inmueble.idDireccion,
+        montoTotal: inmueble.montoTotal,
+        idEstado: nuevoEstado,
+        idCliente: inmueble.idCliente,
+        idEmpleado: inmueble.idEmpleado,
+        tipoInmueble: inmueble.tipoInmueble,
+        tipoOperacion: inmueble.tipoOperacion,
+        precioVenta: inmueble.precioVenta,
+        precioRenta: inmueble.precioRenta,
+        caracteristicas: inmueble.caracteristicas,
+        calle: inmueble.calle,
+        numero: inmueble.numero,
+        colonia: inmueble.colonia,
+        ciudad: inmueble.ciudad,
+        estadoGeografico: inmueble.estadoGeografico,
+        codigoPostal: inmueble.codigoPostal,
+        referencias: inmueble.referencias,
+        fechaRegistro: inmueble.fechaRegistro,
+      );
+
+      // Actualizar el inmueble
+      final inmuebleController = ref.read(inmuebleControllerProvider);
+      await inmuebleController.updateInmueble(inmuebleActualizado);
+
+      // Mostrar mensaje de éxito
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mensaje),
+            backgroundColor: colorMensaje,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Refrescar la lista de inmuebles
+      ref.invalidate(inmueblesProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cambiar estado: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 }

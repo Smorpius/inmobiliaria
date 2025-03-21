@@ -2,11 +2,14 @@ import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
 import '../models/cliente_model.dart';
 import '../services/mysql_helper.dart';
-import '../vistas/clientes/cliente_inmueble.dart'; // Importación añadida
 
 class ClienteController {
-  final DatabaseService _dbService = DatabaseService();
+  final DatabaseService _dbService;
   final Logger _logger = Logger('ClienteController');
+
+  // Constructor con inyección de dependencia
+  ClienteController({DatabaseService? dbService})
+    : _dbService = dbService ?? DatabaseService();
 
   // Crear un nuevo cliente con los campos de dirección completos
   Future<int> insertCliente(Cliente cliente) async {
@@ -20,7 +23,6 @@ class ClienteController {
         'Guardando cliente en BD: ${cliente.nombre}, Estado: ${cliente.idEstado ?? 1}',
       );
 
-      // CORRECCIÓN: Añadir variable OUT al final de la llamada
       await conn.query(
         'CALL CrearCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_cliente_out)',
         [
@@ -42,7 +44,6 @@ class ClienteController {
         ],
       );
 
-      // Obtener el ID generado usando la variable OUT
       final idResult = await conn.query('SELECT @id_cliente_out as id');
 
       if (idResult.isEmpty || idResult.first.fields['id'] == null) {
@@ -66,10 +67,7 @@ class ClienteController {
         'Cliente insertado con ID: $idCliente, Estado: ${cliente.idEstado ?? 1}',
       );
 
-      // Forzar actualización inmediata
       await Future.delayed(const Duration(milliseconds: 300));
-      await getClientes();
-
       return idCliente;
     } catch (e) {
       _logger.severe('Error al insertar cliente: $e');
@@ -103,32 +101,16 @@ class ClienteController {
 
       final List<Cliente> clientesList = [];
 
-      // Depurar los datos recibidos
-      if (results.isNotEmpty) {
-        developer.log('Datos del primer cliente: ${results.first.fields}');
-      }
-
       for (var row in results) {
         try {
-          developer.log(
-            'Intentando procesar cliente: ${row.fields['nombre']} ${row.fields['apellido_paterno']}',
-          );
           final cliente = Cliente.fromMap(row.fields);
           clientesList.add(cliente);
-          developer.log('Cliente procesado exitosamente: ${cliente.nombre}');
         } catch (e) {
           _logger.warning(
             'Error al procesar cliente: ${row.fields['nombre']}: $e',
           );
           developer.log('ERROR al procesar cliente: $e', error: e);
         }
-      }
-
-      developer.log('Clientes activos procesados: ${clientesList.length}');
-      if (clientesList.isNotEmpty) {
-        developer.log(
-          'Primer cliente activo: ID=${clientesList.first.id}, Nombre=${clientesList.first.nombre}',
-        );
       }
 
       return clientesList;
@@ -145,7 +127,6 @@ class ClienteController {
 
     try {
       developer.log('Consultando clientes inactivos...');
-      // Usar consulta directa para mayor control
       final results = await conn.query('''
         SELECT 
           c.*,
@@ -158,8 +139,6 @@ class ClienteController {
         WHERE c.id_estado != 1
         ORDER BY c.fecha_registro DESC
       ''');
-
-      developer.log('Clientes inactivos recibidos de BD: ${results.length}');
 
       if (results.isEmpty) return [];
 
@@ -176,18 +155,39 @@ class ClienteController {
         }
       }
 
-      developer.log('Clientes inactivos procesados: ${clientesList.length}');
-      if (clientesList.isNotEmpty) {
-        developer.log(
-          'Primer cliente inactivo: ID=${clientesList.first.id}, Estado=${clientesList.first.idEstado}',
-        );
-      }
-
       return clientesList;
     } catch (e) {
       _logger.severe('Error al obtener clientes inactivos: $e');
       developer.log('ERROR AL OBTENER CLIENTES INACTIVOS: $e');
       throw Exception('Error al obtener clientes inactivos: $e');
+    }
+  }
+
+  // Obtener cliente por ID
+  Future<Cliente?> getClientePorId(int id) async {
+    final conn = await _dbService.connection;
+
+    try {
+      final results = await conn.query(
+        '''
+        SELECT 
+          c.*,
+          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+          d.codigo_postal, d.referencias,
+          e.nombre_estado AS estado_cliente
+        FROM clientes c
+        LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+        LEFT JOIN estados e ON c.id_estado = e.id_estado
+        WHERE c.id_cliente = ?
+      ''',
+        [id],
+      );
+
+      if (results.isEmpty) return null;
+      return Cliente.fromMap(results.first.fields);
+    } catch (e) {
+      _logger.severe('Error al obtener cliente por ID: $e');
+      throw Exception('Error al obtener cliente por ID: $e');
     }
   }
 
@@ -211,7 +211,6 @@ class ClienteController {
           cliente.rfc,
           cliente.curp,
           cliente.correo ?? '',
-          // Campos de dirección completos
           cliente.calle ?? '',
           cliente.numero ?? '',
           cliente.colonia ?? '',
@@ -258,76 +257,6 @@ class ClienteController {
     }
   }
 
-  // Buscar cliente por RFC
-  Future<Cliente?> getClientePorRFC(String rfc) async {
-    final conn = await _dbService.connection;
-
-    try {
-      final results = await conn.query(
-        '''
-        SELECT 
-          c.*,
-          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
-          d.codigo_postal, d.referencias,
-          e.nombre_estado AS estado_cliente
-        FROM clientes c
-        JOIN direcciones d ON c.id_direccion = d.id_direccion
-        JOIN estados e ON c.id_estado = e.id_estado
-        WHERE c.rfc = ?
-      ''',
-        [rfc],
-      );
-
-      if (results.isEmpty) return null;
-      return Cliente.fromMap(results.first.fields);
-    } catch (e) {
-      _logger.severe('Error al buscar cliente por RFC: $e');
-      throw Exception('Error al buscar cliente por RFC: $e');
-    }
-  }
-
-  // Buscar clientes por nombre
-  Future<List<Cliente>> buscarClientesPorNombre(String texto) async {
-    final conn = await _dbService.connection;
-
-    try {
-      final results = await conn.query(
-        '''
-        SELECT 
-          c.*,
-          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
-          d.codigo_postal, d.referencias,
-          e.nombre_estado AS estado_cliente
-        FROM clientes c
-        JOIN direcciones d ON c.id_direccion = d.id_direccion
-        JOIN estados e ON c.id_estado = e.id_estado
-        WHERE CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', IFNULL(c.apellido_materno, '')) 
-              LIKE CONCAT('%', ?, '%')
-      ''',
-        [texto],
-      );
-
-      if (results.isEmpty) return [];
-
-      final List<Cliente> clientesList = [];
-      for (var row in results) {
-        try {
-          final cliente = Cliente.fromMap(row.fields);
-          clientesList.add(cliente);
-        } catch (e) {
-          _logger.warning(
-            'Error al procesar cliente en búsqueda: ${row.fields['id_cliente']}: $e',
-          );
-        }
-      }
-
-      return clientesList;
-    } catch (e) {
-      _logger.severe('Error al buscar clientes por nombre: $e');
-      throw Exception('Error al buscar clientes por nombre: $e');
-    }
-  }
-
   // Obtener inmuebles asociados a un cliente
   Future<List<Map<String, dynamic>>> getInmueblesPorCliente(
     int idCliente,
@@ -351,15 +280,12 @@ class ClienteController {
       );
 
       if (results.isEmpty) return [];
-
       return results.map((row) => row.fields).toList();
     } catch (e) {
       _logger.severe('Error al obtener inmuebles por cliente: $e');
       throw Exception('Error al buscar inmuebles por cliente: $e');
     }
   }
-
-  // NUEVOS MÉTODOS PARA LA RELACIÓN CLIENTE-INMUEBLE
 
   // Asignar un inmueble a un cliente
   Future<bool> asignarInmuebleACliente(
@@ -408,48 +334,10 @@ class ClienteController {
       _logger.info(
         'Inmueble $idInmueble desasignado. Filas afectadas: ${result.affectedRows}',
       );
-      return result.affectedRows! > 0;
+      return (result.affectedRows ?? 0) > 0;
     } catch (e) {
       _logger.severe('Error al desasignar inmueble: $e');
       throw Exception('Error al desasignar inmueble: $e');
-    }
-  }
-
-  // Obtener todos los inmuebles asignados a un cliente
-  Future<List<ClienteInmueble>> getInmueblesAsignados(int idCliente) async {
-    final conn = await _dbService.connection;
-
-    try {
-      final results = await conn.query(
-        'SELECT * FROM cliente_inmueble WHERE id_cliente = ?',
-        [idCliente],
-      );
-
-      if (results.isEmpty) return [];
-
-      return results.map((row) => ClienteInmueble.fromMap(row.fields)).toList();
-    } catch (e) {
-      _logger.severe('Error al obtener inmuebles asignados: $e');
-      throw Exception('Error al obtener inmuebles asignados: $e');
-    }
-  }
-
-  // Obtener cliente asignado a un inmueble
-  Future<ClienteInmueble?> getClienteDeInmueble(int idInmueble) async {
-    final conn = await _dbService.connection;
-
-    try {
-      final results = await conn.query(
-        'SELECT * FROM cliente_inmueble WHERE id_inmueble = ?',
-        [idInmueble],
-      );
-
-      if (results.isEmpty) return null;
-
-      return ClienteInmueble.fromMap(results.first.fields);
-    } catch (e) {
-      _logger.severe('Error al obtener cliente de inmueble: $e');
-      throw Exception('Error al obtener cliente de inmueble: $e');
     }
   }
 }

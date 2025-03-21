@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import '../../../models/inmueble_imagen.dart';
-import '../../../services/image_service.dart';
+import '../models/inmueble_imagen.dart';
+import '../providers/providers_global.dart';
+import '../models/inmueble_imagenes_state.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../controllers/inmueble_controller.dart';
-import '../../../widgets/inmueble_imagen_carousel.dart';
+import '../widgets/inmueble_imagen_carousel.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../vistas/inmuebles/galeria_pantalla_completa.dart';
 
-class InmuebleImagenesSection extends StatefulWidget {
+class InmuebleImagenesSection extends ConsumerWidget {
   final int inmuebleId;
   final bool isInactivo;
 
@@ -17,285 +19,13 @@ class InmuebleImagenesSection extends StatefulWidget {
   });
 
   @override
-  State<InmuebleImagenesSection> createState() =>
-      _InmuebleImagenesSectionState();
-}
-
-class _InmuebleImagenesSectionState extends State<InmuebleImagenesSection> {
-  final InmuebleController _controller = InmuebleController();
-  final ImageService _imageService = ImageService();
-  bool _isLoading = true;
-  List<InmuebleImagen> _imagenes = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarImagenes();
-  }
-
-  Future<void> _cargarImagenes() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final imagenes = await _controller.getImagenesInmueble(widget.inmuebleId);
-      setState(() {
-        _imagenes = imagenes;
-        _isLoading = false;
-      });
-    } catch (e) {
-      _mostrarSnackBar('Error al cargar imágenes: $e', Colors.red);
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _agregarImagen(ImageSource source) async {
-    try {
-      final File? imagen = await _imageService.cargarImagenDesdeDispositivo(
-        source,
-      );
-      if (imagen == null) return;
-
-      final String? rutaRelativa = await _imageService.guardarImagenInmueble(
-        imagen,
-        widget.inmuebleId,
-      );
-
-      if (rutaRelativa == null) {
-        _mostrarSnackBar('Error al guardar la imagen', Colors.red);
-        return;
-      }
-
-      // Definir si será la imagen principal (si no hay otras imágenes)
-      bool esPrincipal = _imagenes.isEmpty;
-
-      // Crear objeto de imagen
-      final nuevaImagen = InmuebleImagen(
-        idInmueble: widget.inmuebleId,
-        rutaImagen: rutaRelativa,
-        esPrincipal: esPrincipal,
-        fechaCarga: DateTime.now(),
-      );
-
-      // Guardar en BD
-      final idImagen = await _controller.agregarImagenInmueble(nuevaImagen);
-
-      if (idImagen > 0) {
-        await _cargarImagenes(); // Recargar todas las imágenes
-        _mostrarSnackBar('Imagen agregada con éxito', Colors.green);
-      } else {
-        _mostrarSnackBar('Error al agregar imagen', Colors.red);
-      }
-    } catch (e) {
-      _mostrarSnackBar('Error: $e', Colors.red);
-    }
-  }
-
-  Future<void> _eliminarImagen(int index) async {
-    try {
-      final imagen = _imagenes[index];
-      if (imagen.id == null) return;
-
-      final confirmado = await showDialog<bool>(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: const Text('Eliminar imagen'),
-              content: const Text(
-                '¿Está seguro que desea eliminar esta imagen?',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Cancelar'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Eliminar'),
-                ),
-              ],
-            ),
-      );
-
-      if (confirmado != true) return;
-
-      final eliminado = await _controller.eliminarImagenInmueble(imagen.id!);
-
-      if (eliminado) {
-        // También eliminar archivo físico
-        await _imageService.eliminarImagenInmueble(imagen.rutaImagen);
-        await _cargarImagenes(); // Recargar imágenes
-        _mostrarSnackBar('Imagen eliminada con éxito', Colors.green);
-      } else {
-        _mostrarSnackBar('Error al eliminar imagen', Colors.red);
-      }
-    } catch (e) {
-      _mostrarSnackBar('Error: $e', Colors.red);
-    }
-  }
-
-  Future<void> _marcarComoPrincipal(int index) async {
-    try {
-      final imagen = _imagenes[index];
-      if (imagen.id == null || imagen.esPrincipal) return;
-
-      final marcado = await _controller.marcarImagenComoPrincipal(
-        imagen.id!,
-        widget.inmuebleId,
-      );
-
-      if (marcado) {
-        await _cargarImagenes(); // Recargar imágenes
-        _mostrarSnackBar('Imagen principal actualizada', Colors.green);
-      } else {
-        _mostrarSnackBar('Error al actualizar imagen principal', Colors.red);
-      }
-    } catch (e) {
-      _mostrarSnackBar('Error: $e', Colors.red);
-    }
-  }
-
-  Future<void> _editarDescripcion(int index) async {
-    final TextEditingController descripcionController = TextEditingController();
-    descripcionController.text = _imagenes[index].descripcion ?? '';
-
-    final nuevaDescripcion = await showDialog<String>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Descripción de la imagen'),
-            content: TextField(
-              controller: descripcionController,
-              decoration: const InputDecoration(
-                labelText: 'Descripción',
-                hintText: 'Ingrese una descripción para la imagen',
-              ),
-              maxLines: 3,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed:
-                    () => Navigator.of(context).pop(descripcionController.text),
-                child: const Text('Guardar'),
-              ),
-            ],
-          ),
-    );
-
-    if (nuevaDescripcion != null && _imagenes[index].id != null) {
-      try {
-        final actualizado = await _controller.actualizarDescripcionImagen(
-          _imagenes[index].id!,
-          nuevaDescripcion,
-        );
-
-        if (actualizado) {
-          await _cargarImagenes(); // Recargar imágenes
-          _mostrarSnackBar('Descripción actualizada', Colors.green);
-        }
-      } catch (e) {
-        _mostrarSnackBar('Error al actualizar descripción: $e', Colors.red);
-      }
-    }
-  }
-
-  void _mostrarMenuOpciones(int index) {
-    if (widget.isInactivo) return; // No mostrar menú si está inactivo
-
-    showModalBottomSheet(
-      context: context,
-      builder:
-          (context) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Editar descripción'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _editarDescripcion(index);
-                },
-              ),
-              if (!_imagenes[index].esPrincipal)
-                ListTile(
-                  leading: const Icon(Icons.star),
-                  title: const Text('Marcar como principal'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _marcarComoPrincipal(index);
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
-                title: const Text(
-                  'Eliminar imagen',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _eliminarImagen(index);
-                },
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _mostrarOpcionesAgregarImagen() {
-    if (widget.isInactivo) return; // No mostrar opciones si está inactivo
-
-    showModalBottomSheet(
-      context: context,
-      builder:
-          (context) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Seleccionar de la galería'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _agregarImagen(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Tomar una foto'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _agregarImagen(ImageSource.camera);
-                },
-              ),
-            ],
-          ),
-    );
-  }
-
-  void _mostrarSnackBar(String mensaje, Color color) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(mensaje), backgroundColor: color));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const SizedBox(
-        height: 300,
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(inmuebleImagenesStateProvider(inmuebleId));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Encabezado de la sección
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 8.0),
           child: Text(
@@ -303,12 +33,404 @@ class _InmuebleImagenesSectionState extends State<InmuebleImagenesSection> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-        InmuebleImagenCarousel(
-          imagenes: _imagenes,
-          onImagenTap: _mostrarMenuOpciones,
-          onAddTap: widget.isInactivo ? null : _mostrarOpcionesAgregarImagen,
-        ),
+
+        // Contenido principal con estado
+        if (state.isLoading && state.imagenes.isEmpty)
+          const SizedBox(
+            height: 240,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (state.errorMessage != null)
+          _buildErrorMessage(context, ref, state.errorMessage!)
+        else if (state.imagenes.isEmpty)
+          _buildEmptyImagesMessage(context, ref)
+        else
+          _buildImagesCarousel(context, ref, state),
+
+        // Botón para ver galería completa
+        if (state.imagenes.isNotEmpty)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.photo_library),
+              label: const Text('Ver todas'),
+              onPressed: () => _abrirGaleriaPantallaCompleta(context),
+            ),
+          ),
       ],
     );
+  }
+
+  Widget _buildErrorMessage(
+    BuildContext context,
+    WidgetRef ref,
+    String errorMessage,
+  ) {
+    return SizedBox(
+      height: 240,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 40, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(
+              'Error al cargar imágenes: $errorMessage',
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed:
+                  () =>
+                      ref
+                          .read(
+                            inmuebleImagenesStateProvider(inmuebleId).notifier,
+                          )
+                          .cargarImagenes(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyImagesMessage(BuildContext context, WidgetRef ref) {
+    return Container(
+      height: 240,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.image_not_supported,
+            size: 48,
+            color: Colors.grey.shade400,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No hay imágenes para este inmueble',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+          if (!isInactivo) ...[
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => _mostrarOpcionesAgregarImagen(context, ref),
+              icon: const Icon(Icons.add_a_photo),
+              label: const Text('Agregar imagen'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagesCarousel(
+    BuildContext context,
+    WidgetRef ref,
+    InmuebleImagenesState state,
+  ) {
+    return Stack(
+      children: [
+        InmuebleImagenCarousel(
+          imagenes: state.imagenes,
+          onImagenTap: (index) => _mostrarMenuOpciones(context, ref, index),
+          onAddTap:
+              isInactivo
+                  ? null
+                  : () => _mostrarOpcionesAgregarImagen(context, ref),
+        ),
+
+        // Mostrar indicador de carga si está procesando
+        if (state.isLoading)
+          Container(
+            color: Colors.black26,
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+      ],
+    );
+  }
+
+  void _abrirGaleriaPantallaCompleta(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => GaleriaPantallaCompleta(
+              idInmueble: inmuebleId,
+              initialIndex: 0,
+            ),
+      ),
+    );
+  }
+
+  void _mostrarOpcionesAgregarImagen(BuildContext context, WidgetRef ref) {
+    if (isInactivo) return; // No mostrar opciones si está inactivo
+
+    showModalBottomSheet(
+      context: context,
+      builder:
+          (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Seleccionar de la galería'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _agregarImagen(context, ref, ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Tomar una foto'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _agregarImagen(context, ref, ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _agregarImagen(
+    BuildContext context,
+    WidgetRef ref,
+    ImageSource source,
+  ) async {
+    try {
+      final imageService = ref.read(imageServiceProvider);
+
+      // Obtener la imagen
+      final File? imagen = await imageService.pickImage(source);
+      if (imagen == null) return;
+
+      // Verificar si el contexto sigue montado
+      if (!context.mounted) return;
+
+      // Mostrar diálogo para agregar descripción
+      final descripcion = await _mostrarDialogoDescripcion(context);
+      if (descripcion == null) return;
+
+      // Verificar nuevamente si el contexto sigue montado
+      if (!context.mounted) return;
+
+      // Agregar imagen usando el notifier
+      ref
+          .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
+          .agregarImagen(imagen, descripcion);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error al agregar imagen: $e')));
+      }
+    }
+  }
+
+  // Este método fue marcado con la advertencia
+  Future<String?> _mostrarDialogoDescripcion(BuildContext context) async {
+    // Guardar controlador fuera de la operación asíncrona
+    final controllerDescripcion = TextEditingController();
+
+    // No accedemos a context después del await
+    return showDialog<String>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Descripción de la imagen'),
+            content: TextField(
+              controller: controllerDescripcion,
+              decoration: const InputDecoration(
+                labelText: 'Descripción',
+                hintText: 'Ingrese una descripción para la imagen',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              maxLength: 255,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed:
+                    () => Navigator.of(dialogContext).pop(
+                      controllerDescripcion.text.isEmpty
+                          ? 'Imagen del inmueble'
+                          : controllerDescripcion.text,
+                    ),
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _mostrarMenuOpciones(
+    BuildContext context,
+    WidgetRef ref,
+    int index,
+  ) async {
+    if (isInactivo) return; // No mostrar menú si está inactivo
+
+    final state = ref.read(inmuebleImagenesStateProvider(inmuebleId));
+    if (state.imagenes.isEmpty || index >= state.imagenes.length) return;
+
+    final imagen = state.imagenes[index];
+
+    await showModalBottomSheet(
+      context: context,
+      builder:
+          (dialogContext) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.edit),
+                  title: const Text('Editar descripción'),
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    if (context.mounted) {
+                      _editarDescripcion(context, ref, imagen);
+                    }
+                  },
+                ),
+                if (!imagen.esPrincipal)
+                  ListTile(
+                    leading: const Icon(Icons.star, color: Colors.amber),
+                    title: const Text('Marcar como principal'),
+                    onTap: () {
+                      Navigator.of(dialogContext).pop();
+                      if (context.mounted) {
+                        _marcarComoPrincipal(context, ref, imagen);
+                      }
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text(
+                    'Eliminar imagen',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    if (context.mounted) {
+                      _eliminarImagen(context, ref, imagen);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
+
+    // Verificar si el contexto sigue montado después del await
+    if (!context.mounted) return;
+  }
+
+  Future<void> _editarDescripcion(
+    BuildContext context,
+    WidgetRef ref,
+    InmuebleImagen imagen,
+  ) async {
+    if (imagen.id == null) return;
+
+    final descripcionController = TextEditingController(
+      text: imagen.descripcion ?? '',
+    );
+
+    final nuevaDescripcion = await showDialog<String>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Descripción de la imagen'),
+            content: TextField(
+              controller: descripcionController,
+              decoration: const InputDecoration(
+                labelText: 'Descripción',
+                hintText: 'Ingrese una descripción para la imagen',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              maxLength: 255,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed:
+                    () => Navigator.of(
+                      dialogContext,
+                    ).pop(descripcionController.text),
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+    );
+
+    if (nuevaDescripcion != null && context.mounted) {
+      ref
+          .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
+          .actualizarDescripcion(imagen.id!, nuevaDescripcion);
+    }
+  }
+
+  Future<void> _marcarComoPrincipal(
+    BuildContext context,
+    WidgetRef ref,
+    InmuebleImagen imagen,
+  ) async {
+    if (imagen.id == null || imagen.esPrincipal) return;
+
+    ref
+        .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
+        .marcarComoPrincipal(imagen.id!);
+  }
+
+  Future<void> _eliminarImagen(
+    BuildContext context,
+    WidgetRef ref,
+    InmuebleImagen imagen,
+  ) async {
+    if (imagen.id == null) return;
+
+    // Confirmar eliminación
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Eliminar imagen'),
+            content: const Text('¿Está seguro que desea eliminar esta imagen?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmado == true && context.mounted) {
+      ref
+          .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
+          .eliminarImagen(imagen.id!);
+    }
   }
 }

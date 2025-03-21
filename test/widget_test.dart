@@ -4,16 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/services/mysql_helper.dart';
 import 'package:inmobiliaria/services/auth_service.dart';
+import 'package:inmobiliaria/services/image_service.dart';
 import 'package:inmobiliaria/services/usuario_service.dart';
+import 'package:inmobiliaria/providers/providers_global.dart';
 import 'package:inmobiliaria/controllers/usuario_controller.dart';
 import 'package:inmobiliaria/controllers/empleado_controller.dart';
 import 'package:inmobiliaria/services/usuario_empleado_service.dart';
 import 'package:inmobiliaria/controllers/usuario_empleado_controller.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('Aplicación Inmobiliaria inicia correctamente', (
+    WidgetTester tester,
+  ) async {
     // Crear instancia de DatabaseService usando el constructor normal
     final mysqlHelper = DatabaseService();
+    final imageService = ImageService();
     final usuarioController = UsuarioController(dbService: mysqlHelper);
     final authService = AuthService(usuarioController);
 
@@ -32,24 +37,53 @@ void main() {
       usuarioService,
     );
 
+    // Configurar los override de provider para las pruebas
     await tester.pumpWidget(
       ProviderScope(
-        child: MyApp(
-          usuarioController: usuarioController,
-          authService: authService,
-          usuarioEmpleadoController: usuarioEmpleadoController,
-          empleadoController: empleadoController,
-        ),
+        overrides: [
+          // Sobrescribir los providers con las instancias de prueba
+          databaseInitProvider.overrideWith((_) async {
+            // Simular un retraso para que se muestre la pantalla de carga
+            await Future.delayed(const Duration(milliseconds: 50));
+            return mysqlHelper;
+          }),
+          imageInitProvider.overrideWith((_) async => imageService),
+          // No sobreescribimos appInitializationProvider para que use el comportamiento normal
+
+          // Sobrescribir los providers derivados
+          databaseServiceProvider.overrideWithValue(mysqlHelper),
+          imageServiceProvider.overrideWithValue(imageService),
+          usuarioControllerProvider.overrideWithValue(usuarioController),
+          authServiceProvider.overrideWithValue(authService),
+          usuarioServiceProvider.overrideWithValue(usuarioService),
+          usuarioEmpleadoServiceProvider.overrideWithValue(
+            usuarioEmpleadoService,
+          ),
+          usuarioEmpleadoControllerProvider.overrideWithValue(
+            usuarioEmpleadoController,
+          ),
+          empleadoControllerProvider.overrideWithValue(empleadoController),
+        ],
+        child: const MyApp(),
       ),
     );
 
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    await tester.tap(find.byIcon(Icons.add));
+    // Rendereamos un frame para que se vea la pantalla de carga
     await tester.pump();
 
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verificar que la aplicación ha iniciado correctamente
+    expect(find.byType(MaterialApp), findsOneWidget);
+
+    // Ahora verificamos elementos específicos que deberían estar presentes
+    final loadingFinder = find.text('Inicializando aplicación...');
+    final appBarFinder = find.byType(AppBar);
+
+    // Verificar que al menos aparece la pantalla de carga o algún elemento de la aplicación ya iniciada
+    expect(
+      loadingFinder.evaluate().isNotEmpty || appBarFinder.evaluate().isNotEmpty,
+      true,
+      reason:
+          'La aplicación debería mostrar una pantalla de carga o la aplicación iniciada',
+    );
   });
 }

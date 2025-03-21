@@ -1,15 +1,10 @@
 import '../models/proveedor.dart';
 import 'dart:developer' as developer;
-import '../services/mysql_helper.dart';
 import '../services/proveedores_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'providers_global.dart'; // Importar providers globales
 
-// Provider para el servicio de base de datos
-final databaseServiceProvider = Provider<DatabaseService>((ref) {
-  return DatabaseService();
-});
-
-// Provider para el servicio de proveedores
+// Provider para el servicio de proveedores - CORREGIDO
 final proveedoresServiceProvider = Provider<ProveedoresService>((ref) {
   final dbService = ref.watch(databaseServiceProvider);
   return ProveedoresService(dbService);
@@ -35,13 +30,13 @@ class ProveedoresState {
 
   // Constructor para el estado inicial
   factory ProveedoresState.initial() => ProveedoresState(
-        proveedores: [],
-        isLoading: false,
-        errorMessage: null,
-        mostrarInactivos: false,
-        terminoBusqueda: '',
-        buscando: false,
-      );
+    proveedores: [],
+    isLoading: false,
+    errorMessage: null,
+    mostrarInactivos: false,
+    terminoBusqueda: '',
+    buscando: false,
+  );
 
   // Método para crear un nuevo estado con algunos valores cambiados
   ProveedoresState copyWith({
@@ -63,9 +58,10 @@ class ProveedoresState {
   }
 
   // Método para obtener proveedores filtrados
-  List<Proveedor> get proveedoresFiltrados => mostrarInactivos
-      ? proveedores.where((p) => p.idEstado != 1).toList()
-      : proveedores.where((p) => p.idEstado == 1).toList();
+  List<Proveedor> get proveedoresFiltrados =>
+      mostrarInactivos
+          ? proveedores.where((p) => p.idEstado != 1).toList()
+          : proveedores.where((p) => p.idEstado == 1).toList();
 }
 
 // Controlador de estado para proveedores
@@ -88,23 +84,24 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       await crearUsuarioAdministrador();
       await cargarProveedores();
 
-      developer.log('[Riverpod] Controlador de proveedores inicializado correctamente');
+      developer.log(
+        '[Riverpod] Controlador de proveedores inicializado correctamente',
+      );
     } catch (e) {
       developer.log(
         '[Riverpod] Error al inicializar el controlador de proveedores: $e',
         error: e,
       );
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
   // Verificar y crear usuario administrador
   Future<void> crearUsuarioAdministrador() async {
     try {
-      developer.log('[Riverpod] Verificando existencia del usuario administrador');
+      developer.log(
+        '[Riverpod] Verificando existencia del usuario administrador',
+      );
       final conn = await _service.verificarConexion();
 
       final verificacion = await conn.query(
@@ -113,7 +110,9 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       );
 
       if (verificacion.isEmpty) {
-        developer.log('[Riverpod] Creando usuario administrador automáticamente');
+        developer.log(
+          '[Riverpod] Creando usuario administrador automáticamente',
+        );
 
         await conn.query('''
           INSERT INTO usuarios (
@@ -147,7 +146,9 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       developer.log('[Riverpod] Cargando proveedores');
 
       final proveedoresCargados = await _service.obtenerProveedores();
-      developer.log('[Riverpod] Proveedores cargados: ${proveedoresCargados.length}');
+      developer.log(
+        '[Riverpod] Proveedores cargados: ${proveedoresCargados.length}',
+      );
 
       state = state.copyWith(
         proveedores: proveedoresCargados,
@@ -158,10 +159,7 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       );
     } catch (e) {
       developer.log('[Riverpod] Error al cargar proveedores: $e', error: e);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
@@ -182,26 +180,22 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
         await cargarProveedores();
       } else {
         final resultados = await _service.buscarProveedores(termino);
-        state = state.copyWith(
-          proveedores: resultados,
-          isLoading: false,
-        );
+        state = state.copyWith(proveedores: resultados, isLoading: false);
       }
 
       developer.log('[Riverpod] Búsqueda completada');
     } catch (e) {
       developer.log('[Riverpod] Error en búsqueda: $e', error: e);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
   // Cambiar filtro de inactivos
   void cambiarFiltroInactivos(bool mostrarInactivos) {
     if (state.mostrarInactivos != mostrarInactivos) {
-      developer.log('[Riverpod] Cambiando filtro de inactivos: $mostrarInactivos');
+      developer.log(
+        '[Riverpod] Cambiando filtro de inactivos: $mostrarInactivos',
+      );
       state = state.copyWith(mostrarInactivos: mostrarInactivos);
     }
   }
@@ -221,10 +215,7 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       return nuevoProveedor;
     } catch (e) {
       developer.log('[Riverpod] Error al crear proveedor: $e', error: e);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return null;
     }
   }
@@ -233,11 +224,15 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
   Future<bool> actualizarProveedor(Proveedor proveedor) async {
     try {
       if (proveedor.idProveedor == null) {
-        throw Exception('El ID del proveedor no puede ser nulo para actualizar');
+        throw Exception(
+          'El ID del proveedor no puede ser nulo para actualizar',
+        );
       }
 
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log('[Riverpod] Actualizando proveedor ID: ${proveedor.idProveedor}');
+      developer.log(
+        '[Riverpod] Actualizando proveedor ID: ${proveedor.idProveedor}',
+      );
 
       await _service.actualizarProveedor(
         proveedor,
@@ -248,10 +243,7 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       return true;
     } catch (e) {
       developer.log('[Riverpod] Error al actualizar proveedor: $e', error: e);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return false;
     }
   }
@@ -271,10 +263,7 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       return true;
     } catch (e) {
       developer.log('[Riverpod] Error al inactivar proveedor: $e', error: e);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return false;
     }
   }
@@ -294,17 +283,15 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       return true;
     } catch (e) {
       developer.log('[Riverpod] Error al reactivar proveedor: $e', error: e);
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.toString(),
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return false;
     }
   }
 }
 
 // Provider para el controlador de proveedores
-final proveedoresProvider = StateNotifierProvider<ProveedoresNotifier, ProveedoresState>((ref) {
-  final service = ref.watch(proveedoresServiceProvider);
-  return ProveedoresNotifier(service);
-});
+final proveedoresProvider =
+    StateNotifierProvider<ProveedoresNotifier, ProveedoresState>((ref) {
+      final service = ref.watch(proveedoresServiceProvider);
+      return ProveedoresNotifier(service);
+    });
