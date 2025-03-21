@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
+import 'detalle_proveedor_screen.dart';
 import '../../../models/proveedor.dart';
+import '../nuevo_proveedor_screen.dart';
 import '../../../utils/dialog_helper.dart';
-import '../../../controllers/proveedor_controller.dart';
-import 'package:inmobiliaria/vistas/Proveedores/lista/detalle_proveedor_screen.dart';
+import '../../../providers/proveedor_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 mixin ProveedoresAcciones {
-  late ProveedorController _controller;
   late BuildContext _context;
+  late WidgetRef _ref;
   bool _isMounted = true;
   StateSetter? _setState;
 
   void inicializarAcciones(
-    ProveedorController controller,
     BuildContext context,
+    WidgetRef ref,
     StateSetter setState,
   ) {
-    _controller = controller;
     _context = context;
+    _ref = ref;
     _setState = setState;
     _isMounted = true;
   }
@@ -36,7 +38,7 @@ mixin ProveedoresAcciones {
   }) async {
     if (!_contextDisponible) return;
 
-    // Ejecutar la acción de confirmación antes de llamar a setState.
+    // Ejecutar la acción de confirmación antes de llamar a setState
     final confirmar = await DialogHelper.confirmarAccion(
       _context,
       '¿Desea eliminar este proveedor?',
@@ -47,8 +49,11 @@ mixin ProveedoresAcciones {
 
     if (confirmar) {
       try {
-        await _controller.inactivarProveedor(proveedor.idProveedor!);
-        if (_contextDisponible) {
+        // Usar Riverpod para inactivar el proveedor
+        final exito = await _ref.read(proveedoresProvider.notifier)
+            .inactivarProveedor(proveedor.idProveedor!);
+            
+        if (exito && _contextDisponible) {
           // Actualización de UI de forma síncrona
           _actualizarUI(() {
             // Se puede mostrar el mensaje sin esperar su finalización
@@ -89,8 +94,11 @@ mixin ProveedoresAcciones {
 
     if (confirmar) {
       try {
-        await _controller.reactivarProveedor(proveedor.idProveedor!);
-        if (_contextDisponible) {
+        // Usar Riverpod para reactivar el proveedor
+        final exito = await _ref.read(proveedoresProvider.notifier)
+            .reactivarProveedor(proveedor.idProveedor!);
+            
+        if (exito && _contextDisponible) {
           _actualizarUI(() {
             DialogHelper.mostrarMensajeExito(
               _context,
@@ -118,19 +126,42 @@ mixin ProveedoresAcciones {
     required VoidCallback onSuccess,
   }) async {
     if (!_contextDisponible) return;
+    
     // Ejecutar la navegación fuera de setState
+    // Ya no pasamos el controller porque DetalleProveedorScreen usa Riverpod
     final result = await Navigator.push(
       _context,
       MaterialPageRoute(
-        builder:
-            (_) => DetalleProveedorScreen(
-              proveedor: proveedor,
-              controller: _controller,
-            ),
+        builder: (_) => DetalleProveedorScreen(proveedor: proveedor),
       ),
     );
 
     if (_contextDisponible && result == true) {
+      // Recargar proveedores usando Riverpod
+      await _ref.read(proveedoresProvider.notifier).cargarProveedores();
+      
+      _actualizarUI(() {
+        onSuccess();
+      });
+    }
+  }
+  
+  Future<void> nuevoProveedor({
+    required VoidCallback onSuccess,
+  }) async {
+    if (!_contextDisponible) return;
+    
+    final result = await Navigator.push(
+      _context,
+      MaterialPageRoute(
+        builder: (_) => const NuevoProveedorScreen(),
+      ),
+    );
+
+    if (_contextDisponible && result == true) {
+      // Recargar proveedores usando Riverpod
+      await _ref.read(proveedoresProvider.notifier).cargarProveedores();
+      
       _actualizarUI(() {
         onSuccess();
       });

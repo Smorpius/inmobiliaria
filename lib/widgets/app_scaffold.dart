@@ -7,6 +7,7 @@ class AppScaffold extends StatelessWidget {
   final Widget body;
   final List<Widget>? actions;
   final bool showDrawer;
+  final Widget? bottomNavigationBar; // Nuevo parámetro añadido
 
   const AppScaffold({
     super.key,
@@ -15,6 +16,7 @@ class AppScaffold extends StatelessWidget {
     required this.body,
     this.actions,
     this.showDrawer = true,
+    this.bottomNavigationBar, // Inicializar el nuevo parámetro
   });
 
   @override
@@ -48,6 +50,7 @@ class AppScaffold extends StatelessWidget {
             ],
       ),
       body: body,
+      bottomNavigationBar: bottomNavigationBar, // Añadir esta línea
     );
   }
 
@@ -187,7 +190,7 @@ class AppScaffold extends StatelessWidget {
                       ),
                     );
 
-                    // Comprobar conexión
+                    // Comprobar conexión - ESTA ES LA CORRECCIÓN
                     final result =
                         await DatabaseConnectionTest.testConnection();
 

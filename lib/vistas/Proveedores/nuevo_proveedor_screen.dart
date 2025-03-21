@@ -1,25 +1,22 @@
-import '../../models/proveedor.dart';
 import 'dart:developer' as developer;
+import '../../models/proveedor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../utils/dialog_helper.dart';
-import '../../controllers/proveedor_controller.dart';
+import '../../providers/proveedor_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class NuevoProveedorScreen extends StatefulWidget {
-  final ProveedorController controller;
+class NuevoProveedorScreen extends ConsumerStatefulWidget {
   final Proveedor? proveedorEditar;
 
-  const NuevoProveedorScreen({
-    super.key,
-    required this.controller,
-    this.proveedorEditar,
-  });
+  const NuevoProveedorScreen({super.key, this.proveedorEditar});
 
   @override
-  State<NuevoProveedorScreen> createState() => _NuevoProveedorScreenState();
+  ConsumerState<NuevoProveedorScreen> createState() =>
+      _NuevoProveedorScreenState();
 }
 
-class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
+class _NuevoProveedorScreenState extends ConsumerState<NuevoProveedorScreen> {
   final _formKey = GlobalKey<FormState>();
   final nombreController = TextEditingController();
   final nombreEmpresaController = TextEditingController();
@@ -83,8 +80,8 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                       const Text(
                         'Información del Proveedor',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
                           fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       const Divider(),
@@ -94,12 +91,12 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         controller: nombreController,
                         decoration: const InputDecoration(
                           labelText: 'Nombre',
-                          border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.person),
+                          border: OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el nombre';
+                            return 'Por favor ingrese el nombre';
                           }
                           return null;
                         },
@@ -110,12 +107,12 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         controller: nombreEmpresaController,
                         decoration: const InputDecoration(
                           labelText: 'Nombre de la Empresa',
-                          border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.business),
+                          border: OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el nombre de la empresa';
+                            return 'Por favor ingrese el nombre de la empresa';
                           }
                           return null;
                         },
@@ -125,13 +122,13 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                       TextFormField(
                         controller: nombreContactoController,
                         decoration: const InputDecoration(
-                          labelText: 'Nombre del Contacto',
-                          border: OutlineInputBorder(),
+                          labelText: 'Nombre de Contacto',
                           prefixIcon: Icon(Icons.contact_phone),
+                          border: OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el nombre del contacto';
+                            return 'Por favor ingrese el nombre de contacto';
                           }
                           return null;
                         },
@@ -142,12 +139,12 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         controller: direccionController,
                         decoration: const InputDecoration(
                           labelText: 'Dirección',
-                          border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.home),
+                          border: OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa la dirección';
+                            return 'Por favor ingrese la dirección';
                           }
                           return null;
                         },
@@ -158,23 +155,14 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         controller: telefonoController,
                         decoration: const InputDecoration(
                           labelText: 'Teléfono',
-                          border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.phone),
+                          border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.phone,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                            RegExp(r'[0-9+\-\s]'),
-                          ),
-                          LengthLimitingTextInputFormatter(15),
-                        ],
+                        inputFormatters: [LengthLimitingTextInputFormatter(15)],
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el teléfono';
-                          }
-                          if (value.replaceAll(RegExp(r'[\s\-+]'), '').length <
-                              10) {
-                            return 'El teléfono debe tener al menos 10 dígitos';
+                            return 'Por favor ingrese el teléfono';
                           }
                           return null;
                         },
@@ -185,18 +173,16 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         controller: correoController,
                         decoration: const InputDecoration(
                           labelText: 'Correo Electrónico',
-                          border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.email),
+                          border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el correo';
+                            return 'Por favor ingrese el correo electrónico';
                           }
-                          if (!RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                          ).hasMatch(value)) {
-                            return 'Ingresa un correo válido';
+                          if (!value.contains('@') || !value.contains('.')) {
+                            return 'Por favor ingrese un correo electrónico válido';
                           }
                           return null;
                         },
@@ -207,12 +193,12 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         controller: tipoServicioController,
                         decoration: const InputDecoration(
                           labelText: 'Tipo de Servicio',
-                          border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.category),
+                          border: OutlineInputBorder(),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Por favor ingresa el tipo de servicio';
+                            return 'Por favor ingrese el tipo de servicio';
                           }
                           return null;
                         },
@@ -223,15 +209,16 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _guardarProveedor,
+                          onPressed: _guardarProveedor,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Theme.of(context).primaryColor,
                             foregroundColor: Colors.white,
                           ),
                           child: Text(
                             _isEditing
-                                ? "Actualizar Proveedor"
-                                : "Guardar Proveedor",
+                                ? 'Actualizar Proveedor'
+                                : 'Crear Proveedor',
+                            style: const TextStyle(fontSize: 16),
                           ),
                         ),
                       ),
@@ -253,16 +240,6 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
             ? "=== INICIO DE ACTUALIZACIÓN DE PROVEEDOR ==="
             : "=== INICIO DE CREACIÓN DE PROVEEDOR ===",
       );
-      developer.log("Datos del formulario:");
-      developer.log("- Nombre: ${nombreController.text.trim()}");
-      developer.log("- Empresa: ${nombreEmpresaController.text.trim()}");
-      developer.log("- Contacto: ${nombreContactoController.text.trim()}");
-      developer.log("- Dirección: ${direccionController.text.trim()}");
-      developer.log("- Teléfono: ${telefonoController.text.trim()}");
-      developer.log("- Correo: ${correoController.text.trim()}");
-      developer.log(
-        "- Tipo de servicio: ${tipoServicioController.text.trim()}",
-      );
 
       final proveedor = Proveedor(
         idProveedor: _isEditing ? widget.proveedorEditar!.idProveedor : null,
@@ -277,29 +254,37 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
       );
 
       if (_isEditing) {
-        developer.log("Llamando a controller.actualizarProveedor...");
-        await widget.controller.actualizarProveedor(proveedor);
-        developer.log("Proveedor actualizado correctamente");
+        developer.log("Actualizando proveedor con Riverpod...");
+        final exito = await ref
+            .read(proveedoresProvider.notifier)
+            .actualizarProveedor(proveedor);
 
-        if (!mounted) return;
-        await _mostrarExitoYRegresar(
-          'El proveedor ha sido actualizado exitosamente.',
-        );
-        developer.log("=== FIN DE ACTUALIZACIÓN DE PROVEEDOR ===");
+        if (exito) {
+          developer.log("Proveedor actualizado correctamente");
+          if (!mounted) return;
+          await _mostrarExitoYRegresar(
+            'El proveedor ha sido actualizado exitosamente.',
+          );
+        } else {
+          throw Exception("No se pudo actualizar el proveedor");
+        }
       } else {
-        developer.log("Llamando a controller.crearProveedor...");
-        final nuevoProveedor = await widget.controller.crearProveedor(
-          proveedor,
-        );
-        developer.log(
-          "Regresó de controller.crearProveedor con ID: ${nuevoProveedor.idProveedor}",
-        );
+        developer.log("Creando proveedor con Riverpod...");
+        final nuevoProveedor = await ref
+            .read(proveedoresProvider.notifier)
+            .crearProveedor(proveedor);
 
-        if (!mounted) return;
-        await _mostrarExitoYRegresar(
-          'El proveedor ha sido creado exitosamente.',
-        );
-        developer.log("=== FIN DE CREACIÓN DE PROVEEDOR ===");
+        if (nuevoProveedor != null) {
+          developer.log(
+            "Proveedor creado con ID: ${nuevoProveedor.idProveedor}",
+          );
+          if (!mounted) return;
+          await _mostrarExitoYRegresar(
+            'El proveedor ha sido creado exitosamente.',
+          );
+        } else {
+          throw Exception("No se pudo crear el proveedor");
+        }
       }
     } catch (e, stack) {
       developer.log(
@@ -310,7 +295,6 @@ class _NuevoProveedorScreenState extends State<NuevoProveedorScreen> {
         stackTrace: stack,
       );
 
-      // Verificar tipo específico de error
       if (e.toString().contains('correo')) {
         await _mostrarError(
           'El correo electrónico ya está en uso. Por favor, use otro correo.',

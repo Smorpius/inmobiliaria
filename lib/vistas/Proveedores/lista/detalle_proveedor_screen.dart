@@ -2,23 +2,21 @@ import 'package:flutter/material.dart';
 import '../../../models/proveedor.dart';
 import '../nuevo_proveedor_screen.dart';
 import '../../../utils/dialog_helper.dart';
-import '../../../controllers/proveedor_controller.dart';
+import '../../../providers/proveedor_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class DetalleProveedorScreen extends StatefulWidget {
+class DetalleProveedorScreen extends ConsumerStatefulWidget {
   final Proveedor proveedor;
-  final ProveedorController controller;
 
-  const DetalleProveedorScreen({
-    super.key,
-    required this.proveedor,
-    required this.controller,
-  });
+  const DetalleProveedorScreen({super.key, required this.proveedor});
 
   @override
-  State<DetalleProveedorScreen> createState() => _DetalleProveedorScreenState();
+  ConsumerState<DetalleProveedorScreen> createState() =>
+      _DetalleProveedorScreenState();
 }
 
-class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
+class _DetalleProveedorScreenState
+    extends ConsumerState<DetalleProveedorScreen> {
   late Proveedor proveedor;
   bool _isLoading = false;
 
@@ -32,11 +30,7 @@ class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => NuevoProveedorScreen(
-              controller: widget.controller,
-              proveedorEditar: proveedor,
-            ),
+        builder: (context) => NuevoProveedorScreen(proveedorEditar: proveedor),
       ),
     );
 
@@ -46,10 +40,10 @@ class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
       });
 
       try {
-        await widget.controller.cargarProveedores();
+        await ref.read(proveedoresProvider.notifier).cargarProveedores();
 
-        // Obtener el proveedor actualizado
-        final proveedores = await widget.controller.proveedores.first;
+        // Obtener el proveedor actualizado del estado
+        final proveedores = ref.read(proveedoresProvider).proveedores;
         final proveedorActualizado = proveedores.firstWhere(
           (p) => p.idProveedor == proveedor.idProveedor,
           orElse: () => proveedor,
@@ -60,7 +54,6 @@ class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
           _isLoading = false;
         });
 
-        // Mostrar mensaje de éxito
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -75,7 +68,6 @@ class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
             _isLoading = false;
           });
 
-          // Mostrar mensaje de error
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Error al actualizar: ${e.toString()}'),
@@ -111,33 +103,43 @@ class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
       });
 
       try {
+        bool exito;
         if (isActivo) {
-          await widget.controller.inactivarProveedor(proveedor.idProveedor!);
+          exito = await ref
+              .read(proveedoresProvider.notifier)
+              .inactivarProveedor(proveedor.idProveedor!);
         } else {
-          await widget.controller.reactivarProveedor(proveedor.idProveedor!);
+          exito = await ref
+              .read(proveedoresProvider.notifier)
+              .reactivarProveedor(proveedor.idProveedor!);
         }
 
-        // Actualizar el proveedor después de cambiar estado
-        await widget.controller.cargarProveedores();
-        final proveedores = await widget.controller.proveedores.first;
-        final proveedorActualizado = proveedores.firstWhere(
-          (p) => p.idProveedor == proveedor.idProveedor,
-        );
-
-        setState(() {
-          proveedor = proveedorActualizado;
-          _isLoading = false;
-        });
-
-        if (mounted) {
-          final mensaje =
-              isActivo
-                  ? 'Proveedor inactivado correctamente'
-                  : 'Proveedor reactivado correctamente';
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(mensaje), backgroundColor: Colors.green),
+        if (exito) {
+          // Actualizar el proveedor después de cambiar estado
+          await ref.read(proveedoresProvider.notifier).cargarProveedores();
+          final proveedores = ref.read(proveedoresProvider).proveedores;
+          final proveedorActualizado = proveedores.firstWhere(
+            (p) => p.idProveedor == proveedor.idProveedor,
+            orElse: () => proveedor,
           );
+
+          setState(() {
+            proveedor = proveedorActualizado;
+            _isLoading = false;
+          });
+
+          if (mounted) {
+            final mensaje =
+                isActivo
+                    ? 'Proveedor inactivado correctamente'
+                    : 'Proveedor reactivado correctamente';
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(mensaje), backgroundColor: Colors.green),
+            );
+          }
+        } else {
+          throw Exception('No se pudo cambiar el estado del proveedor');
         }
       } catch (e) {
         if (mounted) {
@@ -229,6 +231,7 @@ class _DetalleProveedorScreenState extends State<DetalleProveedorScreen> {
                     isActive ? 'Activo' : 'Inactivo',
                     style: TextStyle(
                       color: isActive ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
