@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../models/venta_model.dart';
 import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
 import '../models/inmueble_model.dart';
@@ -31,16 +32,7 @@ class InmuebleController {
         ORDER BY i.fecha_registro DESC
       ''');
 
-      _logger.info('Inmuebles obtenidos de BD: ${results.length}');
-      developer.log('Inmuebles recibidos de BD: ${results.length}');
-
       if (results.isEmpty) return [];
-
-      if (results.isNotEmpty) {
-        developer.log(
-          'Primer registro: ID=${results.first.fields['id_inmueble']}, Estado=${results.first.fields['id_estado']}',
-        );
-      }
 
       final List<Inmueble> inmuebles = [];
 
@@ -49,44 +41,32 @@ class InmuebleController {
           final inmueble = Inmueble.fromMap(row.fields);
           inmuebles.add(inmueble);
         } catch (e) {
-          _logger.warning(
-            'Error procesando inmueble: ${row.fields['id_inmueble'] ?? 'desconocido'}, error: $e',
-          );
-          developer.log('Error al procesar inmueble: ${e.toString()}');
+          _logger.warning('Error procesando inmueble: $e');
+          developer.log('Error al procesar inmueble: $e');
         }
-      }
-
-      _logger.info('Inmuebles procesados correctamente: ${inmuebles.length}');
-      developer.log('Inmuebles procesados: ${inmuebles.length}');
-
-      if (inmuebles.isNotEmpty) {
-        developer.log(
-          'Primer inmueble - ID: ${inmuebles.first.id}, Nombre: ${inmuebles.first.nombre}, Estado: ${inmuebles.first.idEstado}',
-        );
       }
 
       return inmuebles;
     } catch (e) {
       _logger.severe('Error al obtener inmuebles: $e');
-      developer.log('ERROR AL OBTENER INMUEBLES: $e', error: e);
       throw Exception('Error al obtener inmuebles: $e');
     }
   }
 
   Future<int> insertInmueble(Inmueble inmueble) async {
     try {
-      // Asegurar que el inmueble tenga un estado válido (3 = disponible por defecto)
-      final estadoInmueble = inmueble.idEstado ?? 3;
+      if (inmueble.id != null) {
+        throw Exception('No se puede insertar un inmueble con ID');
+      }
 
-      developer.log(
-        'Insertando inmueble: ${inmueble.nombre}, Estado: $estadoInmueble',
-      );
+      developer.log('Insertando inmueble: ${inmueble.nombre}');
+      final estadoInmueble = inmueble.idEstado ?? 3;
 
       final db = await dbHelper.connection;
 
-      // Modificar la llamada para usar el parámetro OUT con estado explícito
+      // Usar el procedimiento actualizado con los nuevos campos financieros
       await db.query(
-        'CALL CrearInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_inmueble_out)',
+        'CALL CrearInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_inmueble_out)',
         [
           inmueble.nombre,
           inmueble.calle ?? '',
@@ -105,6 +85,8 @@ class InmuebleController {
           inmueble.idCliente,
           inmueble.idEmpleado,
           inmueble.caracteristicas,
+          inmueble.costoCliente ?? 0.0, // Nuevo parámetro
+          inmueble.costoServicios ?? 0.0, // Nuevo parámetro
         ],
       );
 
@@ -112,16 +94,12 @@ class InmuebleController {
       final idResult = await db.query('SELECT @id_inmueble_out as id');
 
       if (idResult.isEmpty || idResult.first.fields['id'] == null) {
-        _logger.severe('No se pudo obtener el ID del inmueble creado');
         throw Exception('No se pudo obtener el ID del inmueble creado');
       }
 
       final inmuebleId = idResult.first.fields['id'] as int;
-      developer.log(
-        'Inmueble creado con ID: $inmuebleId, Estado: $estadoInmueble',
-      );
 
-      // Esperar a que la transacción se complete completamente
+      // Esperar a que la transacción se complete
       await Future.delayed(const Duration(milliseconds: 300));
 
       return inmuebleId;
@@ -140,9 +118,9 @@ class InmuebleController {
       _logger.info('Actualizando inmueble: $inmueble');
       final db = await dbHelper.connection;
 
-      // Usar el procedimiento almacenado ActualizarInmueble
+      // Usar el procedimiento actualizado con los nuevos campos financieros
       final result = await db.query(
-        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           inmueble.id, // p_id_inmueble
           inmueble.nombre, // p_nombre_inmueble
@@ -152,8 +130,7 @@ class InmuebleController {
           inmueble.ciudad, // p_direccion_ciudad
           inmueble.estadoGeografico, // p_direccion_estado_geografico
           inmueble.codigoPostal, // p_direccion_codigo_postal
-          inmueble
-              .referencias, // p_direccion_referencias - ESTE ERA EL PARÁMETRO FALTANTE
+          inmueble.referencias, // p_direccion_referencias
           inmueble.montoTotal, // p_monto_total
           inmueble.tipoInmueble, // p_tipo_inmueble
           inmueble.tipoOperacion, // p_tipo_operacion
@@ -163,10 +140,11 @@ class InmuebleController {
           inmueble.idCliente, // p_id_cliente
           inmueble.idEmpleado, // p_id_empleado
           inmueble.caracteristicas, // p_caracteristicas
+          inmueble.costoCliente ?? 0.0, // p_costo_cliente - Nuevo
+          inmueble.costoServicios ?? 0.0, // p_costo_servicios - Nuevo
         ],
       );
 
-      _logger.info('Inmueble actualizado con éxito. ID: ${inmueble.id}');
       return result.affectedRows ?? 0;
     } catch (e) {
       _logger.severe('Error al actualizar inmueble: $e');
@@ -374,7 +352,49 @@ class InmuebleController {
     }
   }
 
-  // NUEVOS MÉTODOS PARA GESTIÓN DE IMÁGENES
+  // Método para registrar una venta
+  Future<int> registrarVenta(Venta venta) async {
+    try {
+      _logger.info('Registrando venta para inmueble: ${venta.idInmueble}');
+      final db = await dbHelper.connection;
+
+      await db.query('CALL CrearVenta(?, ?, ?, ?, ?, ?, @id_venta_out)', [
+        venta.idCliente,
+        venta.idInmueble,
+        venta.fechaVenta.toIso8601String().split('T')[0],
+        venta.ingreso,
+        venta.comisionProveedores,
+        venta.utilidadNeta,
+      ]);
+
+      final result = await db.query('SELECT @id_venta_out as id');
+      return result.first.fields['id'] as int;
+    } catch (e) {
+      _logger.severe('Error al registrar venta: $e');
+      throw Exception('Error al registrar venta: $e');
+    }
+  }
+
+  // Método para obtener todas las ventas
+  Future<List<Venta>> getVentas() async {
+    try {
+      _logger.info('Obteniendo lista de ventas');
+      final db = await dbHelper.connection;
+
+      final results = await db.query('CALL ObtenerVentas()');
+
+      // Corrección para evitar los errores de operador []
+      if (results.isEmpty) return [];
+
+      // Convertir directamente los resultados a lista de Venta
+      return results.map((row) => Venta.fromMap(row.fields)).toList();
+    } catch (e) {
+      _logger.severe('Error al obtener ventas: $e');
+      throw Exception('Error al obtener ventas: $e');
+    }
+  }
+
+  // MÉTODOS PARA GESTIÓN DE IMÁGENES
 
   // Obtener imágenes de un inmueble
   Future<List<InmuebleImagen>> getImagenesInmueble(int idInmueble) async {

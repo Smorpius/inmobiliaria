@@ -21,6 +21,13 @@ class InmuebleFormState {
   final precioVentaController = TextEditingController();
   final precioRentaController = TextEditingController();
 
+  // Nuevos controladores para campos financieros
+  final costoClienteController = TextEditingController();
+  final costoServiciosController = TextEditingController();
+  final comisionAgenciaController = TextEditingController(); // Solo lectura
+  final comisionAgenteController = TextEditingController(); // Solo lectura
+  final precioVentaFinalController = TextEditingController(); // Solo lectura
+
   // Estado para dropdowns y selecciones
   String tipoInmuebleSeleccionado = 'casa';
   String tipoOperacionSeleccionado = 'venta';
@@ -51,8 +58,35 @@ class InmuebleFormState {
 
   final tiposOperacion = ['venta', 'renta'];
 
+  // Método para actualizar campos calculados
+  void actualizarCamposCalculados() {
+    try {
+      final costoCliente = double.tryParse(costoClienteController.text) ?? 0.0;
+      final costoServicios =
+          double.tryParse(costoServiciosController.text) ?? 0.0;
+
+      // Calcular comisiones
+      final comisionAgencia = costoCliente * 0.30;
+      final comisionAgente = costoCliente * 0.03;
+
+      // Calcular precio final
+      final precioVentaFinal =
+          costoCliente + costoServicios + comisionAgencia + comisionAgente;
+
+      // Actualizar controladores de solo lectura
+      comisionAgenciaController.text = comisionAgencia.toStringAsFixed(2);
+      comisionAgenteController.text = comisionAgente.toStringAsFixed(2);
+      precioVentaFinalController.text = precioVentaFinal.toStringAsFixed(2);
+    } catch (e) {
+      // Si hay error en los cálculos, mantener los valores en 0
+      comisionAgenciaController.text = '0.00';
+      comisionAgenteController.text = '0.00';
+      precioVentaFinalController.text = '0.00';
+    }
+  }
+
   void dispose() {
-    // Liberar recursos de controladores
+    // Liberar recursos de controladores existentes
     nombreController.dispose();
     montoController.dispose();
     calleController.dispose();
@@ -65,5 +99,12 @@ class InmuebleFormState {
     caracteristicasController.dispose();
     precioVentaController.dispose();
     precioRentaController.dispose();
+
+    // Liberar recursos de nuevos controladores
+    costoClienteController.dispose();
+    costoServiciosController.dispose();
+    comisionAgenciaController.dispose();
+    comisionAgenteController.dispose();
+    precioVentaFinalController.dispose();
   }
 }

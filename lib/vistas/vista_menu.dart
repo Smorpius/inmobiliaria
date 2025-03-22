@@ -95,14 +95,13 @@ class HomePage extends StatelessWidget {
                           'title': 'Ventas',
                           'icon': Icons.shopping_cart,
                           'color': Colors.orange,
-                          'route': null,
+                          'route': '/ventas', // Actualizado: ahora tiene ruta
                         },
                         {
                           'title': 'Proveedores',
                           'icon': Icons.inventory,
                           'color': Colors.purple,
-                          'route':
-                              '/proveedores', // MODIFICADO: Agregar ruta correcta
+                          'route': '/proveedores',
                         },
                       ];
 

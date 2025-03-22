@@ -9,6 +9,9 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
 import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
+import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
+
+ // Nueva importación
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -135,6 +138,7 @@ class MyApp extends ConsumerWidget {
         '/inmuebles': (context) => const InmuebleListScreen(),
         '/empleados': (context) => const EmpleadosScreenWrapper(),
         '/proveedores': (context) => const ListaProveedoresScreen(),
+        '/ventas': (context) => const ListaVentasScreen(), // Agregada ruta
       },
     );
   }

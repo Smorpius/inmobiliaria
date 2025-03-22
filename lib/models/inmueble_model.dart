@@ -15,7 +15,7 @@ class Inmueble {
   final int? idEmpleado;
   final DateTime? fechaRegistro;
 
-  // Nuevos campos según tu base de datos
+  // Campos básicos
   final String tipoInmueble; // casa, departamento, terreno, etc.
   final String tipoOperacion; // venta, renta
   final double? precioVenta;
@@ -30,6 +30,13 @@ class Inmueble {
   final String? estadoGeografico;
   final String? codigoPostal;
   final String? referencias;
+
+  // Nuevos campos financieros
+  final double? costoCliente; // Costo que pide el cliente por su propiedad
+  final double? costoServicios; // Costo de servicios de proveedores
+  final double? comisionAgencia; // 30% del costo cliente (calculado)
+  final double? comisionAgente; // 3% del costo cliente (calculado)
+  final double? precioVentaFinal; // Suma total de todos los costos
 
   Inmueble({
     this.id,
@@ -52,7 +59,74 @@ class Inmueble {
     this.estadoGeografico,
     this.codigoPostal,
     this.referencias,
+    this.costoCliente,
+    this.costoServicios,
+    this.comisionAgencia,
+    this.comisionAgente,
+    this.precioVentaFinal,
   });
+
+  // Constructor con cálculos automáticos
+  factory Inmueble.conCalculos({
+    int? id,
+    required String nombre,
+    int? idDireccion,
+    required double montoTotal,
+    int? idEstado,
+    int? idCliente,
+    int? idEmpleado,
+    DateTime? fechaRegistro,
+    String tipoInmueble = 'casa',
+    String tipoOperacion = 'venta',
+    double? precioVenta,
+    double? precioRenta,
+    String? caracteristicas,
+    String? calle,
+    String? numero,
+    String? colonia,
+    String? ciudad,
+    String? estadoGeografico,
+    String? codigoPostal,
+    String? referencias,
+    required double costoCliente,
+    required double costoServicios,
+  }) {
+    // Calcular comisiones
+    final comisionAgencia = costoCliente * 0.30; // 30% del costo del cliente
+    final comisionAgente = costoCliente * 0.03; // 3% del costo del cliente
+
+    // Calcular precio final
+    final precioVentaFinal =
+        costoCliente + costoServicios + comisionAgencia + comisionAgente;
+
+    return Inmueble(
+      id: id,
+      nombre: nombre,
+      idDireccion: idDireccion,
+      montoTotal: montoTotal,
+      idEstado: idEstado,
+      idCliente: idCliente,
+      idEmpleado: idEmpleado,
+      fechaRegistro: fechaRegistro,
+      tipoInmueble: tipoInmueble,
+      tipoOperacion: tipoOperacion,
+      precioVenta: precioVenta,
+      precioRenta: precioRenta,
+      caracteristicas: caracteristicas,
+      calle: calle,
+      numero: numero,
+      colonia: colonia,
+      ciudad: ciudad,
+      estadoGeografico: estadoGeografico,
+      codigoPostal: codigoPostal,
+      referencias: referencias,
+      costoCliente: costoCliente,
+      costoServicios: costoServicios,
+      comisionAgencia: comisionAgencia,
+      comisionAgente: comisionAgente,
+      precioVentaFinal: precioVentaFinal,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -76,15 +150,18 @@ class Inmueble {
       'estado_geografico': estadoGeografico,
       'codigo_postal': codigoPostal,
       'referencias': referencias,
+      // Nuevos campos financieros
+      'costo_cliente': costoCliente,
+      'costo_servicios': costoServicios,
+      'comision_agencia': comisionAgencia,
+      'comision_agente': comisionAgente,
+      'precio_venta_final': precioVentaFinal,
     };
   }
 
-  // AQUÍ ESTÁ EL MÉTODO QUE FALTABA - fromMap
   factory Inmueble.fromMap(Map<String, dynamic> map) {
     try {
-      _logger.info(
-        'Procesando inmueble ID: ${map['id_inmueble']}',
-      ); // Usando el logger
+      _logger.info('Procesando inmueble ID: ${map['id_inmueble']}');
       developer.log(
         'Procesando datos del inmueble: ${map['id_inmueble']} - ${map['nombre_inmueble']}',
       );
@@ -93,17 +170,9 @@ class Inmueble {
       String? blobToString(dynamic value) {
         if (value == null) return null;
 
-        // Si es un BLOB, convertir a String - CORREGIDO
+        // Si es un BLOB, convertir a String
         if (value is Uint8List) {
-          try {
-            return utf8.decode(value);
-          } catch (e) {
-            _logger.warning(
-              'Error al decodificar BLOB: $e',
-            ); // Usando el logger
-            developer.log('Error al decodificar BLOB: $e');
-            return String.fromCharCodes(value); // Alternativa de decodificación
-          }
+          return utf8.decode(value);
         }
 
         // Si ya es String, devolverlo directamente
@@ -118,13 +187,11 @@ class Inmueble {
       // Función segura para convertir numeros
       double? parseDoubleSafely(dynamic value) {
         if (value == null) return null;
-        if (value is num) return value.toDouble();
+        if (value is double) return value;
+        if (value is int) return value.toDouble();
         try {
           return double.parse(value.toString());
         } catch (e) {
-          _logger.warning(
-            'Error al convertir a double: $value - $e',
-          ); // Usando el logger
           return null;
         }
       }
@@ -136,36 +203,36 @@ class Inmueble {
         try {
           return int.parse(value.toString());
         } catch (e) {
-          _logger.warning(
-            'Error al convertir a int: $value - $e',
-          ); // Usando el logger
           return null;
         }
       }
 
+      // Extraer valores de los nuevos campos financieros
+      final costoCliente = parseDoubleSafely(map['costo_cliente']);
+      final costoServicios = parseDoubleSafely(map['costo_servicios']);
+      final comisionAgencia = parseDoubleSafely(map['comision_agencia']);
+      final comisionAgente = parseDoubleSafely(map['comision_agente']);
+      final precioVentaFinal = parseDoubleSafely(map['precio_venta_final']);
+
       return Inmueble(
         id: parseIntSafely(map['id_inmueble']),
-        nombre: blobToString(map['nombre_inmueble']) ?? 'Sin nombre',
+        nombre: map['nombre_inmueble'] ?? '',
         idDireccion: parseIntSafely(map['id_direccion']),
         montoTotal: parseDoubleSafely(map['monto_total']) ?? 0.0,
         idEstado: parseIntSafely(map['id_estado']),
         idCliente: parseIntSafely(map['id_cliente']),
         idEmpleado: parseIntSafely(map['id_empleado']),
         fechaRegistro:
-            map['fecha_registro'] != null
-                ? (map['fecha_registro'] is DateTime
-                    ? map['fecha_registro']
-                    : DateTime.parse(map['fecha_registro'].toString()))
+            map['fecha_registro'] is DateTime
+                ? map['fecha_registro']
+                : map['fecha_registro'] != null
+                ? DateTime.parse(map['fecha_registro'].toString())
                 : null,
-
-        // Nuevos campos específicos - CORREGIDOS
-        tipoInmueble: blobToString(map['tipo_inmueble']) ?? 'casa',
-        tipoOperacion: blobToString(map['tipo_operacion']) ?? 'venta',
+        tipoInmueble: map['tipo_inmueble'] ?? 'casa',
+        tipoOperacion: map['tipo_operacion'] ?? 'venta',
         precioVenta: parseDoubleSafely(map['precio_venta']),
         precioRenta: parseDoubleSafely(map['precio_renta']),
         caracteristicas: blobToString(map['caracteristicas']),
-
-        // Campos de dirección - CORREGIDOS
         calle: blobToString(map['calle']),
         numero: blobToString(map['numero']),
         colonia: blobToString(map['colonia']),
@@ -173,15 +240,17 @@ class Inmueble {
         estadoGeografico: blobToString(map['estado_geografico']),
         codigoPostal: blobToString(map['codigo_postal']),
         referencias: blobToString(map['referencias']),
+        // Nuevos campos financieros
+        costoCliente: costoCliente,
+        costoServicios: costoServicios,
+        comisionAgencia: comisionAgencia,
+        comisionAgente: comisionAgente,
+        precioVentaFinal: precioVentaFinal,
       );
     } catch (e, stackTrace) {
-      _logger.severe(
-        'Error al procesar inmueble: $e',
-        e,
-        stackTrace,
-      ); // Usando el logger
+      _logger.severe('Error al procesar inmueble: $e', e, stackTrace);
       developer.log(
-        'ERROR en Inmueble.fromMap: $e',
+        'Error al procesar inmueble: $e',
         error: e,
         stackTrace: stackTrace,
       );
@@ -203,6 +272,47 @@ class Inmueble {
     return direccionParts
         .where((part) => part != null && part.trim().isNotEmpty)
         .join(', ');
+  }
+
+  // Método para calcular comisiones actualizadas
+  Inmueble calcularComisiones() {
+    if (costoCliente == null) return this;
+
+    final nuevaComisionAgencia = costoCliente! * 0.30;
+    final nuevaComisionAgente = costoCliente! * 0.03;
+    final nuevoPrecioVentaFinal =
+        costoCliente! +
+        (costoServicios ?? 0) +
+        nuevaComisionAgencia +
+        nuevaComisionAgente;
+
+    return Inmueble(
+      id: id,
+      nombre: nombre,
+      idDireccion: idDireccion,
+      montoTotal: montoTotal,
+      idEstado: idEstado,
+      idCliente: idCliente,
+      idEmpleado: idEmpleado,
+      fechaRegistro: fechaRegistro,
+      tipoInmueble: tipoInmueble,
+      tipoOperacion: tipoOperacion,
+      precioVenta: precioVenta,
+      precioRenta: precioRenta,
+      caracteristicas: caracteristicas,
+      calle: calle,
+      numero: numero,
+      colonia: colonia,
+      ciudad: ciudad,
+      estadoGeografico: estadoGeografico,
+      codigoPostal: codigoPostal,
+      referencias: referencias,
+      costoCliente: costoCliente,
+      costoServicios: costoServicios,
+      comisionAgencia: nuevaComisionAgencia,
+      comisionAgente: nuevaComisionAgente,
+      precioVentaFinal: nuevoPrecioVentaFinal,
+    );
   }
 
   @override

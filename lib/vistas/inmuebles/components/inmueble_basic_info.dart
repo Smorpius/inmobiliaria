@@ -19,6 +19,26 @@ class InmuebleBasicInfo extends StatelessWidget {
       inmueble.idEstado,
     );
 
+    // Determinar color según el estado
+    Color estadoColor = Colors.grey;
+    switch (inmueble.idEstado) {
+      case 2: // No disponible
+        estadoColor = Colors.red;
+        break;
+      case 3: // Disponible
+        estadoColor = Colors.green;
+        break;
+      case 4: // Vendido
+        estadoColor = Colors.blue;
+        break;
+      case 5: // Rentado
+        estadoColor = Colors.purple;
+        break;
+      case 6: // En negociación
+        estadoColor = Colors.orange;
+        break;
+    }
+
     return Column(
       children: [
         DetailRow(
@@ -38,6 +58,7 @@ class InmuebleBasicInfo extends StatelessWidget {
           value: estadoInmueble,
           icon: Icons.info_outline,
           isInactivo: isInactivo,
+          valueColor: estadoColor, // Añadir color al valor
         ),
         // Características adicionales
         if (inmueble.caracteristicas != null &&

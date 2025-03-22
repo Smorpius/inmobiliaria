@@ -57,12 +57,34 @@ class InmuebleCard extends StatelessWidget {
     String estadoInmueble = 'Disponible';
     Color estadoColor = Colors.green;
 
-    if (inmueble.idEstado == 2) {
-      estadoInmueble = 'No Disponible';
-      estadoColor = Colors.red;
-    } else if (inmueble.idEstado == 1) {
-      estadoInmueble = 'Reservado';
-      estadoColor = Colors.amber;
+    switch (inmueble.idEstado) {
+      case 2: // No disponible
+        estadoInmueble = 'No Disponible';
+        estadoColor = Colors.red;
+        break;
+      case 3: // Disponible
+        estadoInmueble = 'Disponible';
+        estadoColor = Colors.green;
+        break;
+      case 4: // Vendido
+        estadoInmueble = 'Vendido';
+        estadoColor = Colors.blue;
+        break;
+      case 5: // Rentado
+        estadoInmueble = 'Rentado';
+        estadoColor = Colors.purple;
+        break;
+      case 6: // En negociación
+        estadoInmueble = 'En Negociación';
+        estadoColor = Colors.orange;
+        break;
+      case 1: // Reservado (si existe este estado)
+        estadoInmueble = 'Reservado';
+        estadoColor = Colors.amber;
+        break;
+      default:
+        estadoInmueble = 'Disponible';
+        estadoColor = Colors.green;
     }
 
     return Card(
@@ -142,7 +164,6 @@ class InmuebleCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-
                   // Tipo de inmueble y operación en una sola línea
                   Row(
                     children: [

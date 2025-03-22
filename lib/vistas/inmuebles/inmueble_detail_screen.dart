@@ -9,9 +9,12 @@ import 'components/inmueble_address_info.dart';
 import 'components/cliente_asociado_info.dart';
 import 'components/inmueble_action_buttons.dart';
 import 'components/inmueble_detalle_notifier.dart';
+import 'components/inmueble_operation_buttons.dart';
 import 'components/clientes_interesados_section.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inmobiliaria/widgets/inmueble_financiero_info.dart';
 import 'package:inmobiliaria/widgets/inmueble_imagenes_section.dart';
+import 'package:inmobiliaria/vistas/ventas/registrar_venta_screen.dart';
 
 class InmuebleDetailScreen extends ConsumerWidget {
   final Inmueble inmuebleInicial;
@@ -92,6 +95,8 @@ class InmuebleDetailScreen extends ConsumerWidget {
             ),
         data: (inmueble) {
           final currentIsInactivo = inmueble.idEstado == 2 || isInactivo;
+          final isInNegotiation =
+              inmueble.idEstado == 6; // Estado de negociación
 
           // Determinar el texto del botón usando el valor proporcionado o un valor predeterminado
           final textoBotonEstado =
@@ -144,6 +149,14 @@ class InmuebleDetailScreen extends ConsumerWidget {
                     isInactivo: currentIsInactivo,
                   ),
 
+                  // Información financiera si está disponible
+                  if (inmueble.costoCliente != null ||
+                      inmueble.costoServicios != null)
+                    InmuebleFinancieroInfo(
+                      inmueble: inmueble,
+                      isInactivo: currentIsInactivo,
+                    ),
+
                   // Dirección completa y sus componentes
                   InmuebleAddressInfo(
                     inmueble: inmueble,
@@ -194,7 +207,28 @@ class InmuebleDetailScreen extends ConsumerWidget {
 
                   const SizedBox(height: 24),
 
-                  // Botones de acción
+                  // Botones de operación específicos (vender/rentar/servicio)
+                  if (inmueble.id != null && !currentIsInactivo)
+                    InmuebleOperationButtons(
+                      inmueble: inmueble,
+                      isInNegotiation: isInNegotiation,
+                      onOperationSelected:
+                          (operationType) => _iniciarOperacion(
+                            context,
+                            ref,
+                            inmueble,
+                            operationType,
+                          ),
+                      onFinishProcess:
+                          isInNegotiation
+                              ? () => _finalizarProceso(context, ref, inmueble)
+                              : null,
+                    ),
+
+                  if (inmueble.id != null && !currentIsInactivo)
+                    const SizedBox(height: 24),
+
+                  // Botones de acción generales
                   InmuebleActionButtons(
                     onEdit: onEdit,
                     onDelete: onDelete,
@@ -209,7 +243,6 @@ class InmuebleDetailScreen extends ConsumerWidget {
                         inmueble.id != null
                             ? () {
                               // Implementar la función para agregar cliente interesado
-                              // Por ejemplo, mostrar un diálogo de selección
                             }
                             : null,
                   ),
@@ -220,5 +253,225 @@ class InmuebleDetailScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  // Método para iniciar una operación (venta/renta/servicio)
+  Future<void> _iniciarOperacion(
+    BuildContext context,
+    WidgetRef ref,
+    Inmueble inmueble,
+    String operationType,
+  ) async {
+    if (inmueble.id == null) return;
+
+    // Mostrar diálogo de confirmación
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        String operationTitle = '';
+        String operationMessage = '';
+
+        switch (operationType) {
+          case 'venta':
+            operationTitle = 'Iniciar venta';
+            operationMessage =
+                '¿Desea iniciar el proceso de venta para este inmueble? El inmueble pasará a estado "En negociación".';
+            break;
+          case 'renta':
+            operationTitle = 'Iniciar renta';
+            operationMessage =
+                '¿Desea iniciar el proceso de renta para este inmueble? El inmueble pasará a estado "En negociación".';
+            break;
+          case 'servicio':
+            operationTitle = 'Agregar servicio';
+            operationMessage =
+                '¿Desea agregar un servicio para este inmueble? El inmueble pasará a estado "En negociación".';
+            break;
+        }
+
+        return AlertDialog(
+          title: Text(operationTitle),
+          content: Text(operationMessage),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: const Text(
+                'Confirmar',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      // Cambiar estado a "En negociación" (id=6)
+      if (inmueble.id != null) {
+        final notifier = ref.read(
+          inmuebleDetalleProvider(inmueble.id!).notifier,
+        );
+        await notifier.actualizarEstado(6); // Cambiar a estado "En negociación"
+
+        // Verificar si el contexto todavía está montado
+        if (!context.mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Inmueble en proceso de ${operationType == 'servicio' ? 'servicio' : operationType}',
+            ),
+            backgroundColor: Colors.blue,
+          ),
+        );
+
+        // Si es venta, podríamos navegar a la pantalla de registro de venta
+        if (operationType == 'venta') {
+          // Verificar si el contexto todavía está montado
+          if (!context.mounted) return;
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RegistrarVentaScreen(inmueble: inmueble),
+            ),
+          ).then((value) {
+            if (value == true && inmueble.id != null) {
+              ref.invalidate(inmuebleDetalleProvider(inmueble.id!));
+            }
+          });
+        }
+      }
+    } catch (e) {
+      // Verificar si el contexto todavía está montado
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cambiar estado: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // Método para finalizar el proceso de negociación
+  Future<void> _finalizarProceso(
+    BuildContext context,
+    WidgetRef ref,
+    Inmueble inmueble,
+  ) async {
+    if (inmueble.id == null) return;
+
+    // Mostrar diálogo con opciones para finalizar el proceso
+    final estadoFinal = await showDialog<int>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Finalizar proceso'),
+          content: const Text('Seleccione el estado final del inmueble:'),
+          actions: [
+            // Botón para cancelar
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(null),
+              child: const Text('Cancelar'),
+            ),
+            // Botón para marcar como vendido
+            if (inmueble.tipoOperacion == 'venta' ||
+                inmueble.tipoOperacion == 'ambos')
+              ElevatedButton.icon(
+                icon: const Icon(Icons.sell, size: 18),
+                label: const Text('Vendido'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed:
+                    () => Navigator.of(context).pop(4), // Estado 4 = Vendido
+              ),
+            // Botón para marcar como rentado
+            if (inmueble.tipoOperacion == 'renta' ||
+                inmueble.tipoOperacion == 'ambos')
+              ElevatedButton.icon(
+                icon: const Icon(Icons.home, size: 18),
+                label: const Text('Rentado'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed:
+                    () => Navigator.of(context).pop(5), // Estado 5 = Rentado
+              ),
+            // Botón para volver a disponible
+            ElevatedButton.icon(
+              icon: const Icon(Icons.undo, size: 18),
+              label: const Text('Disponible'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              onPressed:
+                  () => Navigator.of(context).pop(3), // Estado 3 = Disponible
+            ),
+          ],
+        );
+      },
+    );
+
+    // Si no se seleccionó ningún estado, salir
+    if (estadoFinal == null) return;
+
+    try {
+      // Cambiar al estado seleccionado
+      if (inmueble.id != null) {
+        final notifier = ref.read(
+          inmuebleDetalleProvider(inmueble.id!).notifier,
+        );
+        await notifier.actualizarEstado(estadoFinal);
+
+        // Verificar si el contexto todavía está montado
+        if (!context.mounted) return;
+
+        // Mostrar mensaje según el estado seleccionado
+        String mensaje = '';
+        Color color = Colors.blue;
+
+        switch (estadoFinal) {
+          case 3:
+            mensaje = 'Inmueble marcado como Disponible';
+            color = Colors.green;
+            break;
+          case 4:
+            mensaje = 'Inmueble marcado como Vendido';
+            color = Colors.blue;
+            break;
+          case 5:
+            mensaje = 'Inmueble marcado como Rentado';
+            color = Colors.orange;
+            break;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(mensaje), backgroundColor: color),
+        );
+      }
+    } catch (e) {
+      // Verificar si el contexto todavía está montado
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cambiar estado: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

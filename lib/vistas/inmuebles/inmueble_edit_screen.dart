@@ -43,7 +43,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
     3: 'Disponible',
     4: 'Vendido',
     5: 'Rentado',
-    6: 'En oferta',
+    6: 'En negociación',
   };
 
   String _tipoInmuebleSeleccionado = 'casa';

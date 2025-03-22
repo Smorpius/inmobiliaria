@@ -5,6 +5,7 @@ class DetailRow extends StatelessWidget {
   final String value;
   final IconData icon;
   final bool isInactivo;
+  final Color? valueColor; // Agregado nuevo parámetro
 
   const DetailRow({
     super.key,
@@ -12,6 +13,7 @@ class DetailRow extends StatelessWidget {
     required this.value,
     required this.icon,
     this.isInactivo = false,
+    this.valueColor, // Parámetro opcional para el color del valor
   });
 
   @override
@@ -40,7 +42,12 @@ class DetailRow extends StatelessWidget {
                   value,
                   style: TextStyle(
                     fontSize: 16,
-                    color: isInactivo ? Colors.grey.shade600 : null,
+                    color:
+                        isInactivo
+                            ? Colors.grey.shade600
+                            : (valueColor ??
+                                Colors
+                                    .black), // Usar color proporcionado si existe
                   ),
                 ),
               ],

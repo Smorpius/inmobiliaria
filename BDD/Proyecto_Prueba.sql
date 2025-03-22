@@ -33,6 +33,8 @@ DROP PROCEDURE IF EXISTS ObtenerEmpleadoUsuario;
 DROP PROCEDURE IF EXISTS ActualizarUsuarioEmpleado;
 DROP PROCEDURE IF EXISTS InactivarUsuarioEmpleado;
 DROP PROCEDURE IF EXISTS ReactivarUsuarioEmpleado;
+DROP PROCEDURE IF EXISTS CrearVenta;
+DROP PROCEDURE IF EXISTS ObtenerVentas;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Eliminar tablas respetando dependencias
@@ -42,6 +44,7 @@ DROP TABLE IF EXISTS historial_proveedores_detallado;
 DROP TABLE IF EXISTS inmuebles_imagenes;
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;
 DROP TABLE IF EXISTS cliente_inmueble;
+DROP TABLE IF EXISTS ventas;
 DROP TABLE IF EXISTS inmuebles;
 DROP TABLE IF EXISTS clientes;
 DROP TABLE IF EXISTS empleados;
@@ -209,6 +212,11 @@ CREATE TABLE inmuebles (
     id_empleado INT,
     caracteristicas TEXT,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    costo_cliente DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Costo que pide el cliente por su propiedad',
+    costo_servicios DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Costo de servicios de proveedores',
+    comision_agencia DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para la agencia (30% del costo cliente)',
+    comision_agente DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para el agente (3% del costo cliente)',
+    precio_venta_final DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Suma total de todos los costos',
     FOREIGN KEY (id_direccion) REFERENCES direcciones(id_direccion),
     FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE SET NULL,
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado),
@@ -246,6 +254,22 @@ CREATE TABLE cliente_inmueble (
     FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
     FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
     CONSTRAINT unique_inmueble UNIQUE (id_inmueble)
+);
+
+-- Crear tabla de ventas
+CREATE TABLE IF NOT EXISTS ventas (
+    id_venta INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    id_inmueble INT NOT NULL,
+    fecha_venta DATE NOT NULL,
+    ingreso DECIMAL(15,2) NOT NULL COMMENT 'Dinero obtenido por la venta',
+    comision_proveedores DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    utilidad_bruta DECIMAL(15,2) GENERATED ALWAYS AS (ingreso - comision_proveedores) STORED,
+    utilidad_neta DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    id_estado INT DEFAULT 1,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
 -- Definir triggers
@@ -676,11 +700,20 @@ CREATE PROCEDURE CrearInmueble(
     IN p_id_cliente INT,
     IN p_id_empleado INT,
     IN p_caracteristicas TEXT,
+    IN p_costo_cliente DECIMAL(12,2),
+    IN p_costo_servicios DECIMAL(12,2),
     OUT p_id_inmueble_out INT
 )
 BEGIN
     DECLARE v_id_direccion INT;
     DECLARE v_id_estado INT DEFAULT 3;
+    DECLARE v_comision_agencia DECIMAL(12,2);
+    DECLARE v_comision_agente DECIMAL(12,2);
+    DECLARE v_precio_venta_final DECIMAL(12,2);
+    
+    SET v_comision_agencia = IFNULL(p_costo_cliente, 0) * 0.30;
+    SET v_comision_agente = IFNULL(p_costo_cliente, 0) * 0.03;
+    SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
     
     START TRANSACTION;
     
@@ -699,11 +732,13 @@ BEGIN
     
     INSERT INTO inmuebles (
         nombre_inmueble, id_direccion, monto_total, tipo_inmueble, tipo_operacion, 
-        precio_venta, precio_renta, id_estado, id_cliente, id_empleado, caracteristicas
+        precio_venta, precio_renta, id_estado, id_cliente, id_empleado, caracteristicas,
+        costo_cliente, costo_servicios, comision_agencia, comision_agente, precio_venta_final
     ) VALUES (
         p_nombre_inmueble, v_id_direccion, p_monto_total, COALESCE(p_tipo_inmueble, 'casa'), 
         COALESCE(p_tipo_operacion, 'venta'), p_precio_venta, p_precio_renta, v_id_estado, 
-        p_id_cliente, p_id_empleado, p_caracteristicas
+        p_id_cliente, p_id_empleado, p_caracteristicas,
+        p_costo_cliente, p_costo_servicios, v_comision_agencia, v_comision_agente, v_precio_venta_final
     );
     
     SET p_id_inmueble_out = LAST_INSERT_ID();
@@ -730,10 +765,19 @@ CREATE PROCEDURE ActualizarInmueble(
     IN p_id_estado INT,
     IN p_id_cliente INT,
     IN p_id_empleado INT,
-    IN p_caracteristicas TEXT
+    IN p_caracteristicas TEXT,
+    IN p_costo_cliente DECIMAL(12,2),
+    IN p_costo_servicios DECIMAL(12,2)
 )
 BEGIN
     DECLARE v_id_direccion INT;
+    DECLARE v_comision_agencia DECIMAL(12,2);
+    DECLARE v_comision_agente DECIMAL(12,2);
+    DECLARE v_precio_venta_final DECIMAL(12,2);
+    
+    SET v_comision_agencia = IFNULL(p_costo_cliente, 0) * 0.30;
+    SET v_comision_agente = IFNULL(p_costo_cliente, 0) * 0.03;
+    SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
 
     SELECT id_direccion INTO v_id_direccion
     FROM inmuebles 
@@ -765,7 +809,12 @@ BEGIN
         id_estado = p_id_estado,
         id_cliente = p_id_cliente,
         id_empleado = p_id_empleado,
-        caracteristicas = p_caracteristicas
+        caracteristicas = p_caracteristicas,
+        costo_cliente = p_costo_cliente,
+        costo_servicios = p_costo_servicios,
+        comision_agencia = v_comision_agencia,
+        comision_agente = v_comision_agente,
+        precio_venta_final = v_precio_venta_final
     WHERE id_inmueble = p_id_inmueble;
 
     COMMIT;
@@ -786,7 +835,6 @@ CREATE PROCEDURE CrearProveedor(
 BEGIN
     DECLARE v_id_estado_activo INT DEFAULT 1;
     
-    -- Validaciones previas
     IF p_correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
     END IF;
@@ -797,17 +845,14 @@ BEGIN
 
     START TRANSACTION;
     
-    -- Inserción en la tabla proveedores
     INSERT INTO proveedores (
         nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio, id_estado
     ) VALUES (
         p_nombre, p_nombre_empresa, p_nombre_contacto, p_direccion, p_telefono, p_correo, p_tipo_servicio, v_id_estado_activo
     );
     
-    -- Asignar el ID generado a la variable de salida
     SET p_id_proveedor_out = LAST_INSERT_ID();
     
-    -- Registrar en el historial
     INSERT INTO historial_proveedores (
         id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
     ) VALUES (
@@ -858,7 +903,7 @@ BEGIN
     LEFT JOIN estados e ON p.id_estado = e.id_estado;
 END //
 
--- Procedimiento para actualizar proveedor (VERSIÓN CORREGIDA)
+-- Procedimiento para actualizar proveedor
 CREATE PROCEDURE ActualizarProveedor(
     IN p_id_proveedor INT,
     IN p_nombre VARCHAR(100),
@@ -880,7 +925,6 @@ BEGIN
     DECLARE v_correo_actual VARCHAR(100);
     DECLARE v_servicio_actual VARCHAR(100);
 
-    -- Verificar que el proveedor exista y obtener valores actuales
     SELECT id_estado, nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio
     INTO v_estado_actual, v_nombre_actual, v_empresa_actual, v_contacto_actual, v_direccion_actual, v_telefono_actual, v_correo_actual, v_servicio_actual
     FROM proveedores 
@@ -894,17 +938,14 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un proveedor inactivo';
     END IF;
     
-    -- Validar el correo electrónico
     IF p_correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
     END IF;
     
-    -- Validar el teléfono
     IF p_telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
     END IF;
 
-    -- Verificar si el correo ya está en uso por otro proveedor
     IF EXISTS (
         SELECT 1 
         FROM proveedores 
@@ -916,7 +957,6 @@ BEGIN
 
     START TRANSACTION;
     
-    -- Actualizar los datos del proveedor
     UPDATE proveedores 
     SET nombre = p_nombre,
         nombre_empresa = p_nombre_empresa,
@@ -928,7 +968,6 @@ BEGIN
         fecha_modificacion = CURRENT_TIMESTAMP
     WHERE id_proveedor = p_id_proveedor;
 
-    -- Registrar cambios en el historial detallado
     IF v_nombre_actual != p_nombre THEN
         INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
         VALUES (p_id_proveedor, 'nombre', v_nombre_actual, p_nombre, p_usuario_modificacion);
@@ -970,7 +1009,6 @@ BEGIN
     DECLARE v_id_estado_inactivo INT DEFAULT 2;
     DECLARE v_estado_actual INT;
     
-    -- Verificar si el proveedor existe y obtener su estado actual
     SELECT id_estado INTO v_estado_actual
     FROM proveedores 
     WHERE id_proveedor = p_id_proveedor;
@@ -979,27 +1017,23 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
     END IF;
     
-    -- Verificar si ya está inactivo
     IF v_estado_actual = v_id_estado_inactivo THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor ya está inactivo';
     END IF;
     
     START TRANSACTION;
     
-    -- Actualizar el estado del proveedor a inactivo
     UPDATE proveedores 
     SET id_estado = v_id_estado_inactivo,
         fecha_modificacion = CURRENT_TIMESTAMP
     WHERE id_proveedor = p_id_proveedor;
     
-    -- Registrar el cambio en el historial
     INSERT INTO historial_proveedores (
         id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
     ) VALUES (
         p_id_proveedor, v_estado_actual, v_id_estado_inactivo, p_usuario_modificacion
     );
     
-    -- Registrar el cambio detallado
     INSERT INTO historial_proveedores_detallado (
         id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion
     ) VALUES (
@@ -1573,6 +1607,100 @@ BEGIN
     COMMIT;
 END //
 
+CREATE PROCEDURE CrearVenta(
+    IN p_id_cliente INT,
+    IN p_id_inmueble INT,
+    IN p_fecha_venta DATE,
+    IN p_ingreso DECIMAL(15,2),
+    IN p_comision_proveedores DECIMAL(15,2),
+    IN p_utilidad_neta DECIMAL(15,2),
+    OUT p_id_venta_out INT
+)
+BEGIN
+    -- Declarar todas las variables al principio
+    DECLARE cliente_existe INT;
+    DECLARE inmueble_existe INT;
+    DECLARE estado_inmueble INT;
+    DECLARE tipo_op VARCHAR(10); -- Variable local para almacenar tipo_operacion
+
+    -- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe 
+    FROM clientes 
+    WHERE id_cliente = p_id_cliente;
+    
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'El cliente especificado no existe';
+    END IF;
+
+    -- Verificar si el inmueble existe
+    SELECT COUNT(*) INTO inmueble_existe 
+    FROM inmuebles 
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF inmueble_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'El inmueble especificado no existe';
+    END IF;
+
+    -- Iniciar transacción
+    START TRANSACTION;
+
+    -- Insertar la venta
+    INSERT INTO ventas (
+        id_cliente, id_inmueble, fecha_venta, ingreso, comision_proveedores, utilidad_neta
+    ) VALUES (
+        p_id_cliente, p_id_inmueble, COALESCE(p_fecha_venta, CURDATE()), 
+        p_ingreso, p_comision_proveedores, p_utilidad_neta
+    );
+
+    -- Obtener el ID de la venta recién creada
+    SET p_id_venta_out = LAST_INSERT_ID();
+
+    -- Obtener el tipo de operación del inmueble
+    SELECT tipo_operacion INTO tipo_op 
+    FROM inmuebles 
+    WHERE id_inmueble = p_id_inmueble;
+
+    -- Determinar el estado del inmueble según el tipo de operación
+    IF tipo_op = 'venta' THEN
+        SET estado_inmueble = 4; -- Vendido
+    ELSE
+        SET estado_inmueble = 5; -- Rentado
+    END IF;
+
+    -- Actualizar el estado del inmueble
+    UPDATE inmuebles 
+    SET id_estado = estado_inmueble 
+    WHERE id_inmueble = p_id_inmueble;
+
+    -- Confirmar la transacción
+    COMMIT;
+END //
+
+-- Procedimiento para obtener todas las ventas
+CREATE PROCEDURE ObtenerVentas()
+BEGIN
+    SELECT 
+        v.id_venta,
+        v.fecha_venta,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente,
+        i.nombre_inmueble,
+        i.tipo_inmueble,
+        i.tipo_operacion,
+        v.ingreso,
+        v.comision_proveedores,
+        v.utilidad_bruta,
+        v.utilidad_neta,
+        e.nombre_estado AS estado_venta
+    FROM ventas v
+    JOIN clientes c ON v.id_cliente = c.id_cliente
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    JOIN estados e ON v.id_estado = e.id_estado
+    ORDER BY v.fecha_venta DESC;
+END //
+
 DELIMITER ;
 
 -- Índices para mejorar el rendimiento
@@ -1588,3 +1716,6 @@ CREATE INDEX idx_inmuebles_clientes_interesados ON inmuebles_clientes_interesado
 CREATE INDEX idx_inmuebles_imagenes ON inmuebles_imagenes(id_inmueble);
 CREATE INDEX idx_historial_proveedores ON historial_proveedores(id_proveedor);
 CREATE INDEX idx_historial_proveedores_detallado ON historial_proveedores_detallado(id_proveedor);
+CREATE INDEX idx_ventas_cliente ON ventas(id_cliente);
+CREATE INDEX idx_ventas_inmueble ON ventas(id_inmueble);
+CREATE INDEX idx_ventas_fecha ON ventas(fecha_venta);

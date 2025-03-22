@@ -19,7 +19,7 @@ class InmuebleListScreen extends ConsumerWidget {
     3: 'Disponible',
     4: 'Vendido',
     5: 'Rentado',
-    6: 'En oferta',
+    6: 'En negociación', // Corregido de 'En oferta' a 'En negociación'
   };
 
   @override

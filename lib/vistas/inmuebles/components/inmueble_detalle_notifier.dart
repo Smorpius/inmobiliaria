@@ -32,9 +32,11 @@ class InmuebleDetalleNotifier extends StateNotifier<AsyncValue<Inmueble>> {
 
   /// Actualiza el estado del inmueble (Disponible, Vendido, Rentado, etc)
   Future<void> actualizarEstado(int nuevoEstado) async {
-    try {
-      final inmuebleController = _ref.read(inmuebleControllerProvider);
+    // Guardar el estado actual en caso de error para poder revertir
+    final estadoAnterior = state;
 
+    try {
+      // Actualización optimista: actualizar la interfaz antes de esperar la BD
       if (state is AsyncData<Inmueble>) {
         final inmuebleActual = (state as AsyncData<Inmueble>).value;
         final inmuebleActualizado = Inmueble(
@@ -42,7 +44,7 @@ class InmuebleDetalleNotifier extends StateNotifier<AsyncValue<Inmueble>> {
           nombre: inmuebleActual.nombre,
           idDireccion: inmuebleActual.idDireccion,
           montoTotal: inmuebleActual.montoTotal,
-          idEstado: nuevoEstado,
+          idEstado: nuevoEstado, // Actualizar el estado
           idCliente: inmuebleActual.idCliente,
           idEmpleado: inmuebleActual.idEmpleado,
           tipoInmueble: inmuebleActual.tipoInmueble,
@@ -58,13 +60,28 @@ class InmuebleDetalleNotifier extends StateNotifier<AsyncValue<Inmueble>> {
           codigoPostal: inmuebleActual.codigoPostal,
           referencias: inmuebleActual.referencias,
           fechaRegistro: inmuebleActual.fechaRegistro,
+          // No olvidar incluir el resto de propiedades que pudieran existir
+          costoCliente: inmuebleActual.costoCliente,
+          costoServicios: inmuebleActual.costoServicios,
         );
 
-        await inmuebleController.updateInmueble(inmuebleActualizado);
+        // Actualizar la UI inmediatamente
         state = AsyncValue.data(inmuebleActualizado);
+
+        // Luego actualizar en la base de datos
+        final inmuebleController = _ref.read(inmuebleControllerProvider);
+        await inmuebleController.updateInmueble(inmuebleActualizado);
+
+        // Opcional: recargar después para asegurar consistencia
+        await cargarInmueble();
       }
     } catch (e, stack) {
+      // En caso de error, restaurar el estado anterior y propagar el error
+      state = estadoAnterior;
+      // Actualizar estado para mostrar el error
       state = AsyncValue.error(e, stack);
+      // Re-lanzar el error para manejarlo en la UI
+      rethrow;
     }
   }
 
