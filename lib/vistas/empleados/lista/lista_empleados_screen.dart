@@ -11,125 +11,158 @@ import 'package:flutter/material.dart';
 import '../nuevo_empleado_screen.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../models/usuario_empleado.dart';
-import '../../../controllers/usuario_empleado_controller.dart';
+import '../../../providers/empleado_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../providers/providers_global.dart'
+    hide empleadoControllerProvider;
 
-class ListaEmpleadosScreen extends StatefulWidget {
-  final UsuarioEmpleadoController controller;
+// Provider para manejar la actualización automática
+final empleadosAutoRefreshProvider = Provider.autoDispose<void>((ref) {
+  // Timer para actualización automática cada 30 segundos
+  final timer = Timer.periodic(const Duration(seconds: 30), (_) {
+    developer.log('Ejecutando actualización automática de empleados');
+    final controller = ref.read(usuarioEmpleadoControllerProvider);
 
-  const ListaEmpleadosScreen({super.key, required this.controller});
+    // Verificar conexión y actualizar silenciosamente
+    controller
+        .verificarConexion()
+        .then((conexionExitosa) {
+          if (conexionExitosa) {
+            controller.cargarEmpleadosConRefresco();
+          }
+        })
+        .catchError((e) {
+          developer.log('Error en actualización automática: $e', error: e);
+        });
+  });
+
+  // Cancelar el timer cuando se dispone el provider
+  ref.onDispose(() {
+    timer.cancel();
+  });
+});
+
+// Provider para manejar el estado de carga
+final empleadosLoadingProvider = StateProvider.autoDispose<bool>(
+  (ref) => false,
+);
+
+// Provider para manejar errores
+final empleadosErrorProvider = StateProvider.autoDispose<String?>(
+  (ref) => null,
+);
+
+class ListaEmpleadosScreen extends ConsumerStatefulWidget {
+  const ListaEmpleadosScreen({super.key});
 
   @override
-  State<ListaEmpleadosScreen> createState() => _ListaEmpleadosScreenState();
+  ConsumerState<ListaEmpleadosScreen> createState() =>
+      _ListaEmpleadosScreenState();
 }
 
-class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
+class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
     with EmpleadosErrorHandler, EmpleadosAcciones {
+  // Usaremos esto para manejar estados adicionales y el streamKey
   late final EmpleadosEstado estado;
-  
-  // Timer para actualización automática
-  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     estado = EmpleadosEstado();
     inicializarErrorHandler(context);
-    inicializarAcciones(widget.controller, context);
 
-    // Inicialización después de montar el widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!widget.controller.isInitialized) {
-        widget.controller
+      // Inicializar el controlador
+      final usuarioEmpleadoController = ref.read(
+        usuarioEmpleadoControllerProvider,
+      );
+      inicializarAcciones(usuarioEmpleadoController, context);
+
+      if (!usuarioEmpleadoController.isInitialized) {
+        usuarioEmpleadoController
             .inicializar()
-            .then((_) {
-              if (mounted) setState(() {});
-            })
+            .then((_) => cargarEmpleados())
             .catchError((e) {
               if (mounted) manejarError(e);
             });
+      } else {
+        cargarEmpleados();
       }
-      cargarEmpleados();
-      
-      // Iniciar actualización automática cada 30 segundos
-      _iniciarActualizacionAutomatica();
-    });
-  }
-  
-  void _iniciarActualizacionAutomatica() {
-    // Cancelar timer existente si hay uno
-    _autoRefreshTimer?.cancel();
-    
-    // Crear nuevo timer que se ejecuta cada 30 segundos
-    _autoRefreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        if (mounted) {
-          developer.log('Ejecutando actualización automática de empleados');
-          // Cargar datos sin mostrar indicador de carga para no interrumpir al usuario
-          _cargarEmpleadosSilenciosamente();
-        }
-      },
-    );
-  }
 
-  // Cargar datos sin mostrar indicador de carga
-  Future<void> _cargarEmpleadosSilenciosamente() async {
-    try {
-      final conexionExitosa = await widget.controller.verificarConexion();
-      if (conexionExitosa) {
-        await widget.controller.cargarEmpleadosConRefresco();
-      }
-    } catch (e) {
-      developer.log('Error en actualización automática: $e');
-      // No mostrar errores al usuario para actualizaciones en segundo plano
-    }
+      // Activar el provider de actualización automática
+      ref.read(empleadosAutoRefreshProvider);
+    });
   }
 
   Future<void> cargarEmpleados() async {
     if (!mounted) return;
 
-    setState(() {
-      estado.iniciarCarga();
-    });
+    // Actualizar estado global de carga
+    ref.read(empleadosLoadingProvider.notifier).state = true;
+    // Actualizar estado local
+    setState(() => estado.iniciarCarga());
 
     try {
-      final conexionExitosa = await widget.controller.verificarConexion();
+      final usuarioEmpleadoController = ref.read(
+        usuarioEmpleadoControllerProvider,
+      );
+      final conexionExitosa =
+          await usuarioEmpleadoController.verificarConexion();
 
       if (!conexionExitosa) {
         throw Exception("No se pudo establecer conexión con la base de datos");
       }
 
-      await widget.controller.cargarEmpleadosConReintentos(2);
+      await usuarioEmpleadoController.cargarEmpleadosConReintentos(2);
 
+      // Limpiar error si existía
+      ref.read(empleadosErrorProvider.notifier).state = null;
       if (mounted) setState(() => estado.finalizarCarga());
     } catch (e, stackTrace) {
+      // Manejar error en ambos estados (global y local)
+      ref.read(empleadosErrorProvider.notifier).state = e.toString();
       if (mounted) manejarError(e, stackTrace);
+    } finally {
+      // Finalizar estado de carga global
+      ref.read(empleadosLoadingProvider.notifier).state = false;
     }
   }
 
   void cambiarFiltroInactivos(bool value) {
-    setState(() => estado.mostrarInactivos = value);
+    ref.read(mostrarEmpleadosInactivosProvider.notifier).state = value;
   }
 
   void _navegarANuevoEmpleado() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => NuevoEmpleadoScreen(
-          usuarioEmpleadoController: widget.controller,
-        ),
-      ),
-    ).then((_) => cargarEmpleados());
-  }
-  
-  @override
-  void dispose() {
-    // Cancelar el timer de actualización automática
-    _autoRefreshTimer?.cancel();
-    super.dispose();
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder:
+                (context) => NuevoEmpleadoScreen(
+                  usuarioEmpleadoController: ref.read(
+                    usuarioEmpleadoControllerProvider,
+                  ),
+                ),
+          ),
+        )
+        .then((_) => cargarEmpleados());
   }
 
   @override
   Widget build(BuildContext context) {
+    // Observar estados de Riverpod
+    final mostrarInactivos = ref.watch(mostrarEmpleadosInactivosProvider);
+    final isLoading = ref.watch(empleadosLoadingProvider);
+    final errorMessage = ref.watch(empleadosErrorProvider);
+
+    // Actualizar estado local si hay cambio en providers globales
+    if (estado.isLoading != isLoading) {
+      estado.isLoading = isLoading;
+    }
+
+    if (errorMessage != null && errorMessage != estado.mensajeError) {
+      estado.mensajeError = errorMessage;
+    }
+
     return Stack(
       children: [
         AppScaffold(
@@ -137,13 +170,13 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
           currentRoute: '/empleados',
           actions: [
             EmpleadosFiltro(
-              mostrarInactivos: estado.mostrarInactivos,
+              mostrarInactivos: mostrarInactivos,
               onChanged: cambiarFiltroInactivos,
               isLoading: estado.isLoading,
               onRefresh: cargarEmpleados,
             ),
           ],
-          body: _buildBody(),
+          body: _buildBody(mostrarInactivos),
         ),
         Positioned(
           right: 16,
@@ -159,7 +192,7 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(bool mostrarInactivos) {
     if (estado.isLoading) {
       return const Center(
         child: Column(
@@ -183,7 +216,7 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
 
     return StreamBuilder<List<UsuarioEmpleado>>(
       key: estado.streamKey,
-      stream: widget.controller.empleados,
+      stream: ref.read(usuarioEmpleadoControllerProvider).empleados,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return EmpleadosErrorView(
@@ -194,7 +227,7 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
 
         if (!snapshot.hasData && !estado.isLoading) {
           return EmpleadosEmptyView(
-            mostrandoInactivos: estado.mostrarInactivos,
+            mostrandoInactivos: mostrarInactivos,
             onNuevoEmpleado: _navegarANuevoEmpleado,
           );
         }
@@ -202,13 +235,13 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
         if (snapshot.hasData) {
           final empleados = snapshot.data!;
           final empleadosFiltrados =
-              estado.mostrarInactivos
+              mostrarInactivos
                   ? empleados
                   : empleados.where((e) => e.empleado.idEstado == 1).toList();
 
           if (empleadosFiltrados.isEmpty) {
             return EmpleadosEmptyView(
-              mostrandoInactivos: estado.mostrarInactivos,
+              mostrandoInactivos: mostrarInactivos,
               onNuevoEmpleado: _navegarANuevoEmpleado,
             );
           }
@@ -217,15 +250,19 @@ class _ListaEmpleadosScreenState extends State<ListaEmpleadosScreen>
             onRefresh: cargarEmpleados,
             child: EmpleadosListView(
               empleados: empleadosFiltrados,
-              onItemTap: (empleado) => 
-                  modificarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onItemTap:
+                  (empleado) =>
+                      modificarEmpleado(empleado, onSuccess: cargarEmpleados),
               onAgregarEmpleado: _navegarANuevoEmpleado,
-              onEliminar: (empleado) => 
-                  inactivarEmpleado(empleado, onSuccess: cargarEmpleados),
-              onReactivar: (empleado) => 
-                  reactivarEmpleado(empleado, onSuccess: cargarEmpleados),
-              onModificar: (empleado) => 
-                  modificarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onEliminar:
+                  (empleado) =>
+                      inactivarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onReactivar:
+                  (empleado) =>
+                      reactivarEmpleado(empleado, onSuccess: cargarEmpleados),
+              onModificar:
+                  (empleado) =>
+                      modificarEmpleado(empleado, onSuccess: cargarEmpleados),
             ),
           );
         }

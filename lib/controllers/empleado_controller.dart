@@ -57,6 +57,23 @@ class EmpleadoController {
     }
   }
 
+  // NUEVO MÉTODO: obtenerEmpleados - Obtiene la lista completa de empleados
+  Future<List<Empleado>> obtenerEmpleados() async {
+    try {
+      developer.log('Obteniendo lista de empleados');
+      final usuariosEmpleados = await _service.obtenerEmpleados();
+      // Convertir la lista de UsuarioEmpleado a lista de Empleado
+      final listaEmpleados =
+          usuariosEmpleados
+              .map((usuarioEmpleado) => usuarioEmpleado.empleado)
+              .toList();
+      return listaEmpleados;
+    } catch (e) {
+      developer.log('Error al obtener lista de empleados: $e', error: e);
+      throw Exception("Error al obtener lista de empleados: $e");
+    }
+  }
+
   // Validate if username exists, excluding optionally the current id
   Future<bool> existeNombreUsuario(
     String nombreUsuario, {

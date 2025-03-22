@@ -18,11 +18,7 @@ Future<void> main() async {
   developer.log('Inicialización de formato de fecha completada');
 
   // Ejecutar la aplicación con ProviderScope sin overrides
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends ConsumerWidget {
@@ -32,7 +28,7 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Escuchar errores globales
     final errorGlobal = ref.watch(errorGlobalProvider);
-    
+
     // Usar el provider de inicialización centralizado
     final appInit = ref.watch(appInitializationProvider);
 
@@ -75,7 +71,11 @@ class MyApp extends ConsumerWidget {
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () => ref.read(errorGlobalProvider.notifier).clearError(),
+                          onPressed:
+                              () =>
+                                  ref
+                                      .read(errorGlobalProvider.notifier)
+                                      .clearError(),
                         ),
                       ],
                     ),
@@ -88,43 +88,45 @@ class MyApp extends ConsumerWidget {
       // Usar el estado de inicialización para mostrar la pantalla adecuada
       home: appInit.when(
         data: (_) => const HomePage(),
-        loading: () => const Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Inicializando aplicación...'),
-              ],
-            ),
-          ),
-        ),
-        error: (error, stack) => Scaffold(
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: Colors.red),
-                SizedBox(height: 16),
-                Text(
-                  'Error al inicializar la aplicación',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+        loading:
+            () => const Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Inicializando aplicación...'),
+                  ],
                 ),
-                SizedBox(height: 8),
-                Text(error.toString()),
-                SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => ref.refresh(appInitializationProvider),
-                  child: const Text('Reintentar'),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
+        error:
+            (error, stack) => Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    SizedBox(height: 16),
+                    Text(
+                      'Error al inicializar la aplicación',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(error.toString()),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () => ref.refresh(appInitializationProvider),
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
       ),
       // Rutas de la aplicación
       routes: {
@@ -149,12 +151,13 @@ class UsuarioPageWrapper extends ConsumerWidget {
   }
 }
 
+// Versión corregida - Ya no pasa explícitamente el controller
 class EmpleadosScreenWrapper extends ConsumerWidget {
   const EmpleadosScreenWrapper({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(usuarioEmpleadoControllerProvider);
-    return ListaEmpleadosScreen(controller: controller);
+    // Ya no necesitamos pasar el controller explícitamente
+    return const ListaEmpleadosScreen();
   }
 }
