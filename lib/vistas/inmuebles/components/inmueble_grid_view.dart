@@ -10,6 +10,7 @@ class InmuebleGridView extends StatelessWidget {
   final Function(Inmueble) onTapInmueble;
   final Function(Inmueble) onEditInmueble;
   final Function(Inmueble) onInactivateInmueble;
+  final Widget Function(Inmueble, VoidCallback)? renderizarBotonEstado;
 
   const InmuebleGridView({
     super.key,
@@ -19,48 +20,56 @@ class InmuebleGridView extends StatelessWidget {
     required this.onTapInmueble,
     required this.onEditInmueble,
     required this.onInactivateInmueble,
+    this.renderizarBotonEstado,
   });
 
   @override
   Widget build(BuildContext context) {
-    final crossAxisCount = _calculateCrossAxisCount(context);
+    // Usar MediaQuery para determinar el número de columnas según ancho de pantalla
+    final screenWidth = MediaQuery.of(context).size.width;
+    final columns =
+        screenWidth > 600
+            ? 3
+            : 2; // 3 columnas en tablets/desktop, 2 en móviles
 
     return GridView.builder(
+      padding: const EdgeInsets.all(4.0), // Reducido de 8.0
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 8, // Reducido de 10 a 8
-        mainAxisSpacing: 8, // Reducido de 10 a 8
-        childAspectRatio: 0.99, // Aumentado para tarjetas menos altas
+        crossAxisCount: columns,
+        childAspectRatio: 1.20, // Modificado para tarjetas más altas que anchas
+        crossAxisSpacing: 8, // Reducido de 8
+        mainAxisSpacing: 8, // Reducido de 8
       ),
       itemCount: inmuebles.length,
       itemBuilder: (context, index) {
         final inmueble = inmuebles[index];
+        final isInactivo = inmueble.idEstado == 2;
+        final imagenPrincipal = imagenesPrincipales[inmueble.id];
+        final rutaImagen = rutasImagenesPrincipales[inmueble.id];
+        final buttonText = isInactivo ? 'Marcar Disponible' : 'Desactivar';
+        final buttonColor = isInactivo ? Colors.green : Colors.red;
+
+        final customButton =
+            renderizarBotonEstado != null
+                ? renderizarBotonEstado!(
+                  inmueble,
+                  () => onInactivateInmueble(inmueble),
+                )
+                : null;
+
         return InmuebleCard(
           inmueble: inmueble,
-          imagenPrincipal:
-              inmueble.id != null ? imagenesPrincipales[inmueble.id!] : null,
-          rutaImagen:
-              inmueble.id != null
-                  ? rutasImagenesPrincipales[inmueble.id!]
-                  : null,
+          imagenPrincipal: imagenPrincipal,
+          rutaImagen: rutaImagen,
+          isInactivo: isInactivo,
           onTap: () => onTapInmueble(inmueble),
           onEdit: () => onEditInmueble(inmueble),
           onInactivate: () => onInactivateInmueble(inmueble),
+          inactivateButtonText: buttonText,
+          inactivateButtonColor: buttonColor,
+          customStateButton: customButton,
         );
       },
     );
-  }
-
-  int _calculateCrossAxisCount(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth < 400) {
-      return 2; // 2 columnas en pantallas pequeñas
-    } else if (screenWidth < 600) {
-      return 2;
-    } else if (screenWidth < 900) {
-      return 3; // 3 columnas en pantallas medianas
-    } else {
-      return 4; // 4 columnas en pantallas grandes
-    }
   }
 }

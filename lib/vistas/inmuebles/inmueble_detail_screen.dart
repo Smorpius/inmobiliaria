@@ -18,6 +18,9 @@ class InmuebleDetailScreen extends ConsumerWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool isInactivo;
+  // Parámetros para el botón de estado
+  final String? botonEstadoTexto;
+  final Color? botonEstadoColor;
 
   const InmuebleDetailScreen({
     super.key,
@@ -25,6 +28,8 @@ class InmuebleDetailScreen extends ConsumerWidget {
     required this.onEdit,
     required this.onDelete,
     this.isInactivo = false,
+    this.botonEstadoTexto,
+    this.botonEstadoColor,
   });
 
   @override
@@ -88,6 +93,18 @@ class InmuebleDetailScreen extends ConsumerWidget {
         data: (inmueble) {
           final currentIsInactivo = inmueble.idEstado == 2 || isInactivo;
 
+          // Determinar el texto del botón usando el valor proporcionado o un valor predeterminado
+          final textoBotonEstado =
+              botonEstadoTexto ??
+              (currentIsInactivo
+                  ? 'Marcar Disponible'
+                  : 'Marcar No Disponible');
+
+          // Determinar el color del botón usando el valor proporcionado o un valor predeterminado
+          final colorBotonEstado =
+              botonEstadoColor ??
+              (currentIsInactivo ? Colors.green : Colors.red);
+
           return Card(
             margin: const EdgeInsets.all(16.0),
             elevation: 4,
@@ -108,12 +125,9 @@ class InmuebleDetailScreen extends ConsumerWidget {
 
                   // Sección de imágenes del inmueble
                   if (inmueble.id != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: InmuebleImagenesSection(
-                        inmuebleId: inmueble.id!,
-                        isInactivo: currentIsInactivo,
-                      ),
+                    InmuebleImagenesSection(
+                      inmuebleId: inmueble.id!,
+                      isInactivo: currentIsInactivo,
                     ),
 
                   const Divider(height: 40),
@@ -155,6 +169,7 @@ class InmuebleDetailScreen extends ConsumerWidget {
                       idCliente: inmueble.idCliente!,
                       isInactivo: currentIsInactivo,
                       onClienteDesasociado: () {
+                        // Recargar el detalle del inmueble
                         if (inmueble.id != null) {
                           ref.invalidate(inmuebleDetalleProvider(inmueble.id!));
                         }
@@ -166,18 +181,15 @@ class InmuebleDetailScreen extends ConsumerWidget {
                     DetailRow(
                       label: 'Empleado responsable',
                       value: 'ID: ${inmueble.idEmpleado}',
-                      icon: Icons.badge,
+                      icon: Icons.person,
                       isInactivo: currentIsInactivo,
                     ),
 
-                  // Sección de clientes interesados
-                  if (inmueble.id != null && inmueble.idEstado == 6)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 24.0),
-                      child: ClientesInteresadosSection(
-                        idInmueble: inmueble.id!,
-                        isInactivo: currentIsInactivo,
-                      ),
+                  // Clientes interesados
+                  if (inmueble.id != null)
+                    ClientesInteresadosSection(
+                      idInmueble: inmueble.id!,
+                      isInactivo: currentIsInactivo,
                     ),
 
                   const SizedBox(height: 24),
@@ -187,8 +199,19 @@ class InmuebleDetailScreen extends ConsumerWidget {
                     onEdit: onEdit,
                     onDelete: onDelete,
                     isInactivo: currentIsInactivo,
-                    showAddClienteInteresado: false,
-                    onAddClienteInteresado: null,
+                    // Pasar los valores personalizados
+                    deleteButtonText: textoBotonEstado,
+                    deleteButtonColor: colorBotonEstado,
+                    // Mostrar botón de cliente interesado si es necesario
+                    showAddClienteInteresado:
+                        !currentIsInactivo && inmueble.id != null,
+                    onAddClienteInteresado:
+                        inmueble.id != null
+                            ? () {
+                              // Implementar la función para agregar cliente interesado
+                              // Por ejemplo, mostrar un diálogo de selección
+                            }
+                            : null,
                   ),
                 ],
               ),

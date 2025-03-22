@@ -2,206 +2,150 @@ import 'package:flutter/material.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../models/inmueble_model.dart';
 import '../../models/inmueble_imagen.dart';
-import 'components/inmueble_edit_form.dart';
-import 'components/inmueble_edit_actions.dart';
-import 'components/inmueble_image_gallery.dart';
-import '../../controllers/inmueble_controller.dart';
-import '../../services/image_service.dart'; // Corregida la ruta de importación
+import '../../services/image_service.dart';
+import '../../providers/inmueble_providers.dart';
+import './components/inmueble_edit_actions.dart';
+import './components/inmueble_image_gallery.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../services/inmueble_validation_service.dart';
 
-class InmuebleEditScreen extends StatefulWidget {
+class InmuebleEditScreen extends ConsumerStatefulWidget {
   final Inmueble inmueble;
 
   const InmuebleEditScreen({super.key, required this.inmueble});
 
   @override
-  State<InmuebleEditScreen> createState() => InmuebleEditScreenState();
+  ConsumerState<InmuebleEditScreen> createState() => _InmuebleEditScreenState();
 }
 
-class InmuebleEditScreenState extends State<InmuebleEditScreen> {
+class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
   final _formKey = GlobalKey<FormState>();
-  final InmuebleController _inmuebleController = InmuebleController();
-  final ImageService _imageService = ImageService();
+  final _nombreController = TextEditingController();
+  final _precioVentaController = TextEditingController();
+  final _precioRentaController = TextEditingController();
+  final _montoController = TextEditingController();
+  final _caracteristicasController = TextEditingController();
 
-  // Controladores para el formulario
-  late TextEditingController _nombreController;
-  late TextEditingController _montoController;
-  late TextEditingController _estadoController;
+  // Controladores para dirección
+  final _calleController = TextEditingController();
+  final _numeroController = TextEditingController();
+  final _coloniaController = TextEditingController();
+  final _ciudadController = TextEditingController();
+  final _estadoController = TextEditingController();
+  final _codigoPostalController = TextEditingController();
 
-  // Estado para las imágenes
-  List<InmuebleImagen> _imagenes = [];
+  // Variable para el estado del inmueble
+  int _estadoSeleccionado = 3; // Por defecto: 'Disponible'
+
+  // Mapa de estados de inmueble
+  final Map<int, String> _estadosInmueble = {
+    2: 'No disponible',
+    3: 'Disponible',
+    4: 'Vendido',
+    5: 'Rentado',
+    6: 'En oferta',
+  };
+
+  String _tipoInmuebleSeleccionado = 'casa';
+  String _tipoOperacionSeleccionado = 'venta';
+
+  final List<String> _tiposInmueble = [
+    'casa',
+    'departamento',
+    'terreno',
+    'oficina',
+    'local',
+    'bodega',
+  ];
+
+  final List<String> _tiposOperacion = ['venta', 'renta', 'ambos'];
+
   bool _isLoading = false;
-  bool _cargandoImagenes = true;
+  List<InmuebleImagen> _imagenes = [];
+  final _imageService = ImageService();
+  final _validationService = InmuebleValidationService();
 
   @override
   void initState() {
     super.initState();
-    _inicializarControladores();
-    _cargarImagenes();
+    _cargarDatosInmueble();
+    _cargarImagenesInmueble();
   }
 
-  void _inicializarControladores() {
-    _nombreController = TextEditingController(text: widget.inmueble.nombre);
-    _montoController = TextEditingController(
-      text: widget.inmueble.montoTotal.toString(),
-    );
-    _estadoController = TextEditingController(
-      text: widget.inmueble.idEstado?.toString() ?? '1',
-    );
-  }
+  void _cargarDatosInmueble() {
+    // Cargar datos básicos
+    _nombreController.text = widget.inmueble.nombre;
+    _montoController.text = widget.inmueble.montoTotal.toString();
+    _tipoInmuebleSeleccionado = widget.inmueble.tipoInmueble;
+    _tipoOperacionSeleccionado = widget.inmueble.tipoOperacion;
 
-  Future<void> _cargarImagenes() async {
-    if (widget.inmueble.id == null) {
-      if (mounted) setState(() => _cargandoImagenes = false);
-      return;
+    // Cargar el estado actual del inmueble
+    _estadoSeleccionado = widget.inmueble.idEstado ?? 3;
+
+    // Cargar precios según tipo de operación
+    if (widget.inmueble.precioVenta != null) {
+      _precioVentaController.text = widget.inmueble.precioVenta.toString();
+    }
+    if (widget.inmueble.precioRenta != null) {
+      _precioRentaController.text = widget.inmueble.precioRenta.toString();
     }
 
+    // Cargar características
+    if (widget.inmueble.caracteristicas != null) {
+      _caracteristicasController.text = widget.inmueble.caracteristicas!;
+    }
+
+    // Cargar dirección
+    if (widget.inmueble.calle != null) {
+      _calleController.text = widget.inmueble.calle!;
+    }
+    if (widget.inmueble.numero != null) {
+      _numeroController.text = widget.inmueble.numero!;
+    }
+    if (widget.inmueble.colonia != null) {
+      _coloniaController.text = widget.inmueble.colonia!;
+    }
+    if (widget.inmueble.ciudad != null) {
+      _ciudadController.text = widget.inmueble.ciudad!;
+    }
+    if (widget.inmueble.estadoGeografico != null) {
+      _estadoController.text = widget.inmueble.estadoGeografico!;
+    }
+    if (widget.inmueble.codigoPostal != null) {
+      _codigoPostalController.text = widget.inmueble.codigoPostal!;
+    }
+  }
+
+  Future<void> _cargarImagenesInmueble() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final imagenes = await _inmuebleController.getImagenesInmueble(
+      // Obtener las imágenes del inmueble desde la base de datos
+      final controller = ref.read(inmuebleControllerProvider);
+      final imagenes = await controller.getImagenesInmueble(
         widget.inmueble.id!,
       );
-      if (mounted) {
-        setState(() {
-          _imagenes = imagenes;
-          _cargandoImagenes = false;
-        });
-      }
+
+      setState(() {
+        _imagenes = imagenes;
+        _isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error al cargar imágenes: $e')));
-        setState(() => _cargandoImagenes = false);
-      }
-    }
-  }
-
-  Future<void> _actualizarInmueble() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final inmuebleActualizado = Inmueble(
-        id: widget.inmueble.id,
-        nombre: _nombreController.text,
-        montoTotal: double.tryParse(_montoController.text) ?? 0,
-        idEstado: int.tryParse(_estadoController.text) ?? 1,
-        // Mantener los demás campos que no se editan aquí
-        idCliente: widget.inmueble.idCliente,
-        fechaRegistro: widget.inmueble.fechaRegistro,
-        idDireccion: widget.inmueble.idDireccion,
-        tipoInmueble: widget.inmueble.tipoInmueble,
-        tipoOperacion: widget.inmueble.tipoOperacion,
-        precioVenta: widget.inmueble.precioVenta,
-        precioRenta: widget.inmueble.precioRenta,
-        caracteristicas: widget.inmueble.caracteristicas,
-        calle: widget.inmueble.calle,
-        numero: widget.inmueble.numero,
-        colonia: widget.inmueble.colonia,
-        ciudad: widget.inmueble.ciudad,
-        estadoGeografico: widget.inmueble.estadoGeografico,
-        codigoPostal: widget.inmueble.codigoPostal,
-        referencias: widget.inmueble.referencias,
-        idEmpleado: widget.inmueble.idEmpleado,
-      );
-
-      await _inmuebleController.updateInmueble(inmuebleActualizado);
+      setState(() {
+        _isLoading = false;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inmueble actualizado correctamente')),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al actualizar inmueble: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _eliminarInmueble() async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Eliminar inmueble'),
-            content: const Text(
-              '¿Estás seguro de que deseas eliminar este inmueble? '
-              'Esta acción no se puede deshacer.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Eliminar'),
-              ),
-            ],
+          SnackBar(
+            content: Text('Error al cargar imágenes: $e'),
+            backgroundColor: Colors.red,
           ),
-    );
-
-    if (confirmar != true || !mounted) return;
-
-    setState(() => _isLoading = true);
-    try {
-      if (widget.inmueble.id != null) {
-        // Eliminar imágenes físicas - usamos el método correcto del servicio
-        await _eliminarImagenesInmueble(widget.inmueble.id!);
-        if (!mounted) return;
-
-        // Eliminar inmueble en la base de datos
-        await _inmuebleController.deleteInmueble(widget.inmueble.id!);
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inmueble eliminado correctamente')),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al eliminar inmueble: $e')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  // Método auxiliar para eliminar imágenes de un inmueble
-  Future<bool> _eliminarImagenesInmueble(int idInmueble) async {
-    try {
-      // Para cada imagen del inmueble, eliminarla usando el servicio
-      for (var imagen in _imagenes) {
-        await _imageService.eliminarImagenInmueble(imagen.rutaImagen);
-      }
-      return true;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al eliminar imágenes: $e')),
-        );
-      }
-      return false;
-    }
-  }
-
-  @override
-  void dispose() {
-    _nombreController.dispose();
-    _montoController.dispose();
-    _estadoController.dispose();
-    super.dispose();
   }
 
   @override
@@ -213,46 +157,481 @@ class InmuebleEditScreenState extends State<InmuebleEditScreen> {
       body:
           _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : _buildContent(),
+              : SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Galería de imágenes
+                      InmuebleImageGallery(
+                        inmuebleId: widget.inmueble.id,
+                        imagenes: _imagenes,
+                        isLoading: _isLoading,
+                        imageService: _imageService,
+                        inmuebleController: ref.read(
+                          inmuebleControllerProvider,
+                        ),
+                        onImagenesUpdated: (imagenes) {
+                          setState(() {
+                            _imagenes = imagenes;
+                          });
+                        },
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Información general simplificada sin usar InformacionGeneralWidget
+                      Card(
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Información General',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _nombreController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nombre',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: _validationService.validarNombre,
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                value: _tipoInmuebleSeleccionado,
+                                decoration: const InputDecoration(
+                                  labelText: 'Tipo de Inmueble',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items:
+                                    _tiposInmueble.map((String tipo) {
+                                      return DropdownMenuItem<String>(
+                                        value: tipo,
+                                        child: Text(tipo.capitalize()),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      _tipoInmuebleSeleccionado = value;
+                                    });
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                value: _tipoOperacionSeleccionado,
+                                decoration: const InputDecoration(
+                                  labelText: 'Tipo de Operación',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items:
+                                    _tiposOperacion.map((String tipo) {
+                                      return DropdownMenuItem<String>(
+                                        value: tipo,
+                                        child: Text(tipo.capitalize()),
+                                      );
+                                    }).toList(),
+                                onChanged: (String? value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      _tipoOperacionSeleccionado = value;
+                                    });
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              // Dropdown para el estado del inmueble (en lugar de número)
+                              DropdownButtonFormField<int>(
+                                value: _estadoSeleccionado,
+                                decoration: const InputDecoration(
+                                  labelText: 'Estado del Inmueble',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items:
+                                    _estadosInmueble.entries.map((entry) {
+                                      return DropdownMenuItem<int>(
+                                        value: entry.key,
+                                        child: Text(entry.value),
+                                      );
+                                    }).toList(),
+                                onChanged: (int? value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      _estadoSeleccionado = value;
+                                    });
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              if (_tipoOperacionSeleccionado == 'venta' ||
+                                  _tipoOperacionSeleccionado == 'ambos')
+                                TextFormField(
+                                  controller: _precioVentaController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Precio de Venta',
+                                    border: OutlineInputBorder(),
+                                    prefixText: '\$ ',
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  validator:
+                                      (value) =>
+                                          _validationService.validarPrecioVenta(
+                                            value,
+                                            _tipoOperacionSeleccionado,
+                                          ),
+                                ),
+                              if (_tipoOperacionSeleccionado == 'venta' ||
+                                  _tipoOperacionSeleccionado == 'ambos')
+                                const SizedBox(height: 12),
+                              if (_tipoOperacionSeleccionado == 'renta' ||
+                                  _tipoOperacionSeleccionado == 'ambos')
+                                TextFormField(
+                                  controller: _precioRentaController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Precio de Renta',
+                                    border: OutlineInputBorder(),
+                                    prefixText: '\$ ',
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  validator:
+                                      (value) =>
+                                          _validationService.validarPrecioRenta(
+                                            value,
+                                            _tipoOperacionSeleccionado,
+                                          ),
+                                ),
+                              if (_tipoOperacionSeleccionado == 'renta' ||
+                                  _tipoOperacionSeleccionado == 'ambos')
+                                const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _montoController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Monto Total',
+                                  border: OutlineInputBorder(),
+                                  prefixText: '\$ ',
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: _validationService.validarMonto,
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _caracteristicasController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Características',
+                                  border: OutlineInputBorder(),
+                                  hintText:
+                                      'Ej: 3 recámaras, 2 baños, jardín...',
+                                ),
+                                maxLines: 3,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Dirección
+                      Card(
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Dirección',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _calleController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Calle',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: _validationService.validarCalle,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: TextFormField(
+                                      controller: _numeroController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Número',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    flex: 3,
+                                    child: TextFormField(
+                                      controller: _coloniaController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Colonia',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _ciudadController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Ciudad',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: _validationService.validarCiudad,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: TextFormField(
+                                      controller: _estadoController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Estado',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      validator:
+                                          _validationService.validarEstado,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    flex: 2,
+                                    child: TextFormField(
+                                      controller: _codigoPostalController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Código Postal',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Botones de acción
+                      InmuebleEditActions(
+                        onActualizar: _actualizarInmueble,
+                        onEliminar: () => _mostrarDialogoEliminar(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
     );
   }
 
-  Widget _buildContent() {
-    return Form(
-      key: _formKey,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Sección de imágenes
-          InmuebleImageGallery(
-            inmuebleId: widget.inmueble.id,
-            imagenes: _imagenes,
-            isLoading: _cargandoImagenes,
-            imageService: _imageService,
-            inmuebleController: _inmuebleController,
-            onImagenesUpdated: (imagenes) {
-              setState(() => _imagenes = imagenes);
-            },
+  // Función actualizada para editar inmueble similar a como funciona con empleados
+  Future<void> _actualizarInmueble() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor corrija los campos con error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Parsear valores
+      final double? precioVenta =
+          _precioVentaController.text.isNotEmpty
+              ? double.tryParse(_precioVentaController.text)
+              : null;
+
+      final double? precioRenta =
+          _precioRentaController.text.isNotEmpty
+              ? double.tryParse(_precioRentaController.text)
+              : null;
+
+      final double montoTotal = double.tryParse(_montoController.text) ?? 0.0;
+
+      // Crear inmueble actualizado usando el valor del dropdown para idEstado
+      final inmuebleActualizado = Inmueble(
+        id: widget.inmueble.id,
+        nombre: _nombreController.text,
+        tipoInmueble: _tipoInmuebleSeleccionado,
+        tipoOperacion: _tipoOperacionSeleccionado,
+        precioVenta: precioVenta,
+        precioRenta: precioRenta,
+        montoTotal: montoTotal,
+        caracteristicas: _caracteristicasController.text,
+        calle: _calleController.text,
+        numero: _numeroController.text,
+        colonia: _coloniaController.text,
+        ciudad: _ciudadController.text,
+        estadoGeografico: _estadoController.text,
+        codigoPostal: _codigoPostalController.text,
+        idDireccion: widget.inmueble.idDireccion,
+        idEstado:
+            _estadoSeleccionado, // Usando el valor seleccionado del dropdown
+        idCliente: widget.inmueble.idCliente,
+        idEmpleado: widget.inmueble.idEmpleado,
+        fechaRegistro: widget.inmueble.fechaRegistro,
+        referencias: widget.inmueble.referencias,
+      );
+
+      // Actualizar inmueble
+      final controller = ref.read(inmuebleControllerProvider);
+      await controller.updateInmueble(inmuebleActualizado);
+
+      if (!mounted) return;
+
+      // Mostrar mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Inmueble actualizado correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Invalidar proveedores para refrescar datos
+      ref.invalidate(inmueblesProvider);
+
+      // Regresar a la pantalla anterior con resultado positivo
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      // Mostrar mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al actualizar inmueble: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _mostrarDialogoEliminar(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Eliminar Inmueble'),
+          content: const Text(
+            '¿Está seguro que desea eliminar este inmueble? Esta acción no se puede deshacer.',
           ),
-
-          const SizedBox(height: 24),
-
-          // Formulario de edición
-          InmuebleEditForm(
-            nombreController: _nombreController,
-            montoController: _montoController,
-            estadoController: _estadoController,
-          ),
-
-          const SizedBox(height: 24),
-
-          // Botones de acción
-          InmuebleEditActions(
-            onActualizar: _actualizarInmueble,
-            onEliminar: _eliminarInmueble,
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _eliminarInmueble();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _eliminarInmueble() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final controller = ref.read(inmuebleControllerProvider);
+      await controller.deleteInmueble(widget.inmueble.id!);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Inmueble eliminado correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Invalidar proveedores para refrescar datos
+      ref.invalidate(inmueblesProvider);
+
+      // Regresar a la pantalla de lista
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al eliminar inmueble: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    // Liberar controladores
+    _nombreController.dispose();
+    _precioVentaController.dispose();
+    _precioRentaController.dispose();
+    _montoController.dispose();
+    _caracteristicasController.dispose();
+    _calleController.dispose();
+    _numeroController.dispose();
+    _coloniaController.dispose();
+    _ciudadController.dispose();
+    _estadoController.dispose();
+    _codigoPostalController.dispose();
+    super.dispose();
+  }
+}
+
+// Extensión para capitalizar strings
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }

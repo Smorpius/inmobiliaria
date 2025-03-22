@@ -13,6 +13,15 @@ import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_empty_state.da
 class InmuebleListScreen extends ConsumerWidget {
   const InmuebleListScreen({super.key});
 
+  // Mapa de estados para mostrar mensajes consistentes
+  static const Map<int, String> estadosInmueble = {
+    2: 'No disponible',
+    3: 'Disponible',
+    4: 'Vendido',
+    5: 'Rentado',
+    6: 'En oferta',
+  };
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Observar el estado de mostrar inmuebles inactivos
@@ -22,84 +31,70 @@ class InmuebleListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Inmuebles'),
         actions: [
-          // Botón para mostrar activos/inactivos
+          // Botón para filtros avanzados
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            tooltip: 'Filtros avanzados',
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                builder: (context) {
+                  return InmuebleFiltroAvanzado(
+                    onFiltrar: ({
+                      String? tipo,
+                      String? operacion,
+                      double? precioMin,
+                      double? precioMax,
+                      String? ciudad,
+                      int? idEstado,
+                    }) {
+                      // Actualizar filtros
+                      ref
+                          .read(filtrosInmuebleProvider.notifier)
+                          .actualizarFiltro(
+                            tipo: tipo,
+                            operacion: operacion,
+                            precioMin: precioMin,
+                            precioMax: precioMax,
+                            ciudad: ciudad,
+                            idEstado: idEstado,
+                          );
+                      Navigator.pop(context);
+                    },
+                    onLimpiar: () {
+                      ref
+                          .read(filtrosInmuebleProvider.notifier)
+                          .limpiarFiltros();
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              );
+            },
+          ),
+          // Botón para mostrar/ocultar inmuebles inactivos
           IconButton(
             icon: Icon(
               mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-              color: mostrarInactivos ? Colors.red : Colors.green,
             ),
-            onPressed:
-                () =>
-                    ref.read(mostrarInactivosProvider.notifier).state =
-                        !mostrarInactivos,
-            tooltip: mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(inmueblesProvider),
-            tooltip: 'Actualizar',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Widget de filtros avanzados
-          InmuebleFiltroAvanzado(
-            onFiltrar: ({
-              String? tipo,
-              String? operacion,
-              double? precioMin,
-              double? precioMax,
-              String? ciudad,
-              int? idEstado,
-            }) {
-              ref
-                  .read(filtrosInmuebleProvider.notifier)
-                  .actualizarFiltro(
-                    tipo: tipo,
-                    operacion: operacion,
-                    precioMin: precioMin,
-                    precioMax: precioMax,
-                    ciudad: ciudad,
-                    idEstado: idEstado,
-                  );
+            tooltip:
+                mostrarInactivos
+                    ? 'Ocultar inmuebles inactivos'
+                    : 'Mostrar inmuebles inactivos',
+            onPressed: () {
+              ref.read(mostrarInactivosProvider.notifier).state =
+                  !mostrarInactivos;
             },
-            onLimpiar:
-                () =>
-                    ref.read(filtrosInmuebleProvider.notifier).limpiarFiltros(),
           ),
-
-          // Indicador de filtros activos o modo inactivos
-          Container(
-            color:
-                mostrarInactivos ? Colors.red.shade100 : Colors.green.shade100,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            child: Row(
-              children: [
-                Icon(
-                  mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-                  color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  mostrarInactivos
-                      ? 'INMUEBLES INACTIVOS'
-                      : 'INMUEBLES ACTIVOS',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color:
-                        mostrarInactivos ? Colors.red[800] : Colors.green[800],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Listado de inmuebles
-          Expanded(child: _buildListado(context, ref)),
         ],
       ),
+      body: Column(children: [Expanded(child: _buildListado(context, ref))]),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: Theme.of(context).primaryColor,
         child: const Icon(Icons.add),
         onPressed: () => _navegarAgregarInmueble(context, ref),
       ),
@@ -115,9 +110,9 @@ class InmuebleListScreen extends ConsumerWidget {
         if (inmuebles.isEmpty) {
           return InmuebleEmptyState(
             isFiltering: true,
-            onLimpiarFiltros:
-                () =>
-                    ref.read(filtrosInmuebleProvider.notifier).limpiarFiltros(),
+            onLimpiarFiltros: () {
+              ref.read(filtrosInmuebleProvider.notifier).limpiarFiltros();
+            },
           );
         }
 
@@ -145,6 +140,19 @@ class InmuebleListScreen extends ConsumerWidget {
               (inmueble) => _navegarEditarInmueble(context, ref, inmueble),
           onInactivateInmueble:
               (inmueble) => _inactivarInmueble(context, ref, inmueble),
+          // Renderizador de botón corregido con "Marcar Disponible"
+          renderizarBotonEstado: (inmueble, onPressed) {
+            final isInactivo = inmueble.idEstado == 2;
+            return ElevatedButton.icon(
+              onPressed: onPressed,
+              icon: Icon(isInactivo ? Icons.check_circle : Icons.remove_circle),
+              label: Text(isInactivo ? 'Marcar Disponible' : 'Desactivar'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isInactivo ? Colors.green : Colors.red,
+                foregroundColor: Colors.white,
+              ),
+            );
+          },
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -175,16 +183,24 @@ class InmuebleListScreen extends ConsumerWidget {
     WidgetRef ref,
     Inmueble inmueble,
   ) async {
+    // Determinar si el inmueble está inactivo
+    final bool isInactivo = inmueble.idEstado == 2;
+
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder:
             (context) => InmuebleDetailScreen(
-              inmuebleInicial:
-                  inmueble, // Corregido: cambiado inmueble a inmuebleInicial
+              inmuebleInicial: inmueble,
+              isInactivo: isInactivo,
               onEdit: () => _navegarEditarInmueble(context, ref, inmueble),
               onDelete: () => _inactivarInmueble(context, ref, inmueble),
-              isInactivo: inmueble.idEstado == 2,
+              // Texto corregido del botón de estado
+              botonEstadoTexto:
+                  isInactivo
+                      ? 'Marcar Disponible'
+                      : 'Marcar como No Disponible',
+              botonEstadoColor: isInactivo ? Colors.green : Colors.red,
             ),
       ),
     );
@@ -211,7 +227,7 @@ class InmuebleListScreen extends ConsumerWidget {
     }
   }
 
-  // Método para manejar la inactivación de inmuebles
+  // Método para manejar la inactivación/activación de inmuebles
   Future<void> _inactivarInmueble(
     BuildContext context,
     WidgetRef ref,
@@ -224,13 +240,13 @@ class InmuebleListScreen extends ConsumerWidget {
       Color colorMensaje;
 
       if (inmueble.idEstado == 2) {
-        // Si está inactivo
-        nuevoEstado = 3; // Marcar como disponible
+        // Si está inactivo, marcar como disponible
+        nuevoEstado = 3; // Disponible
         mensaje = 'Inmueble marcado como Disponible';
         colorMensaje = Colors.green;
       } else {
-        // Si está disponible u otro estado
-        nuevoEstado = 2; // Marcar como no disponible
+        // Si está disponible u otro estado, marcar como inactivo
+        nuevoEstado = 2; // No disponible
         mensaje = 'Inmueble marcado como No Disponible';
         colorMensaje = Colors.red;
       }
@@ -270,6 +286,7 @@ class InmuebleListScreen extends ConsumerWidget {
             content: Text(mensaje),
             backgroundColor: colorMensaje,
             duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
