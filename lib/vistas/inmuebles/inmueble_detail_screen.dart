@@ -172,8 +172,7 @@ class InmuebleDetailScreen extends ConsumerWidget {
                   ),
 
                   // Información financiera si está disponible
-                  if (inmueble.costoCliente != null ||
-                      inmueble.costoServicios != null)
+                  if (inmueble.costoCliente > 0 || inmueble.costoServicios > 0)
                     InmuebleFinancieroInfo(
                       inmueble: inmueble,
                       isInactivo: currentIsInactivo,
@@ -264,10 +263,10 @@ class InmuebleDetailScreen extends ConsumerWidget {
                     onAddClienteInteresado:
                         inmueble.id != null
                             ? () => _mostrarDialogoAgregarClienteInteresado(
-                                  context,
-                                  ref,
-                                  inmueble.id!,
-                                )
+                              context,
+                              ref,
+                              inmueble.id!,
+                            )
                             : null,
                   ),
                 ],
@@ -289,10 +288,10 @@ class InmuebleDetailScreen extends ConsumerWidget {
       estadoVendido: [estadoDisponible],
       estadoRentado: [estadoDisponible],
     };
-    
+
     // Verificar si la transición está en la lista de transiciones válidas
-    return transicionesValidas.containsKey(estadoActual) && 
-           transicionesValidas[estadoActual]!.contains(nuevoEstado);
+    return transicionesValidas.containsKey(estadoActual) &&
+        transicionesValidas[estadoActual]!.contains(nuevoEstado);
   }
 
   // Método para mostrar diálogo para agregar cliente interesado
@@ -303,39 +302,43 @@ class InmuebleDetailScreen extends ConsumerWidget {
   ) async {
     // Mostrar el diálogo de selección de cliente
     final clientesAsyncValue = ref.watch(clientesProvider);
-    
+
     if (clientesAsyncValue is AsyncLoading) {
       return; // Evitar mostrar diálogo si aún está cargando
     }
-    
+
     if (clientesAsyncValue is AsyncError) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al cargar clientes: ${clientesAsyncValue.error}'),
+          content: Text(
+            'Error al cargar clientes: ${clientesAsyncValue.error}',
+          ),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
-    
+
     final clientes = clientesAsyncValue.value ?? [];
-    
+
     if (clientes.isEmpty) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('No hay clientes disponibles para agregar como interesados'),
+          content: Text(
+            'No hay clientes disponibles para agregar como interesados',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
-    
+
     // Variables para el diálogo
     int? clienteSeleccionado;
     final comentariosController = TextEditingController();
-    
+
     final resultado = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -355,16 +358,21 @@ class InmuebleDetailScreen extends ConsumerWidget {
                       isExpanded: true,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                       ),
                       hint: const Text('Seleccionar cliente'),
-                      items: clientes.map((cliente) {
-                        final nombreCompleto = '${cliente.nombre} ${cliente.apellidoPaterno} ${cliente.apellidoMaterno ?? ''}';
-                        return DropdownMenuItem<int>(
-                          value: cliente.id,
-                          child: Text(nombreCompleto.trim()),
-                        );
-                      }).toList(),
+                      items:
+                          clientes.map((cliente) {
+                            final nombreCompleto =
+                                '${cliente.nombre} ${cliente.apellidoPaterno} ${cliente.apellidoMaterno ?? ''}';
+                            return DropdownMenuItem<int>(
+                              value: cliente.id,
+                              child: Text(nombreCompleto.trim()),
+                            );
+                          }).toList(),
                       onChanged: (value) {
                         setState(() {
                           clienteSeleccionado = value;
@@ -378,7 +386,8 @@ class InmuebleDetailScreen extends ConsumerWidget {
                       controller: comentariosController,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
-                        hintText: 'Agregar comentarios sobre el interés del cliente...',
+                        hintText:
+                            'Agregar comentarios sobre el interés del cliente...',
                       ),
                       maxLines: 3,
                     ),
@@ -391,9 +400,10 @@ class InmuebleDetailScreen extends ConsumerWidget {
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: clienteSeleccionado == null
-                      ? null
-                      : () => Navigator.pop(dialogContext, true),
+                  onPressed:
+                      clienteSeleccionado == null
+                          ? null
+                          : () => Navigator.pop(dialogContext, true),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
                     foregroundColor: Colors.white,
@@ -412,14 +422,18 @@ class InmuebleDetailScreen extends ConsumerWidget {
     if (resultado == true && clienteSeleccionado != null && context.mounted) {
       try {
         // Registrar el cliente interesado
-        final notifier = ref.read(clientesInteresadosStateProvider(idInmueble).notifier);
+        final notifier = ref.read(
+          clientesInteresadosStateProvider(idInmueble).notifier,
+        );
         final success = await notifier.registrarClienteInteresado(
           clienteSeleccionado!,
-          comentariosController.text.isEmpty ? null : comentariosController.text,
+          comentariosController.text.isEmpty
+              ? null
+              : comentariosController.text,
         );
 
         if (!context.mounted) return;
-        
+
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -437,7 +451,7 @@ class InmuebleDetailScreen extends ConsumerWidget {
         }
       } catch (e) {
         if (!context.mounted) return;
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al agregar cliente interesado: $e'),
@@ -446,7 +460,7 @@ class InmuebleDetailScreen extends ConsumerWidget {
         );
       }
     }
-    
+
     // Liberar recursos
     comentariosController.dispose();
   }
@@ -570,7 +584,7 @@ class InmuebleDetailScreen extends ConsumerWidget {
               builder: (context) => RegistrarVentaScreen(inmueble: inmueble),
             ),
           );
-          
+
           if (result == true && inmueble.id != null && context.mounted) {
             ref.invalidate(inmuebleDetalleProvider(inmueble.id!));
           }
@@ -616,7 +630,7 @@ class InmuebleDetailScreen extends ConsumerWidget {
     List<int> estadosFinalesPermitidos = [
       estadoDisponible,
     ]; // Siempre se puede volver a disponible
-    
+
     String tipoOperacion = inmueble.tipoOperacion;
 
     if (tipoOperacion == 'venta' || tipoOperacion == 'ambos') {

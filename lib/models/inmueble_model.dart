@@ -31,9 +31,9 @@ class Inmueble {
   final String? codigoPostal;
   final String? referencias;
 
-  // Nuevos campos financieros
-  final double? costoCliente; // Costo que pide el cliente por su propiedad
-  final double? costoServicios; // Costo de servicios de proveedores
+  // Nuevos campos financieros - ahora no-nulos con valores predeterminados
+  final double costoCliente; // Costo que pide el cliente por su propiedad
+  final double costoServicios; // Costo de servicios de proveedores
   final double? comisionAgencia; // 30% del costo cliente (calculado)
   final double? comisionAgente; // 3% del costo cliente (calculado)
   final double? precioVentaFinal; // Suma total de todos los costos
@@ -59,8 +59,8 @@ class Inmueble {
     this.estadoGeografico,
     this.codigoPostal,
     this.referencias,
-    this.costoCliente,
-    this.costoServicios,
+    this.costoCliente = 0.0, // Valor predeterminado no-nulo
+    this.costoServicios = 0.0, // Valor predeterminado no-nulo
     this.comisionAgencia,
     this.comisionAgente,
     this.precioVentaFinal,
@@ -94,8 +94,6 @@ class Inmueble {
     // Calcular comisiones
     final comisionAgencia = costoCliente * 0.30; // 30% del costo del cliente
     final comisionAgente = costoCliente * 0.03; // 3% del costo del cliente
-
-    // Calcular precio final
     final precioVentaFinal =
         costoCliente + costoServicios + comisionAgencia + comisionAgente;
 
@@ -169,22 +167,12 @@ class Inmueble {
       // Función auxiliar para convertir BLOBs a String de manera más robusta
       String? blobToString(dynamic value) {
         if (value == null) return null;
-
-        // Si es un BLOB, convertir a String
-        if (value is Uint8List) {
-          return utf8.decode(value);
-        }
-
-        // Si ya es String, devolverlo directamente
-        if (value is String) {
-          return value;
-        }
-
-        // Otro caso, convertir a String de forma segura
+        if (value is Uint8List) return utf8.decode(value);
+        if (value is String) return value;
         return value.toString();
       }
 
-      // Función segura para convertir numeros
+      // Función segura para convertir números
       double? parseDoubleSafely(dynamic value) {
         if (value == null) return null;
         if (value is double) return value;
@@ -207,9 +195,9 @@ class Inmueble {
         }
       }
 
-      // Extraer valores de los nuevos campos financieros
-      final costoCliente = parseDoubleSafely(map['costo_cliente']);
-      final costoServicios = parseDoubleSafely(map['costo_servicios']);
+      // Extraer valores de los campos financieros con valores predeterminados
+      final costoCliente = parseDoubleSafely(map['costo_cliente']) ?? 0.0;
+      final costoServicios = parseDoubleSafely(map['costo_servicios']) ?? 0.0;
       final comisionAgencia = parseDoubleSafely(map['comision_agencia']);
       final comisionAgente = parseDoubleSafely(map['comision_agente']);
       final precioVentaFinal = parseDoubleSafely(map['precio_venta_final']);
@@ -240,7 +228,7 @@ class Inmueble {
         estadoGeografico: blobToString(map['estado_geografico']),
         codigoPostal: blobToString(map['codigo_postal']),
         referencias: blobToString(map['referencias']),
-        // Nuevos campos financieros
+        // Campos financieros con valores predeterminados
         costoCliente: costoCliente,
         costoServicios: costoServicios,
         comisionAgencia: comisionAgencia,
@@ -274,15 +262,13 @@ class Inmueble {
         .join(', ');
   }
 
-  // Método para calcular comisiones actualizadas
+  // Método para calcular comisiones actualizadas - ya no necesita verificar nulo
   Inmueble calcularComisiones() {
-    if (costoCliente == null) return this;
-
-    final nuevaComisionAgencia = costoCliente! * 0.30;
-    final nuevaComisionAgente = costoCliente! * 0.03;
+    final nuevaComisionAgencia = costoCliente * 0.30;
+    final nuevaComisionAgente = costoCliente * 0.03;
     final nuevoPrecioVentaFinal =
-        costoCliente! +
-        (costoServicios ?? 0) +
+        costoCliente +
+        costoServicios +
         nuevaComisionAgencia +
         nuevaComisionAgente;
 

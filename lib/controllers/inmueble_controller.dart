@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'package:intl/intl.dart';
 import '../models/venta_model.dart';
 import 'dart:developer' as developer;
 import 'package:logging/logging.dart';
 import '../models/inmueble_model.dart';
 import '../services/mysql_helper.dart';
 import '../models/inmueble_imagen.dart';
+import '../models/inmueble_proveedor_servicio.dart';
 
 class InmuebleController {
   final DatabaseService dbHelper;
@@ -177,6 +179,12 @@ class InmuebleController {
       await db.query('DELETE FROM inmuebles_imagenes WHERE id_inmueble = ?', [
         id,
       ]);
+
+      // Eliminar servicios de proveedores asociados
+      await db.query(
+        'DELETE FROM inmueble_proveedor_servicio WHERE id_inmueble = ?',
+        [id],
+      );
 
       // Luego eliminar el inmueble
       final result = await db.query(
@@ -573,6 +581,101 @@ class InmuebleController {
     } catch (e) {
       _logger.severe('Error al actualizar descripción de imagen: $e');
       throw Exception('Error al actualizar descripción de imagen: $e');
+    }
+  }
+
+  // MÉTODOS PARA GESTIÓN DE SERVICIOS DE PROVEEDORES
+
+  // Método para obtener los servicios de proveedores para un inmueble
+  Future<List<InmuebleProveedorServicio>> getServiciosProveedores(
+    int idInmueble,
+  ) async {
+    try {
+      _logger.info(
+        'Obteniendo servicios de proveedores para inmueble: $idInmueble',
+      );
+      developer.log(
+        'Consultando servicios de proveedores para inmueble: $idInmueble',
+      );
+      final db = await dbHelper.connection;
+
+      final results = await db.query(
+        'CALL ObtenerServiciosProveedorPorInmueble(?)',
+        [idInmueble],
+      );
+
+      if (results.isEmpty) return [];
+
+      final List<InmuebleProveedorServicio> servicios = [];
+      for (var row in results) {
+        try {
+          final servicio = InmuebleProveedorServicio.fromMap(row.fields);
+          servicios.add(servicio);
+        } catch (e) {
+          _logger.warning('Error procesando servicio: $e');
+          developer.log('Error al procesar servicio de proveedor: $e');
+        }
+      }
+
+      return servicios;
+    } catch (e) {
+      _logger.severe('Error al obtener servicios de proveedores: $e');
+      throw Exception('Error al obtener servicios de proveedores: $e');
+    }
+  }
+
+  // Método para asignar un proveedor a un inmueble
+  Future<int> asignarProveedorAInmueble(
+    InmuebleProveedorServicio servicio,
+  ) async {
+    try {
+      _logger.info(
+        'Asignando proveedor ${servicio.idProveedor} a inmueble ${servicio.idInmueble}',
+      );
+      developer.log(
+        'Asignando proveedor a inmueble - Detalle: ${servicio.servicioDetalle}',
+      );
+      final db = await dbHelper.connection;
+
+      await db.query(
+        'CALL AsignarProveedorAInmueble(?, ?, ?, ?, ?, ?, @id_servicio_out)',
+        [
+          servicio.idInmueble,
+          servicio.idProveedor,
+          servicio.servicioDetalle,
+          servicio.costo,
+          DateFormat('yyyy-MM-dd').format(servicio.fechaAsignacion),
+          servicio.fechaServicio != null
+              ? DateFormat('yyyy-MM-dd').format(servicio.fechaServicio!)
+              : null,
+        ],
+      );
+
+      final result = await db.query('SELECT @id_servicio_out as id');
+      final id = result.first.fields['id'] as int;
+
+      _logger.info('Proveedor asignado correctamente, ID: $id');
+      return id;
+    } catch (e) {
+      _logger.severe('Error al asignar proveedor a inmueble: $e');
+      throw Exception('Error al asignar proveedor a inmueble: $e');
+    }
+  }
+
+  // Método para eliminar una asignación de proveedor
+  Future<bool> eliminarAsignacionProveedor(int id) async {
+    try {
+      _logger.info('Eliminando asignación de proveedor ID: $id');
+      developer.log('Eliminando servicio de proveedor con ID: $id');
+      final db = await dbHelper.connection;
+
+      await db.query('CALL EliminarServicioProveedor(?)', [id]);
+
+      _logger.info('Asignación de proveedor eliminada correctamente');
+      return true;
+    } catch (e) {
+      _logger.severe('Error al eliminar asignación de proveedor: $e');
+      throw Exception('Error al eliminar asignación de proveedor: $e');
     }
   }
 }
