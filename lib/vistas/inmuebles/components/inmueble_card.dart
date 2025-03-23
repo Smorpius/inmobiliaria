@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../models/inmueble_model.dart';
 import '../../../models/inmueble_imagen.dart';
+import '../../../utils/inmueble_formatter.dart';
 
 class InmuebleCard extends StatelessWidget {
   final Inmueble inmueble;
@@ -24,202 +25,225 @@ class InmuebleCard extends StatelessWidget {
     required this.onEdit,
     required this.onInactivate,
     this.isInactivo = false,
-    this.inactivateButtonText = 'Cambiar Estado',
-    this.inactivateButtonColor = Colors.orange,
+    this.inactivateButtonText = 'Cambiar estado',
+    this.inactivateButtonColor = Colors.red,
     this.customStateButton,
   });
 
+  /// Obtiene el precio formateado según el tipo de operación
+  String get precioFormateado {
+    if (inmueble.tipoOperacion == 'venta') {
+      return inmueble.precioVenta != null
+          ? InmuebleFormatter.formatMonto(inmueble.precioVenta)
+          : 'Precio no disponible';
+    } else if (inmueble.tipoOperacion == 'renta') {
+      return inmueble.precioRenta != null
+          ? '${InmuebleFormatter.formatMonto(inmueble.precioRenta)}/mes'
+          : 'Precio no disponible';
+    } else if (inmueble.tipoOperacion == 'ambos') {
+      final venta =
+          inmueble.precioVenta != null
+              ? InmuebleFormatter.formatMonto(inmueble.precioVenta)
+              : 'N/A';
+      final renta =
+          inmueble.precioRenta != null
+              ? '${InmuebleFormatter.formatMonto(inmueble.precioRenta)}/mes'
+              : 'N/A';
+      return 'V: $venta | R: $renta';
+    }
+    return InmuebleFormatter.formatMonto(inmueble.montoTotal);
+  }
+
+  /// Capitaliza la primera letra de un texto
+  String _capitalizarPalabra(String texto) {
+    if (texto.isEmpty) return texto;
+    return texto[0].toUpperCase() + texto.substring(1);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Formatea el precio para mostrar según el tipo de operación
-    String precioFormateado = '';
-
-    if (inmueble.tipoOperacion == 'venta') {
-      if (inmueble.precioVenta != null) {
-        precioFormateado = '\$${inmueble.precioVenta!.toStringAsFixed(2)}';
-      }
-    } else if (inmueble.tipoOperacion == 'renta') {
-      if (inmueble.precioRenta != null) {
-        precioFormateado = '\$${inmueble.precioRenta!.toStringAsFixed(2)}/mes';
-      }
-    } else if (inmueble.tipoOperacion == 'ambos') {
-      if (inmueble.precioVenta != null) {
-        precioFormateado = '\$${inmueble.precioVenta!.toStringAsFixed(2)}';
-      }
-      if (inmueble.precioRenta != null) {
-        final separador = precioFormateado.isEmpty ? '' : ' / ';
-        precioFormateado =
-            '$precioFormateado$separador\$${inmueble.precioRenta!.toStringAsFixed(2)}/mes';
-      }
-    }
-
-    // Obtener el estado del inmueble como texto
-    String estadoInmueble = 'Disponible';
-    Color estadoColor = Colors.green;
-
-    switch (inmueble.idEstado) {
-      case 2: // No disponible
-        estadoInmueble = 'No Disponible';
-        estadoColor = Colors.red;
-        break;
-      case 3: // Disponible
-        estadoInmueble = 'Disponible';
-        estadoColor = Colors.green;
-        break;
-      case 4: // Vendido
-        estadoInmueble = 'Vendido';
-        estadoColor = Colors.blue;
-        break;
-      case 5: // Rentado
-        estadoInmueble = 'Rentado';
-        estadoColor = Colors.purple;
-        break;
-      case 6: // En negociación
-        estadoInmueble = 'En Negociación';
-        estadoColor = Colors.orange;
-        break;
-      case 1: // Reservado (si existe este estado)
-        estadoInmueble = 'Reservado';
-        estadoColor = Colors.amber;
-        break;
-      default:
-        estadoInmueble = 'Disponible';
-        estadoColor = Colors.green;
-    }
-
     return Card(
-      elevation: 3, // Reducido para un aspecto más sutil
-      margin: const EdgeInsets.all(4), // Reducido para optimizar espacio
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          10,
-        ), // Reducido para ser más compacto
-        side: BorderSide(
-          width: 1,
-          color: isInactivo ? Colors.grey.shade300 : Colors.transparent,
-        ),
-      ),
+      clipBehavior: Clip.antiAlias,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Imagen de tamaño fijo más pequeño con etiqueta de estado
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(10),
-              ),
-              child: SizedBox(
-                height: 200, // Altura fija más pequeña
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Imagen principal o placeholder
-                    rutaImagen != null && rutaImagen!.isNotEmpty
-                        ? Image.file(File(rutaImagen!), fit: BoxFit.cover)
-                        : const InmuebleImagePlaceholder(),
+            // Sección de imagen
+            AspectRatio(
+              aspectRatio: 1.5,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Imagen o placeholder
+                  _buildImageWidget(),
 
-                    // Etiqueta de estado
+                  // Badge de estado cuando está inactivo
+                  if (isInactivo)
                     Positioned(
-                      bottom: 0,
-                      left: 0,
+                      top: 0,
                       right: 0,
                       child: Container(
-                        color: estadoColor.withAlpha(
-                          179,
-                        ), // 0.7 en escala de 0-1 equivale a ~179 en escala 0-255
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: Text(
-                          estadoInmueble,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'NO DISPONIBLE',
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
                             fontWeight: FontWeight.bold,
+                            fontSize: 9,
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
             ),
 
-            // Información del inmueble con padding reducido
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Título con tamaño de fuente reducido
-                  Text(
-                    inmueble.nombre,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: isInactivo ? Colors.grey : Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  // Tipo de inmueble y operación en una sola línea
-                  Row(
-                    children: [
-                      Icon(
-                        _getIconForTipoInmueble(inmueble.tipoInmueble),
-                        size: 14,
-                        color: Colors.grey,
+            // Información del inmueble - Corregida para evitar overflow
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nombre del inmueble
+                    Text(
+                      inmueble.nombre,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        decoration:
+                            isInactivo ? TextDecoration.lineThrough : null,
+                        color: isInactivo ? Colors.grey : Colors.black,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        inmueble.tipoInmueble.capitalize(),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+
+                    // Ubicación
+                    if (inmueble.ciudad != null && inmueble.ciudad!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              size: 10,
+                              color: Colors.grey.shade600,
+                            ),
+                            const SizedBox(width: 1),
+                            Expanded(
+                              child: Text(
+                                inmueble.ciudad!,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey.shade600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
 
-                  // Precio con tamaño reducido
-                  Text(
-                    precioFormateado,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: isInactivo ? Colors.grey : Colors.teal,
+                    // Precio
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Text(
+                        precioFormateado,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isInactivo ? Colors.grey : Colors.teal,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
 
-            // Botones más compactos
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: const Icon(Icons.edit, size: 18),
-                    onPressed: onEdit,
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      isInactivo ? Icons.check_circle : Icons.remove_circle,
-                      size: 18,
-                      color: isInactivo ? Colors.green : Colors.red,
+                    // Tipo de inmueble y operación
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Text(
+                        '${_capitalizarPalabra(inmueble.tipoInmueble)} • ${_capitalizarPalabra(inmueble.tipoOperacion)}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    onPressed: onInactivate,
-                  ),
-                ],
+
+                    // Espacio flexible para acomodar contenido
+                    const Spacer(flex: 1),
+
+                    // Botones de acción compactos
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          // Botón de editar
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 16),
+                            color: Colors.blue,
+                            tooltip: 'Editar',
+                            onPressed: onEdit,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          const SizedBox(width: 2),
+
+                          // Botón de estado personalizado o predeterminado
+                          customStateButton ??
+                              TextButton.icon(
+                                icon: Icon(
+                                  isInactivo
+                                      ? Icons.check_circle
+                                      : Icons.cancel,
+                                  size: 12,
+                                ),
+                                label: Text(
+                                  inactivateButtonText,
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                                style: TextButton.styleFrom(
+                                  backgroundColor: inactivateButtonColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 0,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                onPressed: onInactivate,
+                              ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -228,44 +252,60 @@ class InmuebleCard extends StatelessWidget {
     );
   }
 
-  IconData _getIconForTipoInmueble(String tipoInmueble) {
-    switch (tipoInmueble.toLowerCase()) {
-      case 'casa':
-        return Icons.home;
-      case 'departamento':
-        return Icons.apartment;
-      case 'terreno':
-        return Icons.landscape;
-      case 'oficina':
-        return Icons.business;
-      case 'local':
-        return Icons.storefront;
-      case 'bodega':
-        return Icons.warehouse;
-      default:
-        return Icons.home_work;
+  /// Construye el widget de imagen con manejo mejorado de errores
+  Widget _buildImageWidget() {
+    // Si no hay ruta, mostrar placeholder
+    if (rutaImagen == null || rutaImagen!.isEmpty) {
+      return InmuebleImagePlaceholder(tipoInmueble: inmueble.tipoInmueble);
     }
-  }
-}
 
-// Widget auxiliar para mostrar un placeholder cuando no hay imagen
-class InmuebleImagePlaceholder extends StatelessWidget {
-  const InmuebleImagePlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey.shade200,
-      child: Center(
-        child: Icon(Icons.home_work, size: 40, color: Colors.grey.shade400),
-      ),
+    // Intentar cargar la imagen sin verificación previa para reducir logs
+    return Image.file(
+      File(rutaImagen!),
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        // Solo en caso de error mostrar placeholder
+        return InmuebleImagePlaceholder(tipoInmueble: inmueble.tipoInmueble);
+      },
     );
   }
 }
 
-// Extensión para capitalizar strings
-extension StringExtension on String {
-  String capitalize() {
-    return "${this[0].toUpperCase()}${substring(1)}";
+/// Widget para mostrar un placeholder cuando no hay imagen disponible
+class InmuebleImagePlaceholder extends StatelessWidget {
+  final String tipoInmueble;
+
+  const InmuebleImagePlaceholder({super.key, required this.tipoInmueble});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData iconData;
+    // Determinar el icono según el tipo de inmueble
+    switch (tipoInmueble.toLowerCase()) {
+      case 'casa':
+        iconData = Icons.home;
+        break;
+      case 'departamento':
+        iconData = Icons.apartment;
+        break;
+      case 'terreno':
+        iconData = Icons.landscape;
+        break;
+      case 'oficina':
+        iconData = Icons.business;
+        break;
+      case 'bodega':
+        iconData = Icons.warehouse;
+        break;
+      default:
+        iconData = Icons.real_estate_agent;
+    }
+
+    return Container(
+      color: Colors.grey.shade200,
+      child: Center(
+        child: Icon(iconData, size: 50, color: Colors.grey.shade400),
+      ),
+    );
   }
 }

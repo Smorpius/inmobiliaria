@@ -35,6 +35,10 @@ DROP PROCEDURE IF EXISTS InactivarUsuarioEmpleado;
 DROP PROCEDURE IF EXISTS ReactivarUsuarioEmpleado;
 DROP PROCEDURE IF EXISTS CrearVenta;
 DROP PROCEDURE IF EXISTS ObtenerVentas;
+DROP PROCEDURE IF EXISTS AsignarProveedorAInmueble;
+DROP PROCEDURE IF EXISTS ActualizarCostoServiciosInmueble;
+DROP PROCEDURE IF EXISTS EliminarServicioProveedor;
+DROP PROCEDURE IF EXISTS ObtenerServiciosProveedorPorInmueble;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Eliminar tablas respetando dependencias
@@ -45,6 +49,7 @@ DROP TABLE IF EXISTS inmuebles_imagenes;
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;
 DROP TABLE IF EXISTS cliente_inmueble;
 DROP TABLE IF EXISTS ventas;
+DROP TABLE IF EXISTS inmueble_proveedor_servicio;
 DROP TABLE IF EXISTS inmuebles;
 DROP TABLE IF EXISTS clientes;
 DROP TABLE IF EXISTS empleados;
@@ -272,6 +277,26 @@ CREATE TABLE IF NOT EXISTS ventas (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
+-- Crear tabla para relacionar inmuebles con proveedores
+CREATE TABLE inmueble_proveedor_servicio (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    id_inmueble INT NOT NULL,
+    id_proveedor INT NOT NULL,
+    servicio_detalle VARCHAR(255) NOT NULL,
+    costo DECIMAL(12,2) NOT NULL,
+    comision DECIMAL(12,2) GENERATED ALWAYS AS (costo * 0.30) STORED,
+    fecha_asignacion DATE NOT NULL,
+    fecha_servicio DATE,
+    id_estado INT DEFAULT 1,
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
+    FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor),
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
+);
+
+-- Índices para mejorar el rendimiento
+CREATE INDEX idx_inmueble_proveedor ON inmueble_proveedor_servicio(id_inmueble);
+CREATE INDEX idx_proveedor_inmueble ON inmueble_proveedor_servicio(id_proveedor);
+
 -- Definir triggers
 DELIMITER //
 
@@ -327,6 +352,33 @@ BEGIN
     IF NEW.telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
     END IF;
+END //
+
+-- Trigger después de insertar un servicio
+CREATE TRIGGER despues_insertar_servicio
+AFTER INSERT ON inmueble_proveedor_servicio
+FOR EACH ROW
+BEGIN
+    CALL ActualizarCostoServiciosInmueble(NEW.id_inmueble);
+END //
+
+-- Trigger después de actualizar un servicio
+CREATE TRIGGER despues_actualizar_servicio
+AFTER UPDATE ON inmueble_proveedor_servicio
+FOR EACH ROW
+BEGIN
+    IF NEW.id_inmueble != OLD.id_inmueble THEN
+        CALL ActualizarCostoServiciosInmueble(OLD.id_inmueble);
+    END IF;
+    CALL ActualizarCostoServiciosInmueble(NEW.id_inmueble);
+END //
+
+-- Trigger después de eliminar un servicio
+CREATE TRIGGER despues_eliminar_servicio
+AFTER DELETE ON inmueble_proveedor_servicio
+FOR EACH ROW
+BEGIN
+    CALL ActualizarCostoServiciosInmueble(OLD.id_inmueble);
 END //
 
 DELIMITER ;
@@ -1607,6 +1659,7 @@ BEGIN
     COMMIT;
 END //
 
+-- Procedimiento para crear venta
 CREATE PROCEDURE CrearVenta(
     IN p_id_cliente INT,
     IN p_id_inmueble INT,
@@ -1617,13 +1670,11 @@ CREATE PROCEDURE CrearVenta(
     OUT p_id_venta_out INT
 )
 BEGIN
-    -- Declarar todas las variables al principio
     DECLARE cliente_existe INT;
     DECLARE inmueble_existe INT;
     DECLARE estado_inmueble INT;
-    DECLARE tipo_op VARCHAR(10); -- Variable local para almacenar tipo_operacion
+    DECLARE tipo_op VARCHAR(10);
 
-    -- Verificar si el cliente existe
     SELECT COUNT(*) INTO cliente_existe 
     FROM clientes 
     WHERE id_cliente = p_id_cliente;
@@ -1633,7 +1684,6 @@ BEGIN
         SET MESSAGE_TEXT = 'El cliente especificado no existe';
     END IF;
 
-    -- Verificar si el inmueble existe
     SELECT COUNT(*) INTO inmueble_existe 
     FROM inmuebles 
     WHERE id_inmueble = p_id_inmueble;
@@ -1643,10 +1693,8 @@ BEGIN
         SET MESSAGE_TEXT = 'El inmueble especificado no existe';
     END IF;
 
-    -- Iniciar transacción
     START TRANSACTION;
 
-    -- Insertar la venta
     INSERT INTO ventas (
         id_cliente, id_inmueble, fecha_venta, ingreso, comision_proveedores, utilidad_neta
     ) VALUES (
@@ -1654,27 +1702,22 @@ BEGIN
         p_ingreso, p_comision_proveedores, p_utilidad_neta
     );
 
-    -- Obtener el ID de la venta recién creada
     SET p_id_venta_out = LAST_INSERT_ID();
 
-    -- Obtener el tipo de operación del inmueble
     SELECT tipo_operacion INTO tipo_op 
     FROM inmuebles 
     WHERE id_inmueble = p_id_inmueble;
 
-    -- Determinar el estado del inmueble según el tipo de operación
     IF tipo_op = 'venta' THEN
         SET estado_inmueble = 4; -- Vendido
     ELSE
         SET estado_inmueble = 5; -- Rentado
     END IF;
 
-    -- Actualizar el estado del inmueble
     UPDATE inmuebles 
     SET id_estado = estado_inmueble 
     WHERE id_inmueble = p_id_inmueble;
 
-    -- Confirmar la transacción
     COMMIT;
 END //
 
@@ -1699,6 +1742,122 @@ BEGIN
     JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
     JOIN estados e ON v.id_estado = e.id_estado
     ORDER BY v.fecha_venta DESC;
+END //
+
+-- Procedimiento para asignar un proveedor a un inmueble
+CREATE PROCEDURE AsignarProveedorAInmueble(
+    IN p_id_inmueble INT,
+    IN p_id_proveedor INT,
+    IN p_servicio_detalle VARCHAR(255),
+    IN p_costo DECIMAL(12,2),
+    IN p_fecha_asignacion DATE,
+    IN p_fecha_servicio DATE,
+    OUT p_id_servicio_out INT
+)
+BEGIN
+    DECLARE v_id_estado_activo INT DEFAULT 1;
+    
+    IF NOT EXISTS(SELECT 1 FROM inmuebles WHERE id_inmueble = p_id_inmueble) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble especificado no existe';
+    END IF;
+    
+    IF NOT EXISTS(SELECT 1 FROM proveedores WHERE id_proveedor = p_id_proveedor AND id_estado = 1) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor especificado no existe o está inactivo';
+    END IF;
+    
+    START TRANSACTION;
+    
+    INSERT INTO inmueble_proveedor_servicio (
+        id_inmueble, id_proveedor, servicio_detalle, costo, 
+        fecha_asignacion, fecha_servicio, id_estado
+    ) VALUES (
+        p_id_inmueble, p_id_proveedor, p_servicio_detalle, p_costo, 
+        COALESCE(p_fecha_asignacion, CURDATE()), p_fecha_servicio, v_id_estado_activo
+    );
+    
+    SET p_id_servicio_out = LAST_INSERT_ID();
+    
+    CALL ActualizarCostoServiciosInmueble(p_id_inmueble);
+    
+    COMMIT;
+END //
+
+-- Procedimiento para actualizar el costo total de servicios en la tabla de inmuebles
+CREATE PROCEDURE ActualizarCostoServiciosInmueble(
+    IN p_id_inmueble INT
+)
+BEGIN
+    DECLARE v_costo_total DECIMAL(12,2);
+    DECLARE v_costo_cliente DECIMAL(12,2);
+    DECLARE v_comision_agencia DECIMAL(12,2);
+    DECLARE v_comision_agente DECIMAL(12,2);
+    DECLARE v_precio_venta_final DECIMAL(12,2);
+    
+    SELECT IFNULL(SUM(costo), 0) INTO v_costo_total
+    FROM inmueble_proveedor_servicio
+    WHERE id_inmueble = p_id_inmueble AND id_estado = 1;
+    
+    SELECT IFNULL(costo_cliente, 0) INTO v_costo_cliente
+    FROM inmuebles
+    WHERE id_inmueble = p_id_inmueble;
+    
+    SET v_comision_agencia = v_costo_cliente * 0.30;
+    SET v_comision_agente = v_costo_cliente * 0.03;
+    SET v_precio_venta_final = v_costo_cliente + v_costo_total + v_comision_agencia + v_comision_agente;
+    
+    UPDATE inmuebles SET
+        costo_servicios = v_costo_total,
+        comision_agencia = v_comision_agencia,
+        comision_agente = v_comision_agente,
+        precio_venta_final = v_precio_venta_final
+    WHERE id_inmueble = p_id_inmueble;
+END //
+
+-- Procedimiento para eliminar un servicio de proveedor
+CREATE PROCEDURE EliminarServicioProveedor(
+    IN p_id INT
+)
+BEGIN
+    DECLARE v_id_inmueble INT;
+    
+    IF NOT EXISTS(SELECT 1 FROM inmueble_proveedor_servicio WHERE id = p_id) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El servicio especificado no existe';
+    END IF;
+    
+    SELECT id_inmueble INTO v_id_inmueble FROM inmueble_proveedor_servicio WHERE id = p_id;
+    
+    START TRANSACTION;
+    
+    DELETE FROM inmueble_proveedor_servicio WHERE id = p_id;
+    
+    CALL ActualizarCostoServiciosInmueble(v_id_inmueble);
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener servicios de proveedores por inmueble
+CREATE PROCEDURE ObtenerServiciosProveedorPorInmueble(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        ips.id,
+        ips.id_inmueble,
+        ips.id_proveedor,
+        ips.servicio_detalle,
+        ips.costo,
+        ips.comision,
+        ips.fecha_asignacion,
+        ips.fecha_servicio,
+        ips.id_estado,
+        p.nombre AS nombre_proveedor,
+        p.tipo_servicio,
+        e.nombre_estado
+    FROM inmueble_proveedor_servicio ips
+    JOIN proveedores p ON ips.id_proveedor = p.id_proveedor
+    JOIN estados e ON ips.id_estado = e.id_estado
+    WHERE ips.id_inmueble = p_id_inmueble
+    ORDER BY ips.fecha_asignacion DESC;
 END //
 
 DELIMITER ;

@@ -33,6 +33,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
   final _ciudadController = TextEditingController();
   final _estadoController = TextEditingController();
   final _codigoPostalController = TextEditingController();
+  final _referenciasController = TextEditingController();
 
   // Variable para el estado del inmueble
   int _estadoSeleccionado = 3; // Por defecto: 'Disponible'
@@ -114,9 +115,14 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
     if (widget.inmueble.codigoPostal != null) {
       _codigoPostalController.text = widget.inmueble.codigoPostal!;
     }
+    if (widget.inmueble.referencias != null) {
+      _referenciasController.text = widget.inmueble.referencias!;
+    }
   }
 
   Future<void> _cargarImagenesInmueble() async {
+    if (widget.inmueble.id == null) return;
+
     setState(() {
       _isLoading = true;
     });
@@ -128,23 +134,25 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
         widget.inmueble.id!,
       );
 
+      if (!mounted) return;
+
       setState(() {
         _imagenes = imagenes;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _isLoading = false;
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar imágenes: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cargar imágenes: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -165,24 +173,25 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Galería de imágenes
-                      InmuebleImageGallery(
-                        inmuebleId: widget.inmueble.id,
-                        imagenes: _imagenes,
-                        isLoading: _isLoading,
-                        imageService: _imageService,
-                        inmuebleController: ref.read(
-                          inmuebleControllerProvider,
+                      if (widget.inmueble.id != null)
+                        InmuebleImageGallery(
+                          inmuebleId: widget.inmueble.id,
+                          imagenes: _imagenes,
+                          isLoading: _isLoading,
+                          imageService: _imageService,
+                          inmuebleController: ref.read(
+                            inmuebleControllerProvider,
+                          ),
+                          onImagenesUpdated: (imagenes) {
+                            setState(() {
+                              _imagenes = imagenes;
+                            });
+                          },
                         ),
-                        onImagenesUpdated: (imagenes) {
-                          setState(() {
-                            _imagenes = imagenes;
-                          });
-                        },
-                      ),
 
                       const SizedBox(height: 24),
 
-                      // Información general simplificada sin usar InformacionGeneralWidget
+                      // Información general
                       Card(
                         elevation: 2,
                         child: Padding(
@@ -251,7 +260,6 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
                                 },
                               ),
                               const SizedBox(height: 12),
-                              // Dropdown para el estado del inmueble (en lugar de número)
                               DropdownButtonFormField<int>(
                                 value: _estadoSeleccionado,
                                 decoration: const InputDecoration(
@@ -430,6 +438,16 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _referenciasController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Referencias',
+                                  border: OutlineInputBorder(),
+                                  hintText: 'Puntos de referencia cercanos...',
+                                ),
+                                maxLines: 2,
+                              ),
                             ],
                           ),
                         ),
@@ -449,7 +467,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
     );
   }
 
-  // Función actualizada para editar inmueble similar a como funciona con empleados
+  // Función actualizada para editar inmueble
   Future<void> _actualizarInmueble() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -488,20 +506,35 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
         precioVenta: precioVenta,
         precioRenta: precioRenta,
         montoTotal: montoTotal,
-        caracteristicas: _caracteristicasController.text,
+        caracteristicas:
+            _caracteristicasController.text.isEmpty
+                ? null
+                : _caracteristicasController.text,
         calle: _calleController.text,
-        numero: _numeroController.text,
-        colonia: _coloniaController.text,
+        numero: _numeroController.text.isEmpty ? null : _numeroController.text,
+        colonia:
+            _coloniaController.text.isEmpty ? null : _coloniaController.text,
         ciudad: _ciudadController.text,
         estadoGeografico: _estadoController.text,
-        codigoPostal: _codigoPostalController.text,
+        codigoPostal:
+            _codigoPostalController.text.isEmpty
+                ? null
+                : _codigoPostalController.text,
         idDireccion: widget.inmueble.idDireccion,
-        idEstado:
-            _estadoSeleccionado, // Usando el valor seleccionado del dropdown
+        idEstado: _estadoSeleccionado,
         idCliente: widget.inmueble.idCliente,
         idEmpleado: widget.inmueble.idEmpleado,
         fechaRegistro: widget.inmueble.fechaRegistro,
-        referencias: widget.inmueble.referencias,
+        referencias:
+            _referenciasController.text.isEmpty
+                ? null
+                : _referenciasController.text,
+        // Preservar propiedades financieras
+        costoCliente: widget.inmueble.costoCliente,
+        costoServicios: widget.inmueble.costoServicios,
+        comisionAgencia: widget.inmueble.comisionAgencia,
+        comisionAgente: widget.inmueble.comisionAgente,
+        precioVentaFinal: widget.inmueble.precioVentaFinal,
       );
 
       // Actualizar inmueble
@@ -571,12 +604,72 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
   }
 
   Future<void> _eliminarInmueble() async {
+    // Verificar que el inmueble tenga ID
+    if (widget.inmueble.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se puede eliminar un inmueble sin ID'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
       final controller = ref.read(inmuebleControllerProvider);
+
+      // Verificar que el inmueble existe
+      final exists = await controller.verificarExistenciaInmueble(
+        widget.inmueble.id!,
+      );
+      if (!exists) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('El inmueble ya no existe en la base de datos'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+
+        // Regresar a la pantalla anterior
+        Navigator.pop(context, true);
+        return;
+      }
+
+      // Primero eliminar todas las imágenes asociadas
+      if (_imagenes.isNotEmpty) {
+        for (var imagen in _imagenes) {
+          if (imagen.id != null) {
+            try {
+              await controller.eliminarImagenInmueble(imagen.id!);
+
+              // Verificar que la ruta no esté vacía antes de intentar eliminar el archivo
+              if (imagen.rutaImagen.isNotEmpty) {
+                await _imageService.eliminarImagenInmueble(imagen.rutaImagen);
+              }
+            } catch (e) {
+              // Continuar con la siguiente imagen si hay error
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Advertencia: No se pudo eliminar imagen ${imagen.id}: $e',
+                    ),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          }
+        }
+      }
+
+      // Luego eliminar el inmueble
       await controller.deleteInmueble(widget.inmueble.id!);
 
       if (!mounted) return;
@@ -625,6 +718,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
     _ciudadController.dispose();
     _estadoController.dispose();
     _codigoPostalController.dispose();
+    _referenciasController.dispose();
     super.dispose();
   }
 }
@@ -632,6 +726,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
 // Extensión para capitalizar strings
 extension StringExtension on String {
   String capitalize() {
+    if (isEmpty) return this;
     return "${this[0].toUpperCase()}${substring(1)}";
   }
 }

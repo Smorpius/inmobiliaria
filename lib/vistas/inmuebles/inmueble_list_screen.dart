@@ -13,25 +13,31 @@ import 'package:inmobiliaria/vistas/inmuebles/components/inmueble_empty_state.da
 class InmuebleListScreen extends ConsumerWidget {
   const InmuebleListScreen({super.key});
 
-  // Mapa de estados para mostrar mensajes consistentes
+  // Constantes para los estados del inmueble usando lowerCamelCase
+  static const int estadoNoDisponible = 2;
+  static const int estadoDisponible = 3;
+  static const int estadoVendido = 4;
+  static const int estadoRentado = 5;
+  static const int estadoEnNegociacion = 6;
+
+  // Mapeo de estados a nombres para UI
   static const Map<int, String> estadosInmueble = {
-    2: 'No disponible',
-    3: 'Disponible',
-    4: 'Vendido',
-    5: 'Rentado',
-    6: 'En negociación', // Corregido de 'En oferta' a 'En negociación'
+    estadoNoDisponible: 'No disponible',
+    estadoDisponible: 'Disponible',
+    estadoVendido: 'Vendido',
+    estadoRentado: 'Rentado',
+    estadoEnNegociacion: 'En negociación',
   };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Observar el estado de mostrar inmuebles inactivos
     final mostrarInactivos = ref.watch(mostrarInactivosProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inmuebles'),
         actions: [
-          // Botón para filtros avanzados
+          // Botón de filtros avanzados
           IconButton(
             icon: const Icon(Icons.filter_list),
             tooltip: 'Filtros avanzados',
@@ -52,7 +58,6 @@ class InmuebleListScreen extends ConsumerWidget {
                       String? ciudad,
                       int? idEstado,
                     }) {
-                      // Actualizar filtros
                       ref
                           .read(filtrosInmuebleProvider.notifier)
                           .actualizarFiltro(
@@ -76,33 +81,67 @@ class InmuebleListScreen extends ConsumerWidget {
               );
             },
           ),
-          // Botón para mostrar/ocultar inmuebles inactivos
+          // Botón para alternar entre activos e inactivos
           IconButton(
             icon: Icon(
               mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+              color: mostrarInactivos ? Colors.red : Colors.green,
             ),
-            tooltip:
-                mostrarInactivos
-                    ? 'Ocultar inmuebles inactivos'
-                    : 'Mostrar inmuebles inactivos',
+            tooltip: mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
             onPressed: () {
               ref.read(mostrarInactivosProvider.notifier).state =
                   !mostrarInactivos;
             },
           ),
+          // Botón para refrescar datos
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar',
+            onPressed: () => ref.invalidate(inmueblesProvider),
+          ),
         ],
       ),
-      body: Column(children: [Expanded(child: _buildListado(context, ref))]),
+      body: Column(
+        children: [
+          // Indicador de modo de visualización
+          Container(
+            color:
+                mostrarInactivos ? Colors.red.shade100 : Colors.green.shade100,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: Row(
+              children: [
+                Icon(
+                  mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+                  color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  mostrarInactivos
+                      ? 'INMUEBLES INACTIVOS'
+                      : 'INMUEBLES ACTIVOS',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color:
+                        mostrarInactivos ? Colors.red[800] : Colors.green[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Lista de inmuebles
+          Expanded(child: _buildListado(context, ref)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Theme.of(context).primaryColor,
-        child: const Icon(Icons.add),
+        tooltip: 'Agregar inmueble',
         onPressed: () => _navegarAgregarInmueble(context, ref),
+        child: const Icon(Icons.add),
       ),
     );
   }
 
   Widget _buildListado(BuildContext context, WidgetRef ref) {
-    // Observar el estado de los inmuebles filtrados
     final inmueblesFiltrados = ref.watch(inmueblesBuscadosProvider);
 
     return inmueblesFiltrados.when(
@@ -116,11 +155,10 @@ class InmuebleListScreen extends ConsumerWidget {
           );
         }
 
-        // Cargar las imágenes principales
         final imagenesPrincipales = ref.watch(imagenesPrincipalesProvider);
         final rutasImagenes = ref.watch(rutasImagenesPrincipalesProvider);
 
-        // Cuando se tienen datos, asegurarse de que se carguen las imágenes principales
+        // Asegurar que se carguen las imágenes principales
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ref
               .read(imagenesPrincipalesProvider.notifier)
@@ -140,13 +178,13 @@ class InmuebleListScreen extends ConsumerWidget {
               (inmueble) => _navegarEditarInmueble(context, ref, inmueble),
           onInactivateInmueble:
               (inmueble) => _inactivarInmueble(context, ref, inmueble),
-          // Renderizador de botón corregido con "Marcar Disponible"
+          // Personalización del botón de estado
           renderizarBotonEstado: (inmueble, onPressed) {
-            final isInactivo = inmueble.idEstado == 2;
+            final isInactivo = inmueble.idEstado == estadoNoDisponible;
             return ElevatedButton.icon(
               onPressed: onPressed,
               icon: Icon(isInactivo ? Icons.check_circle : Icons.remove_circle),
-              label: Text(isInactivo ? 'Marcar Disponible' : 'Desactivar'),
+              label: Text(isInactivo ? 'Activar' : 'Desactivar'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isInactivo ? Colors.green : Colors.red,
                 foregroundColor: Colors.white,
@@ -164,6 +202,7 @@ class InmuebleListScreen extends ConsumerWidget {
     );
   }
 
+  /// Navega a la pantalla para agregar un nuevo inmueble
   Future<void> _navegarAgregarInmueble(
     BuildContext context,
     WidgetRef ref,
@@ -178,14 +217,13 @@ class InmuebleListScreen extends ConsumerWidget {
     }
   }
 
+  /// Navega a la pantalla de detalles del inmueble
   Future<void> _navegarDetalleInmueble(
     BuildContext context,
     WidgetRef ref,
     Inmueble inmueble,
   ) async {
-    // Determinar si el inmueble está inactivo
-    final bool isInactivo = inmueble.idEstado == 2;
-
+    final bool isInactivo = inmueble.idEstado == estadoNoDisponible;
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -195,10 +233,9 @@ class InmuebleListScreen extends ConsumerWidget {
               isInactivo: isInactivo,
               onEdit: () => _navegarEditarInmueble(context, ref, inmueble),
               onDelete: () => _inactivarInmueble(context, ref, inmueble),
-              // Texto corregido del botón de estado
               botonEstadoTexto:
                   isInactivo
-                      ? 'Marcar Disponible'
+                      ? 'Marcar como Disponible'
                       : 'Marcar como No Disponible',
               botonEstadoColor: isInactivo ? Colors.green : Colors.red,
             ),
@@ -210,6 +247,7 @@ class InmuebleListScreen extends ConsumerWidget {
     }
   }
 
+  /// Navega a la pantalla de edición del inmueble
   Future<void> _navegarEditarInmueble(
     BuildContext context,
     WidgetRef ref,
@@ -227,7 +265,7 @@ class InmuebleListScreen extends ConsumerWidget {
     }
   }
 
-  // Método para manejar la inactivación/activación de inmuebles
+  /// Cambia el estado de un inmueble entre activo/inactivo
   Future<void> _inactivarInmueble(
     BuildContext context,
     WidgetRef ref,
@@ -239,19 +277,19 @@ class InmuebleListScreen extends ConsumerWidget {
       String mensaje;
       Color colorMensaje;
 
-      if (inmueble.idEstado == 2) {
+      if (inmueble.idEstado == estadoNoDisponible) {
         // Si está inactivo, marcar como disponible
-        nuevoEstado = 3; // Disponible
+        nuevoEstado = estadoDisponible;
         mensaje = 'Inmueble marcado como Disponible';
         colorMensaje = Colors.green;
       } else {
-        // Si está disponible u otro estado, marcar como inactivo
-        nuevoEstado = 2; // No disponible
+        // Si está en otro estado, marcar como no disponible
+        nuevoEstado = estadoNoDisponible;
         mensaje = 'Inmueble marcado como No Disponible';
         colorMensaje = Colors.red;
       }
 
-      // Crear una copia actualizada del inmueble con el nuevo estado
+      // Crear inmueble actualizado con el nuevo estado
       final inmuebleActualizado = Inmueble(
         id: inmueble.id,
         nombre: inmueble.nombre,
@@ -273,13 +311,18 @@ class InmuebleListScreen extends ConsumerWidget {
         codigoPostal: inmueble.codigoPostal,
         referencias: inmueble.referencias,
         fechaRegistro: inmueble.fechaRegistro,
+        // Preservar otros campos que puedan existir
+        costoCliente: inmueble.costoCliente,
+        costoServicios: inmueble.costoServicios,
+        comisionAgencia: inmueble.comisionAgencia,
+        comisionAgente: inmueble.comisionAgente,
       );
 
-      // Actualizar el inmueble
+      // Actualizar en la base de datos
       final inmuebleController = ref.read(inmuebleControllerProvider);
       await inmuebleController.updateInmueble(inmuebleActualizado);
 
-      // Mostrar mensaje de éxito
+      // Mostrar mensaje y refrescar la lista
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -291,7 +334,6 @@ class InmuebleListScreen extends ConsumerWidget {
         );
       }
 
-      // Refrescar la lista de inmuebles
       ref.invalidate(inmueblesProvider);
     } catch (e) {
       if (context.mounted) {
@@ -299,6 +341,7 @@ class InmuebleListScreen extends ConsumerWidget {
           SnackBar(
             content: Text('Error al cambiar estado: $e'),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
