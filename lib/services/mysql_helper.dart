@@ -10,9 +10,9 @@ class DatabaseService {
   final Logger _logger = Logger('DatabaseService');
 
   // Configuración mejorada para conexión y reintentos
-  static const int maxRetries = 3;
+  static const int maxRetries = 5; // Aumentado de 3 a 5
   static const int initialRetryDelay = 500; // milisegundos
-  static const Duration connectionTimeout = Duration(seconds: 15);
+  static const Duration connectionTimeout = Duration(seconds: 20); // Aumentado
   static const Duration estabilizacionPeriod = Duration(seconds: 5);
 
   // Control de estado de conexión
@@ -21,8 +21,17 @@ class DatabaseService {
   bool _reconectadoRecientemente = false;
   Timer? _reconexionTimer;
 
-  // Intervalo más corto para detectar problemas de conexión más rápido
-  static const Duration heartbeatInterval = Duration(seconds: 45);
+  // Circuit breaker - nuevo
+  int _consecutiveFailures = 0;
+  bool _circuitOpen = false;
+  DateTime? _circuitResetTime;
+  static const int maxConsecutiveFailures = 5;
+  static const Duration circuitResetDuration = Duration(minutes: 2);
+
+  // Aumentar intervalo de heartbeat para reducir sobrecarga
+  static const Duration heartbeatInterval = Duration(
+    seconds: 120,
+  ); // Aumentado a 2 minutos
   Timer? _heartbeatTimer;
 
   // Getter para verificar si hubo una reconexión reciente
@@ -64,6 +73,24 @@ class DatabaseService {
   }
 
   Future<MySqlConnection> _getConnection() async {
+    // Verificar si el circuit breaker está activo - nuevo
+    if (_circuitOpen) {
+      if (_circuitResetTime != null &&
+          DateTime.now().isAfter(_circuitResetTime!)) {
+        // Intentar resetear el circuit breaker
+        _circuitOpen = false;
+        _consecutiveFailures = 0;
+        developer.log('Circuit breaker reseteado, intentando reconexión');
+      } else {
+        developer.log(
+          'Circuit breaker activo, conexión bloqueada temporalmente',
+        );
+        throw Exception(
+          'Conexión a base de datos temporalmente deshabilitada por fallos consecutivos',
+        );
+      }
+    }
+
     // Evitar reconexiones simultáneas
     if (_isReconnecting) {
       developer.log('Reconexión en progreso, esperando...');
@@ -101,7 +128,7 @@ class DatabaseService {
         _connection = null;
       }
 
-      // Configuración de conexión con timeout adecuado
+      // Configuración de conexión corregida (useCompression: false)
       final settings = ConnectionSettings(
         host: 'localhost',
         port: 3306,
@@ -109,6 +136,9 @@ class DatabaseService {
         password: '123456789',
         db: 'Proyecto_Prueba',
         timeout: connectionTimeout,
+        maxPacketSize: 33554432, // 32 MB
+        useCompression: false, // CORREGIDO: mysql1 no soporta compresión
+        useSSL: false, // Sin SSL para local
       );
 
       // Implementar reintentos con espera exponencial
@@ -135,11 +165,14 @@ class DatabaseService {
           // Marcar como reconectado recientemente
           _marcarReconexionReciente();
 
-          // Indicar período de estabilización
-          Future.delayed(const Duration(seconds: 2), () {
-            developer.log('Período de estabilización de conexión completado');
-          });
+          // Periodo de estabilización más robusto
+          for (int i = 0; i < 5; i++) {
+            developer.log('Esperando estabilización de conexión...');
+            await Future.delayed(Duration(seconds: 2));
+          }
+          developer.log('Período de estabilización de conexión completado');
 
+          _consecutiveFailures = 0; // Resetear contador de fallos
           _isReconnecting = false;
           return _connection!;
         } catch (e) {
@@ -152,6 +185,17 @@ class DatabaseService {
           );
 
           if (attempts >= maxRetries) {
+            _consecutiveFailures++;
+
+            // Activar circuit breaker si hay demasiados fallos
+            if (_consecutiveFailures >= maxConsecutiveFailures) {
+              _circuitOpen = true;
+              _circuitResetTime = DateTime.now().add(circuitResetDuration);
+              developer.log(
+                'Circuit breaker activado por $_consecutiveFailures fallos consecutivos',
+              );
+            }
+
             _logger.severe(
               'No se pudo establecer conexión después de $maxRetries intentos',
             );
@@ -234,15 +278,18 @@ class DatabaseService {
     throw lastError;
   }
 
-  // Heartbeat más robusto con manejo de errores mejorado
+  // Heartbeat más robusto con menor frecuencia
   void _startHeartbeat() {
     _heartbeatTimer?.cancel();
 
     _heartbeatTimer = Timer.periodic(heartbeatInterval, (timer) async {
-      if (_connection == null) return;
+      if (_connection == null || _isReconnecting) return;
 
       try {
-        developer.log('Enviando heartbeat a la base de datos...');
+        developer.log(
+          'Enviando heartbeat a la base de datos...',
+          level: 800,
+        ); // Nivel alto para reducir logs
         await _connection!
             .query('SELECT 1')
             .timeout(
@@ -251,22 +298,24 @@ class DatabaseService {
                   () =>
                       throw TimeoutException('Heartbeat excedió tiempo límite'),
             );
-        developer.log('Heartbeat exitoso');
+        developer.log('Heartbeat exitoso', level: 800);
       } catch (e) {
         developer.log('Error en heartbeat: $e');
 
         // Marcar conexión para renovación
         _connection = null;
 
-        // Intentar una reconexión inmediata
-        try {
-          await _getConnection();
-          developer.log('Reconexión tras heartbeat fallido exitosa');
-        } catch (reconnectError) {
-          developer.log(
-            'Reconexión tras heartbeat fallido falló: $reconnectError',
-          );
-        }
+        // En lugar de reconectar inmediatamente, programamos con delay
+        Timer(Duration(seconds: 3), () async {
+          try {
+            await _getConnection();
+            developer.log('Reconexión tras heartbeat fallido exitosa');
+          } catch (reconnectError) {
+            developer.log(
+              'Reconexión tras heartbeat fallido falló: $reconnectError',
+            );
+          }
+        });
       }
     });
   }
@@ -288,6 +337,8 @@ class DatabaseService {
     developer.log('Reinicio forzado de conexión iniciado');
 
     _heartbeatTimer?.cancel();
+    _consecutiveFailures = 0; // Resetear contador de fallos
+    _circuitOpen = false; // Resetear circuit breaker
 
     if (_connection != null) {
       try {

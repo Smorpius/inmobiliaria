@@ -1,3 +1,12 @@
+-- Comandos administrativos globales para mejorar conexiones
+SET GLOBAL wait_timeout = 28800;
+SET GLOBAL interactive_timeout = 28800;
+SET GLOBAL max_allowed_packet = 67108864; -- 64MB
+
+-- Mostrar los valores actuales para verificar
+SHOW VARIABLES LIKE 'wait_timeout';
+SHOW VARIABLES LIKE 'interactive_timeout';
+SHOW VARIABLES LIKE 'max_allowed_packet';
 -- Crear base de datos si no existe y seleccionarla
 CREATE DATABASE IF NOT EXISTS Proyecto_Prueba CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Proyecto_Prueba;
