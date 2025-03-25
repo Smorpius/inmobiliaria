@@ -7,6 +7,7 @@ SET GLOBAL max_allowed_packet = 67108864; -- 64MB
 SHOW VARIABLES LIKE 'wait_timeout';
 SHOW VARIABLES LIKE 'interactive_timeout';
 SHOW VARIABLES LIKE 'max_allowed_packet';
+
 -- Crear base de datos si no existe y seleccionarla
 CREATE DATABASE IF NOT EXISTS Proyecto_Prueba CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Proyecto_Prueba;
@@ -48,6 +49,8 @@ DROP PROCEDURE IF EXISTS AsignarProveedorAInmueble;
 DROP PROCEDURE IF EXISTS ActualizarCostoServiciosInmueble;
 DROP PROCEDURE IF EXISTS EliminarServicioProveedor;
 DROP PROCEDURE IF EXISTS ObtenerServiciosProveedorPorInmueble;
+DROP PROCEDURE IF EXISTS RecalcularFinanzasInmuebles;
+DROP PROCEDURE IF EXISTS ActualizarUtilidadVenta;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Eliminar tablas respetando dependencias
@@ -211,7 +214,7 @@ CREATE TABLE empleados (
     INDEX idx_empleados_usuario (id_usuario)
 );
 
--- Crear tabla de inmuebles
+-- Crear tabla de inmuebles con la nueva columna margen_utilidad
 CREATE TABLE inmuebles (
     id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
     nombre_inmueble VARCHAR(100) NOT NULL,
@@ -231,6 +234,7 @@ CREATE TABLE inmuebles (
     comision_agencia DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para la agencia (30% del costo cliente)',
     comision_agente DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para el agente (3% del costo cliente)',
     precio_venta_final DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Suma total de todos los costos',
+    margen_utilidad DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Porcentaje de ganancia sobre el precio final',
     FOREIGN KEY (id_direccion) REFERENCES direcciones(id_direccion),
     FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE SET NULL,
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado),
@@ -771,10 +775,12 @@ BEGIN
     DECLARE v_comision_agencia DECIMAL(12,2);
     DECLARE v_comision_agente DECIMAL(12,2);
     DECLARE v_precio_venta_final DECIMAL(12,2);
+    DECLARE v_margen_utilidad DECIMAL(5,2);
     
     SET v_comision_agencia = IFNULL(p_costo_cliente, 0) * 0.30;
     SET v_comision_agente = IFNULL(p_costo_cliente, 0) * 0.03;
     SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
+    SET v_margen_utilidad = IF(v_precio_venta_final > 0, ((v_comision_agencia + v_comision_agente) / v_precio_venta_final) * 100, 0);
     
     START TRANSACTION;
     
@@ -794,12 +800,12 @@ BEGIN
     INSERT INTO inmuebles (
         nombre_inmueble, id_direccion, monto_total, tipo_inmueble, tipo_operacion, 
         precio_venta, precio_renta, id_estado, id_cliente, id_empleado, caracteristicas,
-        costo_cliente, costo_servicios, comision_agencia, comision_agente, precio_venta_final
+        costo_cliente, costo_servicios, comision_agencia, comision_agente, precio_venta_final, margen_utilidad
     ) VALUES (
         p_nombre_inmueble, v_id_direccion, p_monto_total, COALESCE(p_tipo_inmueble, 'casa'), 
         COALESCE(p_tipo_operacion, 'venta'), p_precio_venta, p_precio_renta, v_id_estado, 
         p_id_cliente, p_id_empleado, p_caracteristicas,
-        p_costo_cliente, p_costo_servicios, v_comision_agencia, v_comision_agente, v_precio_venta_final
+        p_costo_cliente, p_costo_servicios, v_comision_agencia, v_comision_agente, v_precio_venta_final, v_margen_utilidad
     );
     
     SET p_id_inmueble_out = LAST_INSERT_ID();
@@ -835,10 +841,12 @@ BEGIN
     DECLARE v_comision_agencia DECIMAL(12,2);
     DECLARE v_comision_agente DECIMAL(12,2);
     DECLARE v_precio_venta_final DECIMAL(12,2);
+    DECLARE v_margen_utilidad DECIMAL(5,2);
     
     SET v_comision_agencia = IFNULL(p_costo_cliente, 0) * 0.30;
     SET v_comision_agente = IFNULL(p_costo_cliente, 0) * 0.03;
     SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
+    SET v_margen_utilidad = IF(v_precio_venta_final > 0, ((v_comision_agencia + v_comision_agente) / v_precio_venta_final) * 100, 0);
 
     SELECT id_direccion INTO v_id_direccion
     FROM inmuebles 
@@ -875,7 +883,8 @@ BEGIN
         costo_servicios = p_costo_servicios,
         comision_agencia = v_comision_agencia,
         comision_agente = v_comision_agente,
-        precio_venta_final = v_precio_venta_final
+        precio_venta_final = v_precio_venta_final,
+        margen_utilidad = v_margen_utilidad
     WHERE id_inmueble = p_id_inmueble;
 
     COMMIT;
@@ -1381,6 +1390,7 @@ BEGIN
         i.id_empleado,
         i.caracteristicas,
         i.fecha_registro,
+        i.margen_utilidad,
         d.calle,
         d.numero,
         d.colonia,
@@ -1801,6 +1811,7 @@ BEGIN
     DECLARE v_comision_agencia DECIMAL(12,2);
     DECLARE v_comision_agente DECIMAL(12,2);
     DECLARE v_precio_venta_final DECIMAL(12,2);
+    DECLARE v_margen_utilidad DECIMAL(5,2);
     
     SELECT IFNULL(SUM(costo), 0) INTO v_costo_total
     FROM inmueble_proveedor_servicio
@@ -1814,11 +1825,18 @@ BEGIN
     SET v_comision_agente = v_costo_cliente * 0.03;
     SET v_precio_venta_final = v_costo_cliente + v_costo_total + v_comision_agencia + v_comision_agente;
     
+    IF v_precio_venta_final > 0 THEN
+        SET v_margen_utilidad = ((v_comision_agencia + v_comision_agente) / v_precio_venta_final) * 100;
+    ELSE
+        SET v_margen_utilidad = 0;
+    END IF;
+    
     UPDATE inmuebles SET
         costo_servicios = v_costo_total,
         comision_agencia = v_comision_agencia,
         comision_agente = v_comision_agente,
-        precio_venta_final = v_precio_venta_final
+        precio_venta_final = v_precio_venta_final,
+        margen_utilidad = v_margen_utilidad
     WHERE id_inmueble = p_id_inmueble;
 END //
 
@@ -1867,6 +1885,48 @@ BEGIN
     JOIN estados e ON ips.id_estado = e.id_estado
     WHERE ips.id_inmueble = p_id_inmueble
     ORDER BY ips.fecha_asignacion DESC;
+END //
+
+-- Procedimiento para recalcular valores financieros en toda la base
+CREATE PROCEDURE RecalcularFinanzasInmuebles()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE inmueble_id INT;
+    DECLARE cur CURSOR FOR SELECT id_inmueble FROM inmuebles;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    OPEN cur;
+    
+    read_loop: LOOP
+        FETCH cur INTO inmueble_id;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        CALL ActualizarCostoServiciosInmueble(inmueble_id);
+    END LOOP;
+    
+    CLOSE cur;
+END //
+
+-- Procedimiento para actualizar las utilidades de una venta
+CREATE PROCEDURE ActualizarUtilidadVenta(
+    IN p_id_venta INT,
+    IN p_gastos_adicionales DECIMAL(15,2)
+)
+BEGIN
+    DECLARE v_utilidad_bruta DECIMAL(15,2);
+    DECLARE v_utilidad_neta DECIMAL(15,2);
+    
+    SELECT utilidad_bruta INTO v_utilidad_bruta 
+    FROM ventas 
+    WHERE id_venta = p_id_venta;
+    
+    SET v_utilidad_neta = v_utilidad_bruta - p_gastos_adicionales;
+    
+    UPDATE ventas 
+    SET utilidad_neta = v_utilidad_neta 
+    WHERE id_venta = p_id_venta;
 END //
 
 DELIMITER ;

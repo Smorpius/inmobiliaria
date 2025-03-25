@@ -5,6 +5,9 @@ import '../controllers/inmueble_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers_global.dart'; // Importar los providers globales
 
+// Provider para controlar el orden por margen de utilidad
+final ordenarPorMargenProvider = StateProvider<bool>((ref) => false);
+
 // Provider para el controlador de inmuebles
 final inmuebleControllerProvider = Provider<InmuebleController>((ref) {
   final dbService = ref.watch(databaseServiceProvider);
@@ -116,6 +119,7 @@ class FiltrosInmueble {
   final double? precioMax;
   final String? ciudad;
   final int? idEstado;
+  final double? margenMin; // Añadido nuevo campo
 
   FiltrosInmueble({
     this.tipo,
@@ -124,6 +128,7 @@ class FiltrosInmueble {
     this.precioMax,
     this.ciudad,
     this.idEstado,
+    this.margenMin, // Inicializar nuevo campo
   });
 
   FiltrosInmueble copyWith({
@@ -133,6 +138,7 @@ class FiltrosInmueble {
     double? precioMax,
     String? ciudad,
     int? idEstado,
+    double? margenMin, // Incluir en copyWith
   }) {
     return FiltrosInmueble(
       tipo: tipo ?? this.tipo,
@@ -141,6 +147,7 @@ class FiltrosInmueble {
       precioMax: precioMax ?? this.precioMax,
       ciudad: ciudad ?? this.ciudad,
       idEstado: idEstado ?? this.idEstado,
+      margenMin: margenMin ?? this.margenMin, // Copiar el valor
     );
   }
 }
@@ -156,6 +163,7 @@ class FiltrosInmuebleNotifier extends StateNotifier<FiltrosInmueble> {
     double? precioMax,
     String? ciudad,
     int? idEstado,
+    double? margenMin, // Añadir el nuevo parámetro
   }) {
     state = state.copyWith(
       tipo: tipo,
@@ -164,6 +172,7 @@ class FiltrosInmuebleNotifier extends StateNotifier<FiltrosInmueble> {
       precioMax: precioMax,
       ciudad: ciudad,
       idEstado: idEstado,
+      margenMin: margenMin, // Incluir en la actualización
     );
   }
 
@@ -176,6 +185,7 @@ class FiltrosInmuebleNotifier extends StateNotifier<FiltrosInmueble> {
 final inmueblesBuscadosProvider = FutureProvider<List<Inmueble>>((ref) async {
   final controller = ref.watch(inmuebleControllerProvider);
   final filtros = ref.watch(filtrosInmuebleProvider);
+  final ordenarPorMargen = ref.watch(ordenarPorMargenProvider);
 
   // Si no hay filtros aplicados, usa el provider general de inmuebles filtrados
   if (filtros.tipo == null &&
@@ -183,25 +193,49 @@ final inmueblesBuscadosProvider = FutureProvider<List<Inmueble>>((ref) async {
       filtros.precioMin == null &&
       filtros.precioMax == null &&
       filtros.ciudad == null &&
-      filtros.idEstado == null) {
-    return ref.watch(inmueblesFiltradosProvider);
+      filtros.idEstado == null &&
+      filtros.margenMin == null) {
+    // Incluir el nuevo campo en la validación
+    List<Inmueble> inmuebles = ref.watch(inmueblesFiltradosProvider);
+
+    // Aplicar ordenamiento por margen si está activado
+    if (ordenarPorMargen) {
+      inmuebles = [...inmuebles]; // Copia para no modificar la lista original
+      inmuebles.sort(
+        (a, b) => (b.margenUtilidad ?? 0).compareTo(a.margenUtilidad ?? 0),
+      );
+    }
+
+    return inmuebles;
   }
 
   // Si hay filtros, realiza la búsqueda con los criterios
-  final resultados = await controller.buscarInmuebles(
+  List<Inmueble> resultados = await controller.buscarInmuebles(
     tipo: filtros.tipo,
     operacion: filtros.operacion,
     precioMin: filtros.precioMin,
     precioMax: filtros.precioMax,
     ciudad: filtros.ciudad,
     idEstado: filtros.idEstado,
+    margenMin: filtros.margenMin, // Incluir el nuevo parámetro
   );
 
   // Aplicar el filtro de activos/inactivos
   final mostrarInactivos = ref.watch(mostrarInactivosProvider);
   if (mostrarInactivos) {
-    return resultados.where((inmueble) => inmueble.idEstado == 2).toList();
+    resultados =
+        resultados.where((inmueble) => inmueble.idEstado == 2).toList();
   } else {
-    return resultados.where((inmueble) => inmueble.idEstado != 2).toList();
+    resultados =
+        resultados.where((inmueble) => inmueble.idEstado != 2).toList();
   }
+
+  // Aplicar ordenamiento por margen si está activado
+  if (ordenarPorMargen) {
+    resultados.sort(
+      (a, b) => (b.margenUtilidad ?? 0).compareTo(a.margenUtilidad ?? 0),
+    );
+  }
+
+  return resultados;
 });

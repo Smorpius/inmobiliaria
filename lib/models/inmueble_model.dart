@@ -31,12 +31,13 @@ class Inmueble {
   final String? codigoPostal;
   final String? referencias;
 
-  // Nuevos campos financieros - ahora no-nulos con valores predeterminados
+  // Campos financieros
   final double costoCliente; // Costo que pide el cliente por su propiedad
   final double costoServicios; // Costo de servicios de proveedores
   final double? comisionAgencia; // 30% del costo cliente (calculado)
   final double? comisionAgente; // 3% del costo cliente (calculado)
   final double? precioVentaFinal; // Suma total de todos los costos
+  final double? margenUtilidad; // Porcentaje de ganancia sobre el precio final
 
   Inmueble({
     this.id,
@@ -59,11 +60,12 @@ class Inmueble {
     this.estadoGeografico,
     this.codigoPostal,
     this.referencias,
-    this.costoCliente = 0.0, // Valor predeterminado no-nulo
-    this.costoServicios = 0.0, // Valor predeterminado no-nulo
+    this.costoCliente = 0.0,
+    this.costoServicios = 0.0,
     this.comisionAgencia,
     this.comisionAgente,
     this.precioVentaFinal,
+    this.margenUtilidad, // Nuevo campo
   });
 
   // Constructor con cálculos automáticos
@@ -97,6 +99,12 @@ class Inmueble {
     final precioVentaFinal =
         costoCliente + costoServicios + comisionAgencia + comisionAgente;
 
+    // Calcular margen de utilidad
+    final margenUtilidad =
+        precioVentaFinal > 0
+            ? ((comisionAgencia + comisionAgente) / precioVentaFinal) * 100
+            : 0.0;
+
     return Inmueble(
       id: id,
       nombre: nombre,
@@ -123,6 +131,7 @@ class Inmueble {
       comisionAgencia: comisionAgencia,
       comisionAgente: comisionAgente,
       precioVentaFinal: precioVentaFinal,
+      margenUtilidad: margenUtilidad, // Nuevo campo
     );
   }
 
@@ -148,12 +157,13 @@ class Inmueble {
       'estado_geografico': estadoGeografico,
       'codigo_postal': codigoPostal,
       'referencias': referencias,
-      // Nuevos campos financieros
+      // Campos financieros
       'costo_cliente': costoCliente,
       'costo_servicios': costoServicios,
       'comision_agencia': comisionAgencia,
       'comision_agente': comisionAgente,
       'precio_venta_final': precioVentaFinal,
+      'margen_utilidad': margenUtilidad, // Nuevo campo
     };
   }
 
@@ -201,6 +211,9 @@ class Inmueble {
       final comisionAgencia = parseDoubleSafely(map['comision_agencia']);
       final comisionAgente = parseDoubleSafely(map['comision_agente']);
       final precioVentaFinal = parseDoubleSafely(map['precio_venta_final']);
+      final margenUtilidad = parseDoubleSafely(
+        map['margen_utilidad'],
+      ); // Nuevo campo
 
       return Inmueble(
         id: parseIntSafely(map['id_inmueble']),
@@ -234,6 +247,7 @@ class Inmueble {
         comisionAgencia: comisionAgencia,
         comisionAgente: comisionAgente,
         precioVentaFinal: precioVentaFinal,
+        margenUtilidad: margenUtilidad, // Nuevo campo
       );
     } catch (e, stackTrace) {
       _logger.severe('Error al procesar inmueble: $e', e, stackTrace);
@@ -262,7 +276,7 @@ class Inmueble {
         .join(', ');
   }
 
-  // Método para calcular comisiones actualizadas - ya no necesita verificar nulo
+  // Método para calcular comisiones actualizadas
   Inmueble calcularComisiones() {
     final nuevaComisionAgencia = costoCliente * 0.30;
     final nuevaComisionAgente = costoCliente * 0.03;
@@ -271,6 +285,14 @@ class Inmueble {
         costoServicios +
         nuevaComisionAgencia +
         nuevaComisionAgente;
+
+    // Calcular el margen de utilidad
+    final nuevoMargenUtilidad =
+        nuevoPrecioVentaFinal > 0
+            ? ((nuevaComisionAgencia + nuevaComisionAgente) /
+                    nuevoPrecioVentaFinal) *
+                100
+            : 0.0;
 
     return Inmueble(
       id: id,
@@ -298,6 +320,7 @@ class Inmueble {
       comisionAgencia: nuevaComisionAgencia,
       comisionAgente: nuevaComisionAgente,
       precioVentaFinal: nuevoPrecioVentaFinal,
+      margenUtilidad: nuevoMargenUtilidad, // Nuevo campo calculado
     );
   }
 

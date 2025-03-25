@@ -57,6 +57,7 @@ class InmuebleListScreen extends ConsumerWidget {
                       double? precioMax,
                       String? ciudad,
                       int? idEstado,
+                      double? margenMin, // Añadir este parámetro
                     }) {
                       ref
                           .read(filtrosInmuebleProvider.notifier)
@@ -67,6 +68,7 @@ class InmuebleListScreen extends ConsumerWidget {
                             precioMax: precioMax,
                             ciudad: ciudad,
                             idEstado: idEstado,
+                            margenMin: margenMin, // Añadir este parámetro
                           );
                       Navigator.pop(context);
                     },

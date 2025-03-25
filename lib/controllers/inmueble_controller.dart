@@ -76,6 +76,22 @@ class InmuebleController {
         );
   }
 
+  /// Método para recalcular las finanzas de todos los inmuebles
+  Future<bool> recalcularFinanzas() async {
+    return _ejecutarConReintentos('recalcular finanzas inmuebles', () async {
+      _logger.info('Iniciando recálculo de finanzas para todos los inmuebles');
+      developer.log('Ejecutando procedimiento de recálculo de finanzas');
+
+      final db = await dbHelper.connection;
+
+      // Ejecutar el procedimiento almacenado sin parámetros
+      await db.query('CALL RecalcularFinanzasInmuebles()');
+
+      _logger.info('Recálculo de finanzas completado exitosamente');
+      return true;
+    });
+  }
+
   Future<List<Inmueble>> getInmuebles() async {
     return _ejecutarConReintentos('obtener inmuebles', () async {
       _logger.info('Iniciando consulta de inmuebles...');
@@ -111,6 +127,19 @@ class InmuebleController {
 
       return inmuebles;
     });
+  }
+
+  /// Método para ordenar inmuebles por margen de utilidad (de mayor a menor rentabilidad)
+  List<Inmueble> ordenarPorMargenUtilidad(List<Inmueble> inmuebles) {
+    // Crear una copia para no modificar la lista original
+    final inmueblesOrdenados = List<Inmueble>.from(inmuebles);
+
+    // Ordenar la lista por margen de utilidad de mayor a menor
+    inmueblesOrdenados.sort(
+      (a, b) => (b.margenUtilidad ?? 0).compareTo(a.margenUtilidad ?? 0),
+    );
+
+    return inmueblesOrdenados;
   }
 
   Future<int> insertInmueble(Inmueble inmueble) async {
@@ -177,7 +206,7 @@ class InmuebleController {
 
       // Usar el procedimiento actualizado con los nuevos campos financieros
       final result = await db.query(
-        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'CALL ActualizarInmueble(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           inmueble.id,
           inmueble.nombre,
@@ -203,6 +232,27 @@ class InmuebleController {
       );
 
       return result.affectedRows ?? 0;
+    });
+  }
+
+  /// Método para actualizar la utilidad de una venta considerando gastos adicionales
+  Future<bool> actualizarUtilidadVenta(
+    int idVenta,
+    double gastosAdicionales,
+  ) async {
+    return _ejecutarConReintentos('actualizar utilidad venta', () async {
+      _logger.info(
+        'Actualizando utilidad de venta ID: $idVenta con gastos adicionales: $gastosAdicionales',
+      );
+      final db = await dbHelper.connection;
+
+      await db.query('CALL ActualizarUtilidadVenta(?, ?)', [
+        idVenta,
+        gastosAdicionales,
+      ]);
+
+      _logger.info('Utilidad de venta actualizada correctamente');
+      return true;
     });
   }
 
@@ -281,6 +331,7 @@ class InmuebleController {
     double? precioMax,
     String? ciudad,
     int? idEstado,
+    double? margenMin, // Nuevo parámetro para filtrar por margen mínimo
   }) async {
     return _ejecutarConReintentos('buscar inmuebles', () async {
       _logger.info('Buscando inmuebles con criterios específicos');
@@ -328,6 +379,12 @@ class InmuebleController {
       if (idEstado != null) {
         query += ' AND i.id_estado = ?';
         params.add(idEstado);
+      }
+
+      // Nuevo filtro por margen de utilidad mínimo
+      if (margenMin != null && margenMin > 0) {
+        query += ' AND i.margen_utilidad >= ?';
+        params.add(margenMin);
       }
 
       query += ' ORDER BY i.fecha_registro DESC';
@@ -425,9 +482,8 @@ class InmuebleController {
     });
   }
 
-  // MÉTODOS PARA GESTIÓN DE IMÁGENES - MEJORADOS PARA PREVENIR RANGEERROR
+  // MÉTODOS PARA GESTIÓN DE IMÁGENES
 
-  /// Método mejorado para obtener todas las imágenes de un inmueble con sanitización
   Future<List<InmuebleImagen>> getImagenesInmueble(int idInmueble) async {
     return _ejecutarConReintentos('obtener imágenes inmueble', () async {
       _logger.info('Obteniendo imágenes del inmueble: $idInmueble');
@@ -442,37 +498,32 @@ class InmuebleController {
         [idInmueble],
       );
 
-      // Convertir resultados con sanitización
       List<InmuebleImagen> imagenes = [];
       for (var row in results) {
         try {
-          // Sanitización de datos similar a getImagenPrincipal
           Map<String, dynamic> datosSanitizados = {};
           final datos = row.fields;
 
-          // Sanitizar los IDs y otros campos críticos
           if (datos['id_imagen'] is int) {
             datosSanitizados['id_imagen'] = datos['id_imagen'];
           } else if (datos['id_imagen'] != null) {
             final idParsed = int.tryParse(datos['id_imagen'].toString().trim());
-            if (idParsed == null) continue; // Omitir registro con ID inválido
+            if (idParsed == null) continue;
             datosSanitizados['id_imagen'] = idParsed;
           } else {
-            continue; // Omitir registro sin ID de imagen
+            continue;
           }
 
-          // Sanitizar el ID de inmueble
           if (datos['id_inmueble'] is int) {
             datosSanitizados['id_inmueble'] = datos['id_inmueble'];
           } else {
             final idParsed = int.tryParse(
               datos['id_inmueble'].toString().trim(),
             );
-            if (idParsed != idInmueble) continue; // Verificación adicional
+            if (idParsed != idInmueble) continue;
             datosSanitizados['id_inmueble'] = idParsed;
           }
 
-          // Resto de campos
           datosSanitizados['ruta_imagen'] =
               datos['ruta_imagen']?.toString() ?? '';
           datosSanitizados['descripcion'] = datos['descripcion']?.toString();
@@ -480,7 +531,6 @@ class InmuebleController {
               datos['es_principal'] == 1 ||
               datos['es_principal'].toString().toLowerCase() == 'true';
 
-          // Sanitización de fecha
           if (datos['fecha_carga'] != null) {
             try {
               if (datos['fecha_carga'] is DateTime) {
@@ -498,13 +548,11 @@ class InmuebleController {
             }
           }
 
-          // Agregar a la lista solo si tiene ruta de imagen válida
           if (datosSanitizados['ruta_imagen'].isNotEmpty) {
             imagenes.add(InmuebleImagen.fromMap(datosSanitizados));
           }
         } catch (e) {
           _logger.warning('Error al procesar imagen: $e');
-          // Continuar con la siguiente imagen en lugar de fallar toda la operación
         }
       }
 
@@ -512,152 +560,36 @@ class InmuebleController {
     });
   }
 
-  /// Método mejorado para obtener la imagen principal con manejo robusto de errores
   Future<InmuebleImagen?> getImagenPrincipal(int idInmueble) async {
-    int intentos = 0;
-    const maxIntentos = 3;
-    Exception? ultimoError;
+    return _ejecutarConReintentos('obtener imagen principal', () async {
+      _logger.info('Obteniendo imagen principal para inmueble: $idInmueble');
+      final db = await dbHelper.connection;
 
-    while (intentos < maxIntentos) {
+      final results = await db.query(
+        '''
+        SELECT * FROM inmuebles_imagenes 
+        WHERE id_inmueble = ? AND es_principal = 1
+        LIMIT 1
+        ''',
+        [idInmueble],
+      );
+
+      if (results.isEmpty) return null;
+
       try {
-        _logger.info(
-          'Obteniendo imagen principal: $idInmueble (Intento ${intentos + 1})',
-        );
-
-        // Verificar estabilidad de la conexión
-        await dbHelper.esperarEstabilizacion();
-
-        final db = await dbHelper.connection;
-
-        // Consulta específica para obtener la imagen principal
-        final results = await db.query(
-          '''
-          SELECT id_imagen, id_inmueble, ruta_imagen, 
-                 descripcion, es_principal, fecha_carga
-          FROM inmuebles_imagenes 
-          WHERE id_inmueble = ? AND es_principal = 1
-          LIMIT 1
-          ''',
-          [idInmueble],
-        );
-
-        if (results.isEmpty) return null;
-
-        // Sanitización segura de datos
-        Map<String, dynamic> datosSanitizados = {};
-        final datos = results.first.fields;
-
-        // Sanitización segura del ID de imagen
-        if (datos['id_imagen'] is int) {
-          datosSanitizados['id_imagen'] = datos['id_imagen'];
-        } else if (datos['id_imagen'] != null) {
-          final idStr = datos['id_imagen'].toString().trim();
-          final idParsed = int.tryParse(idStr);
-          if (idParsed == null) {
-            throw FormatException('ID imagen inválido: $idStr');
-          }
-          datosSanitizados['id_imagen'] = idParsed;
-        } else {
-          throw FormatException('ID imagen es nulo');
-        }
-
-        // Sanitización segura del ID del inmueble
-        if (datos['id_inmueble'] is int) {
-          datosSanitizados['id_inmueble'] = datos['id_inmueble'];
-        } else if (datos['id_inmueble'] != null) {
-          final idStr = datos['id_inmueble'].toString().trim();
-          final idParsed = int.tryParse(idStr);
-          if (idParsed == null) {
-            throw FormatException('ID inmueble inválido: $idStr');
-          }
-          datosSanitizados['id_inmueble'] = idParsed;
-        } else {
-          throw FormatException('ID inmueble es nulo');
-        }
-
-        // Resto de la sanitización
-        datosSanitizados['ruta_imagen'] =
-            datos['ruta_imagen']?.toString() ?? '';
-        datosSanitizados['descripcion'] = datos['descripcion']?.toString();
-        datosSanitizados['es_principal'] =
-            datos['es_principal'] == 1 ||
-            datos['es_principal'].toString().toLowerCase() == 'true';
-
-        // Sanitización segura de la fecha
-        if (datos['fecha_carga'] != null) {
-          try {
-            if (datos['fecha_carga'] is DateTime) {
-              datosSanitizados['fecha_carga'] = datos['fecha_carga'];
-            } else {
-              datosSanitizados['fecha_carga'] = DateTime.parse(
-                datos['fecha_carga'].toString(),
-              );
-            }
-          } catch (e) {
-            _logger.warning('Error al parsear fecha: $e, usando fecha actual');
-            datosSanitizados['fecha_carga'] = DateTime.now();
-          }
-        }
-
-        return InmuebleImagen.fromMap(datosSanitizados);
+        return InmuebleImagen.fromMap(results.first.fields);
       } catch (e) {
-        intentos++;
-        ultimoError = e is Exception ? e : Exception(e.toString());
-
-        String errorMessage = e.toString();
-        _logger.warning(
-          'Error en getImagenPrincipal (Intento $intentos): $errorMessage',
-        );
-
-        // Manejo específico según tipo de error
-        if (errorMessage.contains('MySqlProtocol') ||
-            errorMessage.contains('MySQL')) {
-          _logger.severe('Error de protocolo MySQL: $errorMessage');
-          await Future.delayed(const Duration(seconds: 2));
-          try {
-            await dbHelper.reiniciarConexion();
-          } catch (reconnectError) {
-            _logger.warning('Error al reiniciar conexión: $reconnectError');
-          }
-        } else if (errorMessage.contains('socket') ||
-            errorMessage.contains('connection') ||
-            errorMessage.contains('closed')) {
-          _logger.warning('Error de conexión: $errorMessage');
-          final espera = Duration(milliseconds: 500 * (1 << intentos));
-          await Future.delayed(espera);
-          try {
-            await dbHelper.reiniciarConexion();
-          } catch (reconnectError) {
-            _logger.warning('Error al reconectar: $reconnectError');
-          }
-        } else {
-          await Future.delayed(const Duration(milliseconds: 300));
-        }
+        _logger.warning('Error procesando imagen principal: $e');
+        return null;
       }
-    }
-
-    throw ultimoError ??
-        Exception(
-          'No se pudo obtener la imagen principal después de $maxIntentos intentos',
-        );
+    });
   }
 
-  /// Método para agregar una imagen a un inmueble con validación reforzada
   Future<int> agregarImagenInmueble(InmuebleImagen imagen) async {
     return _ejecutarConReintentos('agregar imagen inmueble', () async {
-      // Validación previa de datos
-      if (imagen.idInmueble <= 0) {
-        throw FormatException('ID de inmueble inválido: ${imagen.idInmueble}');
-      }
-
-      if (imagen.rutaImagen.isEmpty) {
-        throw FormatException('Ruta de imagen vacía');
-      }
-
       _logger.info('Agregando imagen al inmueble: ${imagen.idInmueble}');
       final db = await dbHelper.connection;
 
-      // Si la imagen es principal, primero desmarcar otras como principal
       if (imagen.esPrincipal) {
         await db.query(
           'UPDATE inmuebles_imagenes SET es_principal = 0 WHERE id_inmueble = ?',
@@ -674,32 +606,17 @@ class InmuebleController {
         [
           imagen.idInmueble,
           imagen.rutaImagen,
-          imagen.descripcion ?? 'Imagen de inmueble', // Valor por defecto
+          imagen.descripcion,
           imagen.esPrincipal ? 1 : 0,
         ],
       );
 
-      final idImagen = result.insertId ?? -1;
-
-      // Verificación adicional
-      if (idImagen <= 0) {
-        throw Exception('No se pudo obtener el ID de la imagen insertada');
-      }
-
-      return idImagen;
+      return result.insertId ?? -1;
     });
   }
 
-  /// Método para marcar una imagen como principal con verificación mejorada
   Future<bool> marcarImagenComoPrincipal(int idImagen, int idInmueble) async {
     return _ejecutarConReintentos('marcar imagen como principal', () async {
-      // Validación previa
-      if (idImagen <= 0 || idInmueble <= 0) {
-        throw FormatException(
-          'IDs inválidos: imagen=$idImagen, inmueble=$idInmueble',
-        );
-      }
-
       _logger.info(
         'Marcando imagen $idImagen como principal para inmueble $idInmueble',
       );
@@ -731,21 +648,12 @@ class InmuebleController {
         [idImagen, idInmueble],
       );
 
-      _logger.info(
-        'Imagen actualizada como principal: ${result.affectedRows} filas',
-      );
       return (result.affectedRows ?? 0) > 0;
     });
   }
 
-  /// Método mejorado para eliminar una imagen con verificaciones y recuperación automática
   Future<bool> eliminarImagenInmueble(int idImagen) async {
     return _ejecutarConReintentos('eliminar imagen inmueble', () async {
-      // Validación previa
-      if (idImagen <= 0) {
-        throw FormatException('ID de imagen inválido: $idImagen');
-      }
-
       _logger.info('Eliminando imagen con ID: $idImagen');
       final db = await dbHelper.connection;
 
@@ -784,40 +692,17 @@ class InmuebleController {
         }
       }
 
-      _logger.info('Imagen eliminada: ${result.affectedRows} filas');
       return (result.affectedRows ?? 0) > 0;
     });
   }
 
-  /// Método para actualizar la descripción de una imagen con validación mejorada
   Future<bool> actualizarDescripcionImagen(
     int idImagen,
     String nuevaDescripcion,
   ) async {
     return _ejecutarConReintentos('actualizar descripción imagen', () async {
-      // Validación previa
-      if (idImagen <= 0) {
-        throw FormatException('ID de imagen inválido: $idImagen');
-      }
-
-      if (nuevaDescripcion.isEmpty) {
-        nuevaDescripcion = "Imagen del inmueble"; // Valor por defecto
-      }
-
       _logger.info('Actualizando descripción de imagen: $idImagen');
       final db = await dbHelper.connection;
-
-      // Verificar primero que la imagen exista
-      final checkResult = await db.query(
-        'SELECT COUNT(*) as count FROM inmuebles_imagenes WHERE id_imagen = ?',
-        [idImagen],
-      );
-
-      final int count = checkResult.first.fields['count'] as int;
-      if (count == 0) {
-        _logger.warning('No se encontró la imagen a actualizar: $idImagen');
-        return false;
-      }
 
       final result = await db.query(
         'UPDATE inmuebles_imagenes SET descripcion = ? WHERE id_imagen = ?',
@@ -828,7 +713,7 @@ class InmuebleController {
     });
   }
 
-  // MÉTODOS PARA GESTIÓN DE SERVICIOS DE PROVEEDORES
+  // MÉTODOS PARA SERVICIOS DE PROVEEDORES
 
   Future<List<InmuebleProveedorServicio>> getServiciosProveedores(
     int idInmueble,
@@ -836,9 +721,6 @@ class InmuebleController {
     return _ejecutarConReintentos('obtener servicios proveedores', () async {
       _logger.info(
         'Obteniendo servicios de proveedores para inmueble: $idInmueble',
-      );
-      developer.log(
-        'Consultando servicios de proveedores para inmueble: $idInmueble',
       );
       final db = await dbHelper.connection;
 
@@ -856,7 +738,6 @@ class InmuebleController {
           servicios.add(servicio);
         } catch (e) {
           _logger.warning('Error procesando servicio: $e');
-          developer.log('Error al procesar servicio de proveedor: $e');
         }
       }
 
@@ -870,9 +751,6 @@ class InmuebleController {
     return _ejecutarConReintentos('asignar proveedor a inmueble', () async {
       _logger.info(
         'Asignando proveedor ${servicio.idProveedor} a inmueble ${servicio.idInmueble}',
-      );
-      developer.log(
-        'Asignando proveedor a inmueble - Detalle: ${servicio.servicioDetalle}',
       );
       final db = await dbHelper.connection;
 
@@ -891,28 +769,22 @@ class InmuebleController {
       );
 
       final result = await db.query('SELECT @id_servicio_out as id');
-      final id = result.first.fields['id'] as int;
-
-      _logger.info('Proveedor asignado correctamente, ID: $id');
-      return id;
+      return result.first.fields['id'] as int;
     });
   }
 
   Future<bool> eliminarAsignacionProveedor(int id) async {
     return _ejecutarConReintentos('eliminar asignación proveedor', () async {
       _logger.info('Eliminando asignación de proveedor ID: $id');
-      developer.log('Eliminando servicio de proveedor con ID: $id');
       final db = await dbHelper.connection;
 
       await db.query('CALL EliminarServicioProveedor(?)', [id]);
-
-      _logger.info('Asignación de proveedor eliminada correctamente');
       return true;
     });
   }
 
-  /// Método para verificar si una imagen existe en el sistema de archivos
-  /// Útil para limpiar referencias a archivos que ya no existen
+  // Métodos auxiliares
+
   Future<bool> verificarExistenciaImagenFisica(String rutaImagen) async {
     return _ejecutarConReintentos(
       'verificar existencia imagen física',
@@ -921,7 +793,6 @@ class InmuebleController {
           final file = File(rutaImagen);
           final existe = await file.exists();
           final tamanoValido = existe ? await file.length() > 100 : false;
-
           return existe && tamanoValido;
         } catch (e) {
           _logger.warning('Error al verificar existencia física de imagen: $e');
@@ -931,14 +802,11 @@ class InmuebleController {
     );
   }
 
-  /// Método para limpiar imágenes huérfanas de la base de datos
-  /// (imágenes en la BD que ya no existen en el sistema de archivos)
   Future<int> limpiarImagenesHuerfanas() async {
     return _ejecutarConReintentos('limpiar imágenes huérfanas', () async {
       _logger.info('Iniciando limpieza de imágenes huérfanas');
       final db = await dbHelper.connection;
 
-      // Obtener todas las imágenes
       final results = await db.query(
         'SELECT id_imagen, ruta_imagen FROM inmuebles_imagenes',
       );
@@ -951,7 +819,6 @@ class InmuebleController {
           final String rutaImagen = row.fields['ruta_imagen']?.toString() ?? '';
 
           if (rutaImagen.isEmpty) {
-            // Eliminar directamente si la ruta está vacía
             await db.query(
               'DELETE FROM inmuebles_imagenes WHERE id_imagen = ?',
               [idImagen],
@@ -960,11 +827,9 @@ class InmuebleController {
             continue;
           }
 
-          // Verificar si el archivo existe físicamente
           final existe = await verificarExistenciaImagenFisica(rutaImagen);
 
           if (!existe) {
-            // Eliminar la referencia de la base de datos si el archivo no existe
             await db.query(
               'DELETE FROM inmuebles_imagenes WHERE id_imagen = ?',
               [idImagen],
@@ -976,7 +841,6 @@ class InmuebleController {
           }
         } catch (e) {
           _logger.warning('Error al procesar imagen huérfana: $e');
-          // Continuar con la siguiente imagen
         }
       }
 

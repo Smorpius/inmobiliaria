@@ -7,6 +7,7 @@ class InformacionFinancieraWidget extends StatelessWidget {
   final TextEditingController comisionAgenciaController;
   final TextEditingController comisionAgenteController;
   final TextEditingController precioVentaFinalController;
+  final TextEditingController margenUtilidadController; // Nuevo controlador
   final Function() onCostoChanged;
   final String? Function(String?) validarCostos;
 
@@ -17,6 +18,7 @@ class InformacionFinancieraWidget extends StatelessWidget {
     required this.comisionAgenciaController,
     required this.comisionAgenteController,
     required this.precioVentaFinalController,
+    required this.margenUtilidadController, // Nuevo parámetro
     required this.onCostoChanged,
     required this.validarCostos,
   });
@@ -37,14 +39,14 @@ class InformacionFinancieraWidget extends StatelessWidget {
           controller: costoClienteController,
           decoration: const InputDecoration(
             labelText: 'Costo del Cliente',
-            hintText: 'Precio que pide el cliente por su propiedad',
-            prefixIcon: Icon(Icons.person_outline),
+            hintText: 'Ingrese el costo solicitado por el cliente',
             border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.person_outline),
             prefixText: '\$ ',
           ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
           ],
           validator: validarCostos,
           onChanged: (value) => onCostoChanged(),
@@ -56,14 +58,14 @@ class InformacionFinancieraWidget extends StatelessWidget {
           controller: costoServiciosController,
           decoration: const InputDecoration(
             labelText: 'Costo de Servicios',
-            hintText: 'Costo de servicios de proveedores',
-            prefixIcon: Icon(Icons.home_repair_service),
+            hintText: 'Ingrese el costo de servicios y proveedores',
             border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.home_repair_service),
             prefixText: '\$ ',
           ),
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
           ],
           validator: validarCostos,
           onChanged: (value) => onCostoChanged(),
@@ -75,11 +77,11 @@ class InformacionFinancieraWidget extends StatelessWidget {
           controller: comisionAgenciaController,
           decoration: const InputDecoration(
             labelText: 'Comisión Agencia (30%)',
-            prefixIcon: Icon(Icons.business),
             border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.business),
             prefixText: '\$ ',
-            filled: true,
-            fillColor: Color.fromARGB(31, 187, 187, 187),
+            helperText:
+                'Calculado automáticamente como 30% del costo del cliente',
           ),
           readOnly: true,
         ),
@@ -90,11 +92,11 @@ class InformacionFinancieraWidget extends StatelessWidget {
           controller: comisionAgenteController,
           decoration: const InputDecoration(
             labelText: 'Comisión Agente (3%)',
-            prefixIcon: Icon(Icons.person),
             border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.person),
             prefixText: '\$ ',
-            filled: true,
-            fillColor: Color.fromARGB(31, 187, 187, 187),
+            helperText:
+                'Calculado automáticamente como 3% del costo del cliente',
           ),
           readOnly: true,
         ),
@@ -104,15 +106,32 @@ class InformacionFinancieraWidget extends StatelessWidget {
         TextFormField(
           controller: precioVentaFinalController,
           decoration: const InputDecoration(
-            labelText: 'PRECIO VENTA FINAL',
-            prefixIcon: Icon(Icons.attach_money),
+            labelText: 'Precio de Venta Final',
             border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.money),
             prefixText: '\$ ',
-            filled: true,
-            fillColor: Color.fromARGB(31, 130, 174, 255),
+            helperText: 'Suma del costo del cliente, servicios y comisiones',
           ),
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           readOnly: true,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 16),
+
+        // Nuevo campo: Margen de Utilidad (solo lectura)
+        TextFormField(
+          controller: margenUtilidadController,
+          decoration: const InputDecoration(
+            labelText: 'Margen de Utilidad (%)',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.trending_up),
+            suffixText: '%',
+            helperText: 'Porcentaje de ganancia sobre el precio final',
+          ),
+          readOnly: true,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.green,
+          ),
         ),
       ],
     );

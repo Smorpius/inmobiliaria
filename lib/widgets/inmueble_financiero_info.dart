@@ -60,11 +60,27 @@ class InmuebleFinancieroInfo extends StatelessWidget {
             color: isInactivo ? Colors.grey.shade200 : Colors.blue.shade50,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: DetailRow(
-            label: 'PRECIO DE VENTA FINAL',
-            value: InmuebleFormatter.formatMonto(inmueble.precioVentaFinal),
-            icon: Icons.attach_money,
-            isInactivo: isInactivo,
+          child: Column(
+            children: [
+              DetailRow(
+                label: 'PRECIO DE VENTA FINAL',
+                value: InmuebleFormatter.formatMonto(inmueble.precioVentaFinal),
+                icon: Icons.money,
+                isInactivo: isInactivo,
+              ),
+              // Nuevo campo: Margen de Utilidad con tooltip
+              Tooltip(
+                message:
+                    'Porcentaje de ganancia calculado como proporción de comisiones respecto al precio final',
+                child: DetailRow(
+                  label: 'MARGEN DE UTILIDAD',
+                  value:
+                      '${(inmueble.margenUtilidad ?? 0).toStringAsFixed(2)}%',
+                  icon: Icons.trending_up,
+                  isInactivo: isInactivo,
+                ),
+              ),
+            ],
           ),
         ),
       ],
