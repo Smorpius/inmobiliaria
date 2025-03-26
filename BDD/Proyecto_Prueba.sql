@@ -1,4 +1,3 @@
-DESCRIBE historial_ventas;
 -- Configuración recomendada para servidor MySQL
 SET GLOBAL max_connections = 300;             -- Aumentar de 200 a 300
 SET GLOBAL wait_timeout = 600;                -- Aumentar de 300 a 600 segundos
