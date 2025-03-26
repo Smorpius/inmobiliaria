@@ -21,9 +21,18 @@ class InmuebleImagen {
     this.fechaCarga,
   });
 
-  // Factory constructor mejorado para crear desde Map (DB) con mejor manejo de errores
+  // Factory constructor mejorado para crear desde Map (DB) con mejor validación
   factory InmuebleImagen.fromMap(Map<String, dynamic> map) {
     try {
+      // Verificar primero que tengamos los campos mínimos necesarios
+      if (!map.containsKey('id_imagen') ||
+          !map.containsKey('id_inmueble') ||
+          !map.containsKey('ruta_imagen')) {
+        throw FormatException(
+          'Datos no corresponden a una imagen: ${map.keys}',
+        );
+      }
+
       // Verificación exhaustiva de tipos y conversiones seguras
       int? id =
           map['id_imagen'] is int

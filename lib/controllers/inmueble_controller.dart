@@ -562,24 +562,29 @@ class InmuebleController {
 
   Future<InmuebleImagen?> getImagenPrincipal(int idInmueble) async {
     return _ejecutarConReintentos('obtener imagen principal', () async {
-      _logger.info('Obteniendo imagen principal para inmueble: $idInmueble');
-      final db = await dbHelper.connection;
-
-      final results = await db.query(
-        '''
-        SELECT * FROM inmuebles_imagenes 
-        WHERE id_inmueble = ? AND es_principal = 1
-        LIMIT 1
-        ''',
-        [idInmueble],
-      );
-
-      if (results.isEmpty) return null;
-
       try {
+        _logger.info('Obteniendo imagen principal para inmueble: $idInmueble');
+        final db = await dbHelper.connection;
+
+        final results = await db.query(
+          '''
+          SELECT * FROM inmuebles_imagenes 
+          WHERE id_inmueble = ? AND es_principal = 1
+          LIMIT 1
+          ''',
+          [idInmueble],
+        );
+
+        if (results.isEmpty || results.first.fields.isEmpty) {
+          _logger.warning(
+            'No se encontró imagen principal para inmueble: $idInmueble',
+          );
+          return null;
+        }
+
         return InmuebleImagen.fromMap(results.first.fields);
       } catch (e) {
-        _logger.warning('Error procesando imagen principal: $e');
+        _logger.warning('Error al obtener imagen principal: $e');
         return null;
       }
     });
@@ -754,7 +759,8 @@ class InmuebleController {
       );
       final db = await dbHelper.connection;
 
-      await db.query(
+      // Utilizar timeout para evitar bloquear la UI indefinidamente
+      final operation = db.query(
         'CALL AsignarProveedorAInmueble(?, ?, ?, ?, ?, ?, @id_servicio_out)',
         [
           servicio.idInmueble,
@@ -766,6 +772,16 @@ class InmuebleController {
               ? DateFormat('yyyy-MM-dd').format(servicio.fechaServicio!)
               : null,
         ],
+      );
+
+      // Ejecutar con timeout de 10 segundos
+      await operation.timeout(
+        const Duration(seconds: 10),
+        onTimeout:
+            () =>
+                throw TimeoutException(
+                  'La operación está tomando demasiado tiempo',
+                ),
       );
 
       final result = await db.query('SELECT @id_servicio_out as id');

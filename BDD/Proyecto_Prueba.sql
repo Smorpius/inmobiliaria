@@ -1,7 +1,10 @@
--- Comandos administrativos globales para mejorar conexiones
-SET GLOBAL wait_timeout = 28800;
-SET GLOBAL interactive_timeout = 28800;
-SET GLOBAL max_allowed_packet = 67108864; -- 64MB
+-- Configuración recomendada para servidor MySQL
+SET GLOBAL max_connections = 300;             -- Aumentar de 200 a 300
+SET GLOBAL wait_timeout = 600;                -- Aumentar de 300 a 600 segundos
+SET GLOBAL interactive_timeout = 600;         -- Aumentar de 300 a 600 segundos
+SET GLOBAL connect_timeout = 30;              -- Aumentar de 10 a 30 segundos
+SET GLOBAL net_read_timeout = 120;            -- Aumentar de 60 a 120 segundos
+SET GLOBAL net_write_timeout = 120;           -- Aumentar de 60 a 120 segundos
 
 -- Mostrar los valores actuales para verificar
 SHOW VARIABLES LIKE 'wait_timeout';
@@ -51,12 +54,16 @@ DROP PROCEDURE IF EXISTS EliminarServicioProveedor;
 DROP PROCEDURE IF EXISTS ObtenerServiciosProveedorPorInmueble;
 DROP PROCEDURE IF EXISTS RecalcularFinanzasInmuebles;
 DROP PROCEDURE IF EXISTS ActualizarUtilidadVenta;
+DROP PROCEDURE IF EXISTS ObtenerEstadisticasVentas;
+DROP PROCEDURE IF EXISTS AnalisisRentabilidadPorTipo;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Eliminar tablas respetando dependencias
 DROP TABLE IF EXISTS historial_usuarios;
 DROP TABLE IF EXISTS historial_proveedores;
 DROP TABLE IF EXISTS historial_proveedores_detallado;
+DROP TABLE IF EXISTS historial_ventas;
+DROP TABLE IF EXISTS comisiones_pagadas;
 DROP TABLE IF EXISTS inmuebles_imagenes;
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;
 DROP TABLE IF EXISTS cliente_inmueble;
@@ -76,7 +83,7 @@ CREATE TABLE estados (
     nombre_estado VARCHAR(20) NOT NULL UNIQUE
 );
 
--- Insertar estados predefinidos
+-- Insertar estados predefinidos, incluyendo los nuevos para ventas
 INSERT INTO estados (id_estado, nombre_estado) 
 VALUES 
     (1, 'activo'),
@@ -84,7 +91,10 @@ VALUES
     (3, 'disponible'),
     (4, 'vendido'),
     (5, 'rentado'),
-    (6, 'en_negociacion')
+    (6, 'en_negociacion'),
+    (7, 'venta_en_proceso'),
+    (8, 'venta_completada'),
+    (9, 'venta_cancelada')
 ON DUPLICATE KEY UPDATE nombre_estado = VALUES(nombre_estado);
 
 -- Crear tabla de direcciones
@@ -214,7 +224,7 @@ CREATE TABLE empleados (
     INDEX idx_empleados_usuario (id_usuario)
 );
 
--- Crear tabla de inmuebles con la nueva columna margen_utilidad
+-- Crear tabla de inmuebles con la columna margen_utilidad
 CREATE TABLE inmuebles (
     id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
     nombre_inmueble VARCHAR(100) NOT NULL,
@@ -274,7 +284,7 @@ CREATE TABLE cliente_inmueble (
     CONSTRAINT unique_inmueble UNIQUE (id_inmueble)
 );
 
--- Crear tabla de ventas
+-- Crear tabla de ventas con el estado por defecto 'venta_en_proceso'
 CREATE TABLE IF NOT EXISTS ventas (
     id_venta INT AUTO_INCREMENT PRIMARY KEY,
     id_cliente INT NOT NULL,
@@ -284,7 +294,7 @@ CREATE TABLE IF NOT EXISTS ventas (
     comision_proveedores DECIMAL(15,2) NOT NULL DEFAULT 0.00,
     utilidad_bruta DECIMAL(15,2) GENERATED ALWAYS AS (ingreso - comision_proveedores) STORED,
     utilidad_neta DECIMAL(15,2) NOT NULL DEFAULT 0.00,
-    id_estado INT DEFAULT 1,
+    id_estado INT DEFAULT 7, -- 'venta_en_proceso' por defecto
     FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
     FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble),
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
@@ -306,9 +316,54 @@ CREATE TABLE inmueble_proveedor_servicio (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
+-- Crear tabla para historial de ventas
+CREATE TABLE historial_ventas (
+    id_historial INT AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT NOT NULL,
+    campo_modificado VARCHAR(50) NOT NULL,
+    valor_anterior TEXT,
+    valor_nuevo TEXT,
+    usuario_modificacion INT,
+    fecha_modificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_modificacion) REFERENCES usuarios(id_usuario)
+);
+
+-- Crear tabla para seguimiento de comisiones pagadas
+CREATE TABLE comisiones_pagadas (
+    id_comision INT AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT NOT NULL,
+    id_empleado INT,
+    tipo_comision ENUM('agencia', 'agente') NOT NULL,
+    monto DECIMAL(12,2) NOT NULL,
+    fecha_pago DATE NOT NULL,
+    id_estado INT DEFAULT 1,
+    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
+    FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado),
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
+);
+
 -- Índices para mejorar el rendimiento
 CREATE INDEX idx_inmueble_proveedor ON inmueble_proveedor_servicio(id_inmueble);
 CREATE INDEX idx_proveedor_inmueble ON inmueble_proveedor_servicio(id_proveedor);
+CREATE INDEX idx_cliente_inmueble_cliente ON cliente_inmueble(id_cliente);
+CREATE INDEX idx_usuarios_estado ON usuarios(id_estado);
+CREATE INDEX idx_inmuebles_cliente ON inmuebles(id_cliente);
+CREATE INDEX idx_inmuebles_estado ON inmuebles(id_estado);
+CREATE INDEX idx_clientes_estado ON clientes(id_estado);
+CREATE INDEX idx_proveedores_estado ON proveedores(id_estado);
+CREATE INDEX idx_empleados_estado ON empleados(id_estado);
+CREATE INDEX idx_inmuebles_empleado ON inmuebles(id_empleado);
+CREATE INDEX idx_inmuebles_clientes_interesados ON inmuebles_clientes_interesados(id_inmueble, id_cliente);
+CREATE INDEX idx_inmuebles_imagenes ON inmuebles_imagenes(id_inmueble);
+CREATE INDEX idx_historial_proveedores ON historial_proveedores(id_proveedor);
+CREATE INDEX idx_historial_proveedores_detallado ON historial_proveedores_detallado(id_proveedor);
+CREATE INDEX idx_ventas_cliente ON ventas(id_cliente);
+CREATE INDEX idx_ventas_inmueble ON ventas(id_inmueble);
+CREATE INDEX idx_ventas_fecha ON ventas(fecha_venta);
+CREATE INDEX idx_ventas_fecha_estado ON ventas(fecha_venta, id_estado);
+CREATE INDEX idx_comisiones_venta ON comisiones_pagadas(id_venta);
+CREATE INDEX idx_historial_ventas_venta ON historial_ventas(id_venta);
 
 -- Definir triggers
 DELIMITER //
@@ -1715,10 +1770,10 @@ BEGIN
     START TRANSACTION;
 
     INSERT INTO ventas (
-        id_cliente, id_inmueble, fecha_venta, ingreso, comision_proveedores, utilidad_neta
+        id_cliente, id_inmueble, fecha_venta, ingreso, comision_proveedores, utilidad_neta, id_estado
     ) VALUES (
         p_id_cliente, p_id_inmueble, COALESCE(p_fecha_venta, CURDATE()), 
-        p_ingreso, p_comision_proveedores, p_utilidad_neta
+        p_ingreso, p_comision_proveedores, p_utilidad_neta, 7 -- 'venta_en_proceso'
     );
 
     SET p_id_venta_out = LAST_INSERT_ID();
@@ -1929,6 +1984,37 @@ BEGIN
     WHERE id_venta = p_id_venta;
 END //
 
+-- Procedimiento para obtener estadísticas de ventas con filtros de fecha
+CREATE PROCEDURE ObtenerEstadisticasVentas(
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE
+)
+BEGIN
+    SELECT 
+        COUNT(*) as total_ventas,
+        SUM(ingreso) as ingreso_total,
+        SUM(utilidad_neta) as utilidad_total,
+        AVG(i.margen_utilidad) as margen_promedio
+    FROM ventas v
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    WHERE v.fecha_venta BETWEEN COALESCE(p_fecha_inicio, '1900-01-01') 
+                           AND COALESCE(p_fecha_fin, CURRENT_DATE());
+END //
+
+-- Procedimiento para análisis de rentabilidad por tipo de inmueble
+CREATE PROCEDURE AnalisisRentabilidadPorTipo()
+BEGIN
+    SELECT 
+        i.tipo_inmueble,
+        COUNT(*) as cantidad_ventas,
+        AVG(i.margen_utilidad) as margen_promedio,
+        SUM(v.utilidad_neta) as utilidad_total
+    FROM ventas v
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    GROUP BY i.tipo_inmueble
+    ORDER BY AVG(i.margen_utilidad) DESC;
+END //
+
 DELIMITER ;
 
 -- Índices para mejorar el rendimiento
@@ -1947,3 +2033,9 @@ CREATE INDEX idx_historial_proveedores_detallado ON historial_proveedores_detall
 CREATE INDEX idx_ventas_cliente ON ventas(id_cliente);
 CREATE INDEX idx_ventas_inmueble ON ventas(id_inmueble);
 CREATE INDEX idx_ventas_fecha ON ventas(fecha_venta);
+
+-- Índices adicionales
+CREATE INDEX idx_ventas_fecha_estado ON ventas(fecha_venta, id_estado);
+CREATE INDEX idx_comisiones_venta ON comisiones_pagadas(id_venta);
+CREATE INDEX idx_historial_ventas_venta ON historial_ventas(id_venta);
+CREATE INDEX idx_clientes_rfc ON clientes(rfc);
