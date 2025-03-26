@@ -1,3 +1,4 @@
+DESCRIBE historial_ventas;
 -- Configuración recomendada para servidor MySQL
 SET GLOBAL max_connections = 300;             -- Aumentar de 200 a 300
 SET GLOBAL wait_timeout = 600;                -- Aumentar de 300 a 600 segundos
@@ -57,7 +58,7 @@ DROP PROCEDURE IF EXISTS ActualizarUtilidadVenta;
 DROP PROCEDURE IF EXISTS ObtenerEstadisticasVentas;
 DROP PROCEDURE IF EXISTS AnalisisRentabilidadPorTipo;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
-
+DROP PROCEDURE IF EXISTS CambiarEstadoVenta;
 -- Eliminar tablas respetando dependencias
 DROP TABLE IF EXISTS historial_usuarios;
 DROP TABLE IF EXISTS historial_proveedores;
@@ -1766,6 +1767,16 @@ BEGIN
         SIGNAL SQLSTATE '45000' 
         SET MESSAGE_TEXT = 'El inmueble especificado no existe';
     END IF;
+    
+    -- Verificar que el inmueble esté disponible (id_estado = 3)
+    SELECT id_estado INTO estado_inmueble
+    FROM inmuebles
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF estado_inmueble != 3 THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'El inmueble no está disponible para la venta';
+    END IF;
 
     START TRANSACTION;
 
@@ -1783,14 +1794,14 @@ BEGIN
     WHERE id_inmueble = p_id_inmueble;
 
     IF tipo_op = 'venta' THEN
-        SET estado_inmueble = 4; -- Vendido
+        UPDATE inmuebles 
+        SET id_estado = 4 -- Vendido
+        WHERE id_inmueble = p_id_inmueble;
     ELSE
-        SET estado_inmueble = 5; -- Rentado
+        UPDATE inmuebles 
+        SET id_estado = 5 -- Rentado
+        WHERE id_inmueble = p_id_inmueble;
     END IF;
-
-    UPDATE inmuebles 
-    SET id_estado = estado_inmueble 
-    WHERE id_inmueble = p_id_inmueble;
 
     COMMIT;
 END //
@@ -1972,16 +1983,52 @@ CREATE PROCEDURE ActualizarUtilidadVenta(
 BEGIN
     DECLARE v_utilidad_bruta DECIMAL(15,2);
     DECLARE v_utilidad_neta DECIMAL(15,2);
+    DECLARE v_venta_existe INT;
+    DECLARE v_usuario_mod INT DEFAULT NULL;
+    DECLARE v_valor_anterior DECIMAL(15,2);
     
-    SELECT utilidad_bruta INTO v_utilidad_bruta 
+    -- Comprobar que la venta existe
+    SELECT COUNT(*), utilidad_bruta, utilidad_neta INTO v_venta_existe, v_utilidad_bruta, v_valor_anterior
     FROM ventas 
     WHERE id_venta = p_id_venta;
     
+    IF v_venta_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La venta especificada no existe';
+    END IF;
+    
+    -- Validar que los gastos no sean negativos
+    IF p_gastos_adicionales < 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Los gastos adicionales no pueden ser negativos';
+    END IF;
+    
+    -- Calcular la nueva utilidad neta
     SET v_utilidad_neta = v_utilidad_bruta - p_gastos_adicionales;
     
+    START TRANSACTION;
+    
+    -- Actualizar la venta
     UPDATE ventas 
     SET utilidad_neta = v_utilidad_neta 
     WHERE id_venta = p_id_venta;
+    
+    -- Registrar en historial
+    INSERT INTO historial_ventas (
+        id_venta, 
+        campo_modificado, 
+        valor_anterior, 
+        valor_nuevo,
+        usuario_modificacion, 
+        fecha_modificacion
+    ) VALUES (
+        p_id_venta,
+        'utilidad_neta',
+        v_valor_anterior,
+        v_utilidad_neta,
+        v_usuario_mod,
+        CURRENT_TIMESTAMP
+    );
+    
+    COMMIT;
 END //
 
 -- Procedimiento para obtener estadísticas de ventas con filtros de fecha
@@ -1990,15 +2037,19 @@ CREATE PROCEDURE ObtenerEstadisticasVentas(
     IN p_fecha_fin DATE
 )
 BEGIN
+    -- Si no se proporcionan fechas, usar valores por defecto
+    SET p_fecha_inicio = COALESCE(p_fecha_inicio, '2000-01-01');
+    SET p_fecha_fin = COALESCE(p_fecha_fin, CURRENT_DATE());
+    
     SELECT 
-        COUNT(*) as total_ventas,
-        SUM(ingreso) as ingreso_total,
-        SUM(utilidad_neta) as utilidad_total,
-        AVG(i.margen_utilidad) as margen_promedio
+        COUNT(*) AS total_ventas,
+        SUM(v.ingreso) AS ingreso_total,
+        SUM(v.utilidad_neta) AS utilidad_total,
+        COALESCE(AVG(v.utilidad_neta / NULLIF(v.ingreso, 0)) * 100, 0) AS margen_promedio
     FROM ventas v
     JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
-    WHERE v.fecha_venta BETWEEN COALESCE(p_fecha_inicio, '1900-01-01') 
-                           AND COALESCE(p_fecha_fin, CURRENT_DATE());
+    WHERE v.fecha_venta BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND v.id_estado IN (7, 8); -- Considerar ventas en proceso y completadas
 END //
 
 -- Procedimiento para análisis de rentabilidad por tipo de inmueble
@@ -2006,36 +2057,89 @@ CREATE PROCEDURE AnalisisRentabilidadPorTipo()
 BEGIN
     SELECT 
         i.tipo_inmueble,
-        COUNT(*) as cantidad_ventas,
-        AVG(i.margen_utilidad) as margen_promedio,
-        SUM(v.utilidad_neta) as utilidad_total
+        COUNT(*) AS cantidad_ventas,
+        COALESCE(AVG(v.utilidad_neta / NULLIF(v.ingreso, 0)) * 100, 0) AS margen_promedio,
+        SUM(v.utilidad_neta) AS utilidad_total,
+        AVG(v.ingreso) AS precio_promedio,
+        MIN(v.ingreso) AS precio_minimo,
+        MAX(v.ingreso) AS precio_maximo
     FROM ventas v
     JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    WHERE v.id_estado IN (7, 8) -- Considerar ventas en proceso y completadas
     GROUP BY i.tipo_inmueble
-    ORDER BY AVG(i.margen_utilidad) DESC;
+    ORDER BY utilidad_total DESC;
+END //
+
+CREATE PROCEDURE CambiarEstadoVenta(
+    IN p_id_venta INT,
+    IN p_nuevo_estado INT,
+    IN p_usuario_modificacion INT
+)
+BEGIN
+    DECLARE v_estado_actual INT;
+    DECLARE v_id_inmueble INT;
+    DECLARE v_error_message VARCHAR(255);
+
+    -- Verificar que el nuevo estado sea válido (8: completada, 9: cancelada)
+    IF p_nuevo_estado NOT IN (8, 9) THEN
+        SET v_error_message = 'Estado nuevo inválido. Solo se permite 8 (completada) o 9 (cancelada)';
+        INSERT INTO historial_ventas (
+            id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
+        ) VALUES (
+            p_id_venta, 'id_estado', NULL, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
+        );
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_error_message;
+    END IF;
+
+    -- Obtener el estado actual y el id_inmueble de la venta
+    SELECT id_estado, id_inmueble INTO v_estado_actual, v_id_inmueble
+    FROM ventas
+    WHERE id_venta = p_id_venta;
+
+    IF v_estado_actual IS NULL THEN
+        SET v_error_message = 'La venta especificada no existe';
+        INSERT INTO historial_ventas (
+            id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
+        ) VALUES (
+            p_id_venta, 'id_estado', NULL, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
+        );
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_error_message;
+    END IF;
+
+    -- Solo se puede cambiar desde "venta_en_proceso" (id_estado = 7)
+    IF v_estado_actual != 7 THEN
+        SET v_error_message = 'Solo se puede cambiar el estado de una venta en proceso';
+        INSERT INTO historial_ventas (
+            id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
+        ) VALUES (
+            p_id_venta, 'id_estado', v_estado_actual, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
+        );
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_error_message;
+    END IF;
+
+    -- Si todas las validaciones pasan, proceder con el cambio
+    START TRANSACTION;
+
+    -- Actualizar el estado de la venta
+    UPDATE ventas
+    SET id_estado = p_nuevo_estado
+    WHERE id_venta = p_id_venta;
+
+    -- Si la venta se cancela (9), revertir el estado del inmueble a "disponible" (3)
+    IF p_nuevo_estado = 9 THEN
+        UPDATE inmuebles
+        SET id_estado = 3
+        WHERE id_inmueble = v_id_inmueble;
+    END IF;
+
+    -- Registrar el cambio exitoso en historial_ventas
+    INSERT INTO historial_ventas (
+        id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
+    ) VALUES (
+        p_id_venta, 'id_estado', v_estado_actual, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
+    );
+
+    COMMIT;
 END //
 
 DELIMITER ;
-
--- Índices para mejorar el rendimiento
-CREATE INDEX idx_cliente_inmueble_cliente ON cliente_inmueble(id_cliente);
-CREATE INDEX idx_usuarios_estado ON usuarios(id_estado);
-CREATE INDEX idx_inmuebles_cliente ON inmuebles(id_cliente);
-CREATE INDEX idx_inmuebles_estado ON inmuebles(id_estado);
-CREATE INDEX idx_clientes_estado ON clientes(id_estado);
-CREATE INDEX idx_proveedores_estado ON proveedores(id_estado);
-CREATE INDEX idx_empleados_estado ON empleados(id_estado);
-CREATE INDEX idx_inmuebles_empleado ON inmuebles(id_empleado);
-CREATE INDEX idx_inmuebles_clientes_interesados ON inmuebles_clientes_interesados(id_inmueble, id_cliente);
-CREATE INDEX idx_inmuebles_imagenes ON inmuebles_imagenes(id_inmueble);
-CREATE INDEX idx_historial_proveedores ON historial_proveedores(id_proveedor);
-CREATE INDEX idx_historial_proveedores_detallado ON historial_proveedores_detallado(id_proveedor);
-CREATE INDEX idx_ventas_cliente ON ventas(id_cliente);
-CREATE INDEX idx_ventas_inmueble ON ventas(id_inmueble);
-CREATE INDEX idx_ventas_fecha ON ventas(fecha_venta);
-
--- Índices adicionales
-CREATE INDEX idx_ventas_fecha_estado ON ventas(fecha_venta, id_estado);
-CREATE INDEX idx_comisiones_venta ON comisiones_pagadas(id_venta);
-CREATE INDEX idx_historial_ventas_venta ON historial_ventas(id_venta);
-CREATE INDEX idx_clientes_rfc ON clientes(rfc);

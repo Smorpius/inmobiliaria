@@ -4,8 +4,8 @@ import '../../../models/venta_model.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../models/inmueble_model.dart';
 import '../../../providers/cliente_providers.dart';
-import '../../../providers/inmueble_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inmobiliaria/providers/venta_providers.dart';
 
 class RegistrarVentaScreen extends ConsumerStatefulWidget {
   final Inmueble inmueble;
@@ -78,8 +78,6 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
     });
 
     try {
-      final inmuebleController = ref.read(inmuebleControllerProvider);
-
       final ingreso = double.parse(_ingresoController.text);
       final comisionProveedores =
           _comisionProveedoresController.text.isEmpty
@@ -99,7 +97,8 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
         utilidadNeta: utilidadNeta,
       );
 
-      await inmuebleController.registrarVenta(venta);
+      final ventaController = ref.read(ventaControllerProvider);
+      await ventaController.crearVenta(venta);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
