@@ -1,9 +1,9 @@
 import 'usuario_form.dart';
 import 'usuario_list.dart';
-import '../../models/usuario.dart';
+import '../../../models/usuario.dart';
 import 'package:flutter/material.dart';
-import '../../widgets/app_scaffold.dart';
-import '../../controllers/usuario_controller.dart';
+import '../../../widgets/app_scaffold.dart';
+import '../../../controllers/usuario_controller.dart';
 
 class UsuarioPage extends StatefulWidget {
   final UsuarioController usuarioController;

@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import '../../models/venta_model.dart';
-import '../../widgets/app_scaffold.dart';
 import '../../providers/venta_providers.dart';
 import 'package:inmobiliaria/models/estados_venta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,9 +14,8 @@ class DetallesVentaScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ventaAsyncValue = ref.watch(ventaDetalleProvider(idVenta));
 
-    return AppScaffold(
-      title: 'Detalles de Venta',
-      currentRoute: '/ventas/detalle',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Detalles de Venta')),
       body: ventaAsyncValue.when(
         data: (venta) {
           if (venta == null) {

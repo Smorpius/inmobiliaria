@@ -1,7 +1,7 @@
 import 'usuario_card.dart';
-import '../../../models/usuario.dart';
 import 'package:flutter/material.dart';
-import '../../../controllers/usuario_controller.dart';
+import '../../../../models/usuario.dart';
+import '../../../../controllers/usuario_controller.dart';
 
 class UsuarioList extends StatelessWidget {
   final List<Usuario> usuarios;

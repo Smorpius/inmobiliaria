@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inmobiliaria/widgets/app_scaffold.dart';
 import 'package:inmobiliaria/models/inmueble_model.dart';
 import 'package:inmobiliaria/providers/inmueble_providers.dart';
 import 'package:inmobiliaria/widgets/inmueble_filtro_avanzado.dart';
@@ -33,112 +34,119 @@ class InmuebleListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mostrarInactivos = ref.watch(mostrarInactivosProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inmuebles'),
-        actions: [
-          // Botón de filtros avanzados
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            tooltip: 'Filtros avanzados',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                ),
-                builder: (context) {
-                  return InmuebleFiltroAvanzado(
-                    onFiltrar: ({
-                      String? tipo,
-                      String? operacion,
-                      double? precioMin,
-                      double? precioMax,
-                      String? ciudad,
-                      int? idEstado,
-                      double? margenMin, // Añadir este parámetro
-                    }) {
-                      ref
-                          .read(filtrosInmuebleProvider.notifier)
-                          .actualizarFiltro(
-                            tipo: tipo,
-                            operacion: operacion,
-                            precioMin: precioMin,
-                            precioMax: precioMax,
-                            ciudad: ciudad,
-                            idEstado: idEstado,
-                            margenMin: margenMin, // Añadir este parámetro
-                          );
-                      Navigator.pop(context);
-                    },
-                    onLimpiar: () {
-                      ref
-                          .read(filtrosInmuebleProvider.notifier)
-                          .limpiarFiltros();
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-              );
-            },
+    return AppScaffold(
+      title: 'Inmuebles',
+      currentRoute: '/inmuebles',
+      actions: [
+        // Botón de filtros avanzados
+        IconButton(
+          icon: const Icon(Icons.filter_list),
+          tooltip: 'Filtros avanzados',
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              builder: (context) {
+                return InmuebleFiltroAvanzado(
+                  onFiltrar: ({
+                    String? tipo,
+                    String? operacion,
+                    double? precioMin,
+                    double? precioMax,
+                    String? ciudad,
+                    int? idEstado,
+                    double? margenMin,
+                  }) {
+                    ref
+                        .read(filtrosInmuebleProvider.notifier)
+                        .actualizarFiltro(
+                          tipo: tipo,
+                          operacion: operacion,
+                          precioMin: precioMin,
+                          precioMax: precioMax,
+                          ciudad: ciudad,
+                          idEstado: idEstado,
+                          margenMin: margenMin,
+                        );
+                    Navigator.pop(context);
+                  },
+                  onLimpiar: () {
+                    ref
+                        .read(filtrosInmuebleProvider.notifier)
+                        .limpiarFiltros();
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            );
+          },
+        ),
+        // Botón para alternar entre activos e inactivos
+        IconButton(
+          icon: Icon(
+            mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+            color: mostrarInactivos ? Colors.red : Colors.green,
           ),
-          // Botón para alternar entre activos e inactivos
-          IconButton(
-            icon: Icon(
-              mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-              color: mostrarInactivos ? Colors.red : Colors.green,
-            ),
-            tooltip: mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
-            onPressed: () {
-              ref.read(mostrarInactivosProvider.notifier).state =
-                  !mostrarInactivos;
-            },
-          ),
-          // Botón para refrescar datos
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Actualizar',
-            onPressed: () => ref.invalidate(inmueblesProvider),
-          ),
-        ],
-      ),
-      body: Column(
+          tooltip: mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
+          onPressed: () {
+            ref.read(mostrarInactivosProvider.notifier).state =
+                !mostrarInactivos;
+          },
+        ),
+        // Botón para refrescar datos
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          tooltip: 'Actualizar',
+          onPressed: () => ref.invalidate(inmueblesProvider),
+        ),
+      ],
+      body: Stack(
         children: [
-          // Indicador de modo de visualización
-          Container(
-            color:
-                mostrarInactivos ? Colors.red.shade100 : Colors.green.shade100,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            child: Row(
-              children: [
-                Icon(
-                  mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-                  color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
+          Column(
+            children: [
+              // Indicador de modo de visualización
+              Container(
+                color:
+                    mostrarInactivos ? Colors.red.shade100 : Colors.green.shade100,
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(
+                      mostrarInactivos ? Icons.visibility_off : Icons.visibility,
+                      color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      mostrarInactivos
+                          ? 'INMUEBLES INACTIVOS'
+                          : 'INMUEBLES ACTIVOS',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color:
+                            mostrarInactivos ? Colors.red[800] : Colors.green[800],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  mostrarInactivos
-                      ? 'INMUEBLES INACTIVOS'
-                      : 'INMUEBLES ACTIVOS',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color:
-                        mostrarInactivos ? Colors.red[800] : Colors.green[800],
-                  ),
-                ),
-              ],
+              ),
+              // Lista de inmuebles
+              Expanded(child: _buildListado(context, ref)),
+            ],
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              backgroundColor: Theme.of(context).primaryColor,
+              tooltip: 'Agregar inmueble',
+              onPressed: () => _navegarAgregarInmueble(context, ref),
+              child: const Icon(Icons.add),
             ),
           ),
-          // Lista de inmuebles
-          Expanded(child: _buildListado(context, ref)),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Theme.of(context).primaryColor,
-        tooltip: 'Agregar inmueble',
-        onPressed: () => _navegarAgregarInmueble(context, ref),
-        child: const Icon(Icons.add),
       ),
     );
   }

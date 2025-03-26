@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../../widgets/app_scaffold.dart';
 import '../../providers/venta_providers.dart';
 import '../../models/venta_reporte_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,16 +25,17 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
       ventasEstadisticasProvider(_rangoFechas),
     );
 
-    return AppScaffold(
-      title: 'Reportes de Ventas',
-      currentRoute: '/ventas/reportes',
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.date_range),
-          tooltip: 'Seleccionar rango de fechas',
-          onPressed: () => _seleccionarRangoFechas(context),
-        ),
-      ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reportes de Ventas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.date_range),
+            tooltip: 'Seleccionar rango de fechas',
+            onPressed: () => _seleccionarRangoFechas(context),
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -124,8 +124,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
       ),
     );
   }
-
-  // Ajusta la función _construirEstadisticas para manejar valores vacíos
 
   Widget _construirEstadisticas(VentaReporte estadisticas) {
     final formatter = NumberFormat.currency(symbol: '\$', locale: 'es_MX');

@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import '../../../models/venta_model.dart';
-import '../../../widgets/app_scaffold.dart';
 import '../../../models/inmueble_model.dart';
 import '../../../providers/cliente_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -125,9 +124,8 @@ class _RegistrarVentaScreenState extends ConsumerState<RegistrarVentaScreen> {
   Widget build(BuildContext context) {
     final clientesAsyncValue = ref.watch(clientesProvider);
 
-    return AppScaffold(
-      title: 'Registrar Venta',
-      currentRoute: '/ventas/registrar',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Registrar Venta')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(

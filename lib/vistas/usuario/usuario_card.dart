@@ -1,6 +1,6 @@
-import '../../../models/usuario.dart';
 import 'package:flutter/material.dart';
-import '../widgets/user_avatar.dart'; // Importar el widget reutilizable
+import '../../../../models/usuario.dart';
+import '../../widgets/user_avatar.dart'; // Importar el widget reutilizable
 
 class UsuarioCard extends StatelessWidget {
   final Usuario usuario;

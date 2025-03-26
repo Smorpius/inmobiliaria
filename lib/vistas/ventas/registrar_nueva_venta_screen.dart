@@ -1,7 +1,6 @@
 import 'package:intl/intl.dart';
 import 'registrar_venta_screen.dart';
 import 'package:flutter/material.dart';
-import '../../widgets/app_scaffold.dart';
 import '../../models/inmueble_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/providers/inmuebles_disponibles_provider.dart';
@@ -138,9 +137,8 @@ class _RegistrarNuevaVentaScreenState
   Widget build(BuildContext context) {
     final inmueblesAsyncValue = ref.watch(inmueblesDisponiblesProvider);
 
-    return AppScaffold(
-      title: 'Seleccionar Inmueble',
-      currentRoute: '/ventas/nueva',
+    return Scaffold(
+      appBar: AppBar(title: const Text('Seleccionar Inmueble')),
       body: Column(
         children: [
           // Sección de búsqueda y filtros

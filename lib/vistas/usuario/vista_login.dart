@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'vista_menu.dart'; // Importa la página principal
+import '../vista_menu.dart'; // Importa la página principal
 
 class InicioUsuario extends StatelessWidget {
   const InicioUsuario({super.key});

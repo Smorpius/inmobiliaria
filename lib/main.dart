@@ -1,8 +1,8 @@
-import 'vistas/vista_user.dart';
 import 'vistas/vista_menu.dart';
 import 'dart:developer' as developer;
 import 'vistas/inmuebles/index.dart';
 import 'package:flutter/material.dart';
+import 'vistas/usuario/vista_user.dart';
 import 'providers/providers_global.dart';
 import 'vistas/clientes/vista_clientes.dart';
 import 'package:intl/date_symbol_data_local.dart';
