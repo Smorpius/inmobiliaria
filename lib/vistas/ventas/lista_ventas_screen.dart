@@ -2,12 +2,12 @@ import 'package:intl/intl.dart';
 import 'detalles_ventas_screen.dart';
 import 'package:flutter/material.dart';
 import '../../models/venta_model.dart';
+import '../../models/ventas_state.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../models/estados_venta.dart';
 import 'registrar_nueva_venta_screen.dart';
 import '../../providers/venta_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/ventas_state.dart'; // Importación correcta del modelo
 
 class ListaVentasScreen extends ConsumerWidget {
   const ListaVentasScreen({super.key});
@@ -37,29 +37,7 @@ class ListaVentasScreen extends ConsumerWidget {
           _construirResumenEstadisticas(ref),
 
           // Barra de búsqueda
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Buscar ventas...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed:
-                      () => ref
-                          .read(ventasStateProvider.notifier)
-                          .actualizarBusqueda(''),
-                ),
-              ),
-              onChanged:
-                  (value) => ref
-                      .read(ventasStateProvider.notifier)
-                      .actualizarBusqueda(value),
-            ),
-          ),
+          _construirBarraBusqueda(context, ref, ventasState),
 
           // Filtros aplicados
           if (ventasState.filtroFechas != null ||
@@ -74,7 +52,7 @@ class ListaVentasScreen extends ConsumerWidget {
                     : ventasState.errorMessage != null
                     ? Center(child: Text('Error: ${ventasState.errorMessage}'))
                     : ventasState.ventasFiltradas.isEmpty
-                    ? const Center(child: Text('No hay ventas disponibles'))
+                    ? const _EstadoVacio()
                     : _construirListaVentas(
                       context,
                       ref,
@@ -83,16 +61,82 @@ class ListaVentasScreen extends ConsumerWidget {
           ),
         ],
       ),
-      bottomNavigationBar: Container(
+      bottomNavigationBar: SizedBox(
         height: 80,
-        padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
-        alignment: Alignment.centerRight,
-        child: FloatingActionButton(
-          onPressed: () => _navegarARegistrarVenta(context, ref),
-          backgroundColor: Colors.teal,
-          child: const Icon(Icons.add),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ElevatedButton(
+            onPressed: () => _navegarARegistrarVenta(context, ref),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add),
+                SizedBox(width: 8),
+                Text(
+                  'Registrar Nueva Venta',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _construirBarraBusqueda(
+    BuildContext context,
+    WidgetRef ref,
+    VentasState ventasState,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: 'Buscar ventas...',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed:
+                () => ref
+                    .read(ventasStateProvider.notifier)
+                    .actualizarBusqueda(''),
+          ),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+        ),
+        onChanged:
+            (value) => ref
+                .read(ventasStateProvider.notifier)
+                .actualizarBusqueda(value),
+      ),
+    );
+  }
+
+  Widget _construirListaVentas(
+    BuildContext context,
+    WidgetRef ref,
+    List<Venta> ventas,
+  ) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      itemCount: ventas.length,
+      itemBuilder: (context, index) {
+        final venta = ventas[index];
+        return _VentaTarjeta(
+          venta: venta,
+          onTap: () => _navegarADetalleVenta(context, venta.id!),
+        );
+      },
     );
   }
 
@@ -102,6 +146,7 @@ class ListaVentasScreen extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.all(16),
       elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: estadisticasAsyncValue.when(
@@ -187,52 +232,6 @@ class ListaVentasScreen extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _construirListaVentas(
-    BuildContext context,
-    WidgetRef ref,
-    List<Venta> ventas,
-  ) {
-    return ListView.builder(
-      itemCount: ventas.length,
-      itemBuilder: (context, index) {
-        final venta = ventas[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          elevation: 2,
-          child: ListTile(
-            title: Text(venta.nombreInmueble ?? 'Inmueble'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Cliente: ${venta.nombreCliente ?? ''} ${venta.apellidoCliente ?? ''}',
-                ),
-                Text(
-                  'Fecha: ${DateFormat('dd/MM/yyyy').format(venta.fechaVenta)}',
-                ),
-                Text(
-                  'Ingreso: \$${NumberFormat('#,##0.00', 'es_MX').format(venta.ingreso)}',
-                ),
-              ],
-            ),
-            trailing: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: _obtenerColorEstado(venta.idEstado),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _obtenerNombreEstado(venta.idEstado.toString()),
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            onTap: () => _navegarADetalleVenta(context, venta.id!),
-          ),
-        );
-      },
     );
   }
 
@@ -411,8 +410,164 @@ class ListaVentasScreen extends ConsumerWidget {
   String _obtenerNombreEstado(String idEstado) {
     return EstadosVenta.obtenerNombre(idEstado);
   }
+}
 
-  Color _obtenerColorEstado(int idEstado) {
-    return EstadosVenta.obtenerColor(idEstado);
+class _EstadoVacio extends StatelessWidget {
+  const _EstadoVacio();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.store_outlined, size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          Text(
+            'No hay ventas disponibles',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Registra tu primera venta con el botón +',
+            style: TextStyle(color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VentaTarjeta extends StatelessWidget {
+  final Venta venta;
+  final VoidCallback onTap;
+
+  const _VentaTarjeta({required this.venta, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatCurrency = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+    final formatDate = DateFormat('dd/MM/yyyy');
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildTipoOperacionBadge(venta.tipoOperacion ?? 'venta'),
+                  _buildEstadoBadge(venta.idEstado),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                venta.nombreInmueble ?? 'Inmueble sin nombre',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Cliente: ${venta.nombreCliente ?? ''} ${venta.apellidoCliente ?? ''}',
+                style: Theme.of(context).textTheme.bodyMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    formatCurrency.format(venta.ingreso),
+                    style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    formatDate.format(venta.fechaVenta),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTipoOperacionBadge(String tipo) {
+    bool esVenta = tipo.toLowerCase() == 'venta';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: esVenta ? Colors.blue[100] : Colors.green[100],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        tipo.toUpperCase(),
+        style: TextStyle(
+          color: esVenta ? Colors.blue[800] : Colors.green[800],
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEstadoBadge(int idEstado) {
+    Color backgroundColor;
+    Color textColor;
+    String estado = EstadosVenta.obtenerNombre(idEstado.toString());
+
+    switch (idEstado) {
+      case 7: // en_proceso
+        backgroundColor = Colors.orange[100]!;
+        textColor = Colors.orange[800]!;
+        break;
+      case 8: // completada
+        backgroundColor = Colors.green[100]!;
+        textColor = Colors.green[800]!;
+        break;
+      case 9: // cancelada
+        backgroundColor = Colors.red[100]!;
+        textColor = Colors.red[800]!;
+        break;
+      default:
+        backgroundColor = Colors.grey[100]!;
+        textColor = Colors.grey[800]!;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        estado.toUpperCase(),
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: 12,
+        ),
+      ),
+    );
   }
 }

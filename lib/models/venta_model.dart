@@ -52,22 +52,24 @@ class Venta {
        utilidadNeta =
            utilidadNeta ?? (utilidadBruta ?? (ingreso - comisionProveedores));
 
+  // Modifica el método fromMap para manejar valores nulos
+
   factory Venta.fromMap(Map<String, dynamic> map) {
     try {
       return Venta(
-        id: map['id_venta'],
-        idCliente: map['id_cliente'],
-        idInmueble: map['id_inmueble'],
+        id: map['id_venta'] ?? 0, // Añadir valor por defecto
+        idCliente: map['id_cliente'] ?? 0, // Añadir valor por defecto
+        idInmueble: map['id_inmueble'] ?? 0, // Añadir valor por defecto
         fechaVenta:
             map['fecha_venta'] is DateTime
                 ? map['fecha_venta']
                 : DateTime.parse(map['fecha_venta'].toString()),
-        ingreso: double.parse(map['ingreso'].toString()),
+        ingreso: double.parse((map['ingreso'] ?? 0).toString()),
         comisionProveedores: double.parse(
-          map['comision_proveedores'].toString(),
+          (map['comision_proveedores'] ?? 0).toString(),
         ),
-        utilidadBruta: double.parse(map['utilidad_bruta'].toString()),
-        utilidadNeta: double.parse(map['utilidad_neta'].toString()),
+        utilidadBruta: double.parse((map['utilidad_bruta'] ?? 0).toString()),
+        utilidadNeta: double.parse((map['utilidad_neta'] ?? 0).toString()),
         idEstado: map['id_estado'] ?? 7,
         nombreCliente: map['nombre_cliente'],
         apellidoCliente: map['apellido_cliente'],
@@ -90,7 +92,6 @@ class Venta {
       rethrow;
     }
   }
-
   Map<String, dynamic> toMap() {
     return {
       'id_venta': id,

@@ -127,7 +127,8 @@ class VentasService {
     }
   }
 
-  /// Obtener estadísticas de ventas
+  // Modifica el método obtenerEstadisticasVentas para manejar correctamente los resultados
+
   Future<VentaReporte> obtenerEstadisticasVentas({
     DateTime? fechaInicio,
     DateTime? fechaFin,
@@ -135,68 +136,113 @@ class VentasService {
     try {
       final conn = await _db.connection;
 
+      // Verificar que haya resultados antes de acceder a ellos
       final estadisticasResult = await conn
           .query('CALL ObtenerEstadisticasVentas(?, ?)', [
             fechaInicio?.toIso8601String().split('T')[0],
             fechaFin?.toIso8601String().split('T')[0],
           ]);
 
-      final rentabilidadResult = await conn.query(
-        'CALL AnalisisRentabilidadPorTipo()',
-      );
+      // Crear datos por defecto si no hay resultados
+      final Map<String, dynamic> estadisticas =
+          estadisticasResult.isNotEmpty && estadisticasResult.first.isNotEmpty
+              ? estadisticasResult.first.fields
+              : {
+                'total_ventas': 0,
+                'ingreso_total': 0.0,
+                'utilidad_total': 0.0,
+                'margen_promedio': 0.0,
+                'fecha_inicio':
+                    fechaInicio?.toIso8601String().split('T')[0] ??
+                    DateTime(2000, 1, 1).toIso8601String().split('T')[0],
+                'fecha_fin':
+                    fechaFin?.toIso8601String().split('T')[0] ??
+                    DateTime.now().toIso8601String().split('T')[0],
+              };
 
-      // Transformar datos de estadísticas generales
-      final estadisticas = estadisticasResult.first.fields;
+      // Manejar posible error en el procedimiento de rentabilidad
+      final rentabilidadResult = await conn
+          .query('CALL AnalisisRentabilidadPorTipo()')
+          .catchError((e) {
+            developer.log(
+              'Error al obtener análisis de rentabilidad: $e',
+              error: e,
+            );
+            throw e; // Re-throw to handle in the outer try-catch
+          });
 
       // Transformar datos de rentabilidad por tipo
       final ventasPorTipo = <String, double>{};
       for (var row in rentabilidadResult) {
-        ventasPorTipo[row['tipo_inmueble'].toString()] = double.parse(
-          row['total_ventas'].toString(),
-        );
+        if (row['tipo_inmueble'] != null && row['total_ventas'] != null) {
+          ventasPorTipo[row['tipo_inmueble'].toString()] = double.parse(
+            row['total_ventas'].toString(),
+          );
+        }
       }
 
-      // Obtener ventas mensuales para gráficos
-      final ventasMensualesResult = await conn.query(
-        'SELECT YEAR(fecha_venta) as anio, MONTH(fecha_venta) as mes, '
-        'COUNT(*) as total, SUM(ingreso) as ingreso, SUM(utilidad_neta) as utilidad '
-        'FROM ventas '
-        'WHERE fecha_venta BETWEEN ? AND ? '
-        'GROUP BY YEAR(fecha_venta), MONTH(fecha_venta) '
-        'ORDER BY anio, mes',
-        [
-          fechaInicio?.toIso8601String().split('T')[0] ?? '2000-01-01',
-          fechaFin?.toIso8601String().split('T')[0] ??
-              DateTime.now().toIso8601String().split('T')[0],
-        ],
-      );
+      // Obtener ventas mensuales para gráficos con manejo de errores
+      final ventasMensualesResult = await conn
+          .query(
+            'SELECT YEAR(fecha_venta) as anio, MONTH(fecha_venta) as mes, '
+            'COUNT(*) as total, SUM(ingreso) as ingreso, SUM(utilidad_neta) as utilidad '
+            'FROM ventas '
+            'WHERE fecha_venta BETWEEN ? AND ? '
+            'GROUP BY YEAR(fecha_venta), MONTH(fecha_venta) '
+            'ORDER BY anio, mes',
+            [
+              fechaInicio?.toIso8601String().split('T')[0] ?? '2000-01-01',
+              fechaFin?.toIso8601String().split('T')[0] ??
+                  DateTime.now().toIso8601String().split('T')[0],
+            ],
+          )
+          .catchError((e) {
+            developer.log('Error al obtener ventas mensuales: $e', error: e);
+            throw e; // Re-throw the error to be caught by the outer try-catch
+          });
 
-      final ventasMensuales =
-          ventasMensualesResult.map((row) {
-            return {
-              'anio': row['anio'],
-              'mes': row['mes'],
-              'total': row['total'],
-              'ingreso': double.parse(row['ingreso'].toString()),
-              'utilidad': double.parse(row['utilidad'].toString()),
-            };
-          }).toList();
+      final ventasMensuales = <Map<String, dynamic>>[];
+      for (var row in ventasMensualesResult) {
+        if (row['anio'] != null && row['mes'] != null) {
+          ventasMensuales.add({
+            'anio': row['anio'],
+            'mes': row['mes'],
+            'total': row['total'] ?? 0,
+            'ingreso': double.parse((row['ingreso'] ?? 0).toString()),
+            'utilidad': double.parse((row['utilidad'] ?? 0).toString()),
+          });
+        }
+      }
 
       return VentaReporte(
         fechaInicio: fechaInicio ?? DateTime(2000, 1, 1),
         fechaFin: fechaFin ?? DateTime.now(),
-        totalVentas: estadisticas['total_ventas'] as int,
-        ingresoTotal: double.parse(estadisticas['ingreso_total'].toString()),
-        utilidadTotal: double.parse(estadisticas['utilidad_total'].toString()),
+        totalVentas: int.parse(estadisticas['total_ventas']?.toString() ?? '0'),
+        ingresoTotal: double.parse(
+          estadisticas['ingreso_total']?.toString() ?? '0',
+        ),
+        utilidadTotal: double.parse(
+          estadisticas['utilidad_total']?.toString() ?? '0',
+        ),
         margenPromedio: double.parse(
-          estadisticas['margen_promedio'].toString(),
+          estadisticas['margen_promedio']?.toString() ?? '0',
         ),
         ventasPorTipo: ventasPorTipo,
         ventasMensuales: ventasMensuales,
       );
     } catch (e) {
       developer.log('Error al obtener estadísticas de ventas: $e', error: e);
-      rethrow;
+      // Devolver un objeto vacío en caso de error
+      return VentaReporte(
+        fechaInicio: fechaInicio ?? DateTime(2000, 1, 1),
+        fechaFin: fechaFin ?? DateTime.now(),
+        totalVentas: 0,
+        ingresoTotal: 0,
+        utilidadTotal: 0,
+        margenPromedio: 0,
+        ventasPorTipo: {},
+        ventasMensuales: [],
+      );
     }
   }
 }

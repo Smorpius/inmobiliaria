@@ -125,7 +125,8 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye las tarjetas con estadísticas principales
+  // Ajusta la función _construirEstadisticas para manejar valores vacíos
+
   Widget _construirEstadisticas(VentaReporte estadisticas) {
     final formatter = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
 
@@ -176,12 +177,48 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
             ),
           ],
         ),
+
+        // Mostrar mensaje si no hay ventas
+        if (estadisticas.totalVentas == 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 32.0),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 48,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No hay ventas registradas en este período',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Registre ventas o modifique el rango de fechas',
+                    style: TextStyle(color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
 
   /// Construye la sección de gráficos con los datos de ventas
   Widget _construirGraficos(VentaReporte estadisticas) {
+    // No mostrar gráficos si no hay datos
+    if (estadisticas.totalVentas == 0) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
