@@ -6,6 +6,7 @@ import '../../services/image_service.dart';
 import '../../providers/inmueble_providers.dart';
 import './components/inmueble_edit_actions.dart';
 import './components/inmueble_image_gallery.dart';
+import 'package:inmobiliaria/utils/applogger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/inmueble_validation_service.dart';
 
@@ -121,7 +122,12 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
   }
 
   Future<void> _cargarImagenesInmueble() async {
-    if (widget.inmueble.id == null) return;
+    if (widget.inmueble.id == null) {
+      setState(() {
+        _imagenes = []; // Si no hay ID, establecemos una lista vacía
+      });
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -137,7 +143,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
       if (!mounted) return;
 
       setState(() {
-        _imagenes = imagenes;
+        _imagenes = imagenes; // Puede ser una lista vacía si no hay imágenes
         _isLoading = false;
       });
     } catch (e) {
@@ -145,14 +151,21 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
 
       setState(() {
         _isLoading = false;
+        _imagenes = []; // Establecer lista vacía en caso de error
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al cargar imágenes: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppLogger.warning('Error al cargar imágenes: $e');
+
+      // Mostrar mensaje solo si es un error real, no simplemente ausencia de imágenes
+      if (e.toString().contains('Error al procesar') ||
+          e.toString().contains('conexión')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar imágenes: $e'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
@@ -553,6 +566,7 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
 
       // Invalidar proveedores para refrescar datos
       ref.invalidate(inmueblesProvider);
+      ref.invalidate(inmueblesBusquedaStateProvider);
 
       // Regresar a la pantalla anterior con resultado positivo
       Navigator.pop(context, true);
@@ -622,10 +636,11 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
     try {
       final controller = ref.read(inmuebleControllerProvider);
 
-      // Verificar que el inmueble existe
+      // Verificar que el inmueble existe antes de continuar
       final exists = await controller.verificarExistenciaInmueble(
         widget.inmueble.id!,
       );
+
       if (!exists) {
         if (!mounted) return;
 
@@ -641,37 +656,77 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
         return;
       }
 
-      // Primero eliminar todas las imágenes asociadas
+      // Si hay imágenes, procesarlas primero
       if (_imagenes.isNotEmpty) {
-        for (var imagen in _imagenes) {
-          if (imagen.id != null) {
-            try {
-              await controller.eliminarImagenInmueble(imagen.id!);
+        AppLogger.info(
+          'Procesando ${_imagenes.length} imágenes del inmueble ${widget.inmueble.id}',
+        );
 
-              // Verificar que la ruta no esté vacía antes de intentar eliminar el archivo
-              if (imagen.rutaImagen.isNotEmpty) {
-                await _imageService.eliminarImagenInmueble(imagen.rutaImagen);
-              }
-            } catch (e) {
-              // Continuar con la siguiente imagen si hay error
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Advertencia: No se pudo eliminar imagen ${imagen.id}: $e',
-                    ),
-                    backgroundColor: Colors.orange,
-                  ),
+        // Usar SnackBar temporal para informar al usuario
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Eliminando ${_imagenes.length} imágenes...'),
+              duration: const Duration(seconds: 1),
+            ),
+          );
+        }
+
+        // Procesar imágenes en lotes pequeños para evitar congelamiento
+        final imagenesConId = _imagenes.where((img) => img.id != null).toList();
+        int fallidas = 0;
+
+        // Procesar en grupos de 3 para no sobrecargar la UI
+        for (int i = 0; i < imagenesConId.length; i += 3) {
+          final lote = imagenesConId.skip(i).take(3);
+          await Future.wait(
+            lote.map((imagen) async {
+              try {
+                // Primero intentar eliminar la imagen del sistema de archivos
+                if (imagen.rutaImagen.isNotEmpty) {
+                  final eliminadaArchivo = await _imageService
+                      .eliminarImagenInmueble(imagen.rutaImagen);
+                  if (!eliminadaArchivo) {
+                    AppLogger.warning(
+                      'No se pudo eliminar el archivo: ${imagen.rutaImagen}',
+                    );
+                  }
+                }
+
+                // Luego eliminar de la base de datos
+                await controller.eliminarImagenInmueble(imagen.id!);
+              } catch (e) {
+                fallidas++;
+                AppLogger.error(
+                  'Error al eliminar imagen: ${imagen.id}',
+                  e,
+                  StackTrace.current,
                 );
               }
-            }
-          }
+            }),
+          );
+
+          // Pequeña pausa para permitir que la UI respire
+          await Future.delayed(const Duration(milliseconds: 50));
+        }
+
+        if (fallidas > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Advertencia: $fallidas imágenes no pudieron eliminarse completamente',
+              ),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         }
       }
 
-      // Luego eliminar el inmueble
-      await controller.deleteInmueble(widget.inmueble.id!);
+      // Inactivar el inmueble (mediante procedimiento almacenado)
+      await controller.inactivarInmueble(widget.inmueble.id!);
 
+      // Verificar si aún estamos montados antes de continuar
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -683,17 +738,32 @@ class _InmuebleEditScreenState extends ConsumerState<InmuebleEditScreen> {
 
       // Invalidar proveedores para refrescar datos
       ref.invalidate(inmueblesProvider);
+      ref.invalidate(inmueblesBusquedaStateProvider);
 
       // Regresar a la pantalla de lista
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 
+      // Determinar tipo de error para mensaje más útil
+      final mensajeError = e.toString().toLowerCase();
+      final String mensaje;
+
+      if (mensajeError.contains('connection') ||
+          mensajeError.contains('conexión') ||
+          mensajeError.contains('timeout')) {
+        mensaje = 'Error de conexión a la base de datos. Intente más tarde.';
+      } else if (mensajeError.contains('transaction') ||
+          mensajeError.contains('commit') ||
+          mensajeError.contains('rollback')) {
+        mensaje =
+            'Error en la transacción de base de datos. Intente nuevamente.';
+      } else {
+        mensaje = 'Error al eliminar inmueble: ${e.toString().split('\n')[0]}';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al eliminar inmueble: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) {

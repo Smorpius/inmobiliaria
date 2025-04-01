@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../utils/applogger.dart';
 import '../../../models/inmueble_model.dart';
 import '../../../models/inmueble_imagen.dart';
 import '../../../utils/inmueble_formatter.dart';
@@ -16,6 +17,10 @@ class InmuebleCard extends StatelessWidget {
   final Color inactivateButtonColor;
   final Widget? customStateButton;
 
+  // Control para evitar registros de errores duplicados
+  static final Map<String, DateTime> _ultimosLogs = {};
+  static const Duration _tiempoMinimoDuplicado = Duration(minutes: 5);
+
   const InmuebleCard({
     super.key,
     required this.inmueble,
@@ -30,34 +35,71 @@ class InmuebleCard extends StatelessWidget {
     this.customStateButton,
   });
 
-  /// Obtiene el precio formateado según el tipo de operación
+  /// Obtiene el precio formateado según el tipo de operación con manejo seguro
   String get precioFormateado {
-    if (inmueble.tipoOperacion == 'venta') {
-      return inmueble.precioVenta != null
-          ? InmuebleFormatter.formatMonto(inmueble.precioVenta)
-          : 'Precio no disponible';
-    } else if (inmueble.tipoOperacion == 'renta') {
-      return inmueble.precioRenta != null
-          ? '${InmuebleFormatter.formatMonto(inmueble.precioRenta)}/mes'
-          : 'Precio no disponible';
-    } else if (inmueble.tipoOperacion == 'ambos') {
-      final venta =
-          inmueble.precioVenta != null
-              ? InmuebleFormatter.formatMonto(inmueble.precioVenta)
-              : 'N/A';
-      final renta =
-          inmueble.precioRenta != null
-              ? '${InmuebleFormatter.formatMonto(inmueble.precioRenta)}/mes'
-              : 'N/A';
-      return 'V: $venta | R: $renta';
+    try {
+      if (inmueble.tipoOperacion == 'venta') {
+        return inmueble.precioVenta != null
+            ? InmuebleFormatter.formatMonto(inmueble.precioVenta)
+            : 'Precio no disponible';
+      } else if (inmueble.tipoOperacion == 'renta') {
+        return inmueble.precioRenta != null
+            ? '${InmuebleFormatter.formatMonto(inmueble.precioRenta)}/mes'
+            : 'Precio no disponible';
+      } else if (inmueble.tipoOperacion == 'ambos') {
+        final venta =
+            inmueble.precioVenta != null
+                ? InmuebleFormatter.formatMonto(inmueble.precioVenta)
+                : 'N/A';
+        final renta =
+            inmueble.precioRenta != null
+                ? '${InmuebleFormatter.formatMonto(inmueble.precioRenta)}/mes'
+                : 'N/A';
+        return 'V: $venta | R: $renta';
+      }
+      return InmuebleFormatter.formatMonto(inmueble.montoTotal);
+    } catch (e) {
+      _registrarErrorControlado(
+        'format_precio',
+        'Error al formatear precio: $e',
+      );
+      return 'Precio no disponible';
     }
-    return InmuebleFormatter.formatMonto(inmueble.montoTotal);
   }
 
   /// Capitaliza la primera letra de un texto
   String _capitalizarPalabra(String texto) {
     if (texto.isEmpty) return texto;
     return texto[0].toUpperCase() + texto.substring(1);
+  }
+
+  /// Registra un error evitando duplicados en periodo corto
+  void _registrarErrorControlado(String codigo, String mensaje) {
+    final errorKey = '${codigo}_${inmueble.id ?? 0}';
+    final ahora = DateTime.now();
+
+    // Verificar si ya registramos este error recientemente
+    if (_ultimosLogs.containsKey(errorKey)) {
+      if (ahora.difference(_ultimosLogs[errorKey]!) < _tiempoMinimoDuplicado) {
+        return; // Evitar registro duplicado
+      }
+    }
+
+    // Registrar nuevo error
+    _ultimosLogs[errorKey] = ahora;
+
+    // Limitar tamaño del mapa para evitar memory leaks
+    if (_ultimosLogs.length > 30) {
+      final keysToRemove = _ultimosLogs.entries
+          .toList()
+          .sublist(0, _ultimosLogs.length - 20)
+          .map((e) => e.key);
+      for (var key in keysToRemove) {
+        _ultimosLogs.remove(key);
+      }
+    }
+
+    AppLogger.error(mensaje, errorKey, StackTrace.current);
   }
 
   @override
@@ -78,7 +120,7 @@ class InmuebleCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   // Imagen o placeholder
-                  _buildImageWidget(),
+                  _buildImageWidget(context),
 
                   // Badge de estado cuando está inactivo
                   if (isInactivo)
@@ -110,7 +152,7 @@ class InmuebleCard extends StatelessWidget {
               ),
             ),
 
-            // Información del inmueble - Corregida para evitar overflow
+            // Información del inmueble - Optimizada para evitar rebuild innecesarios
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -253,19 +295,51 @@ class InmuebleCard extends StatelessWidget {
   }
 
   /// Construye el widget de imagen con manejo mejorado de errores
-  Widget _buildImageWidget() {
-    // Si no hay ruta, mostrar placeholder
+  Widget _buildImageWidget(BuildContext context) {
+    // Si no hay ruta, mostrar placeholder inmediatamente para mejorar rendimiento
     if (rutaImagen == null || rutaImagen!.isEmpty) {
       return InmuebleImagePlaceholder(tipoInmueble: inmueble.tipoInmueble);
     }
 
-    // Intentar cargar la imagen sin verificación previa para reducir logs
-    return Image.file(
-      File(rutaImagen!),
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) {
-        // Solo en caso de error mostrar placeholder
-        return InmuebleImagePlaceholder(tipoInmueble: inmueble.tipoInmueble);
+    // Verificación rápida de archivo para mejorar rendimiento
+    final file = File(rutaImagen!);
+
+    return FutureBuilder<bool>(
+      // Este future se resuelve más rápido que cargar la imagen completa
+      future: file.exists().timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () => false,
+      ),
+      builder: (context, snapshot) {
+        // Si el archivo no existe o hay error, mostrar placeholder
+        if (snapshot.connectionState != ConnectionState.done ||
+            snapshot.hasError ||
+            snapshot.data != true) {
+          if (snapshot.hasError) {
+            _registrarErrorControlado(
+              'img_exists_${inmueble.id}',
+              'Error al verificar existencia de imagen: ${snapshot.error}',
+            );
+          }
+          return InmuebleImagePlaceholder(tipoInmueble: inmueble.tipoInmueble);
+        }
+
+        // Cargar imagen solo cuando sabemos que el archivo existe
+        return Image.file(
+          file,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            _registrarErrorControlado(
+              'img_load_${inmueble.id}',
+              'Error al cargar imagen: $error',
+            );
+            return InmuebleImagePlaceholder(
+              tipoInmueble: inmueble.tipoInmueble,
+            );
+          },
+          // Usar memoria caché para mejorar rendimiento
+          cacheWidth: (MediaQuery.of(context).size.width * 1.5).toInt(),
+        );
       },
     );
   }

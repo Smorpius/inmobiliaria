@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/applogger.dart';
 import '../../../models/cliente_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../providers/cliente_providers.dart';
@@ -9,6 +10,13 @@ import '../../../models/clientes_interesados_state.dart';
 class ClientesInteresadosSection extends ConsumerWidget {
   final int idInmueble;
   final bool isInactivo;
+
+  // Control de operaciones duplicadas
+  static final Map<String, bool> _operacionesEnProceso = {};
+
+  // Control para evitar logs duplicados
+  static final Map<String, DateTime> _ultimosLogs = {};
+  static const Duration _tiempoMinimoDuplicado = Duration(minutes: 1);
 
   const ClientesInteresadosSection({
     super.key,
@@ -27,7 +35,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
           'Clientes interesados',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
-
         if (!isInactivo)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -44,31 +51,53 @@ class ClientesInteresadosSection extends ConsumerWidget {
                           )
                           .actualizarBusqueda(value);
                     },
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Buscar cliente...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(vertical: 0),
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon:
+                          state.isLoading
+                              ? Container(
+                                margin: const EdgeInsets.all(8),
+                                width: 16,
+                                height: 16,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.teal,
+                                  ),
+                                ),
+                              )
+                              : null,
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed:
-                      () =>
-                          _mostrarDialogoAgregarClienteInteresado(context, ref),
+                      isInactivo
+                          ? null
+                          : () => _ejecutarOperacionSegura(
+                            context,
+                            ref,
+                            'agregar_cliente',
+                            () async => _mostrarDialogoAgregarClienteInteresado(
+                              context,
+                              ref,
+                            ),
+                          ),
                   icon: const Icon(Icons.person_add),
                   label: const Text('Agregar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
                   ),
                 ),
               ],
             ),
           ),
-
-        // Mostrar error si existe
         if (state.errorMessage != null)
           Card(
             color: Colors.red.shade50,
@@ -83,14 +112,19 @@ class ClientesInteresadosSection extends ConsumerWidget {
                   const SizedBox(height: 8),
                   ElevatedButton.icon(
                     onPressed:
-                        () =>
-                            ref
-                                .read(
-                                  clientesInteresadosStateProvider(
-                                    idInmueble,
-                                  ).notifier,
-                                )
-                                .cargarClientesInteresados(),
+                        () => _ejecutarOperacionSegura(
+                          context,
+                          ref,
+                          'reintentar',
+                          () async =>
+                              ref
+                                  .read(
+                                    clientesInteresadosStateProvider(
+                                      idInmueble,
+                                    ).notifier,
+                                  )
+                                  .cargarClientesInteresados(),
+                        ),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Reintentar'),
                   ),
@@ -98,8 +132,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
               ),
             ),
           ),
-
-        // Estado de carga
         if (state.isLoading)
           const Center(
             child: Padding(
@@ -107,17 +139,14 @@ class ClientesInteresadosSection extends ConsumerWidget {
               child: CircularProgressIndicator(),
             ),
           )
-        // Sin clientes
         else if (state.clientes.isEmpty)
           _buildEmptyClientesMessage(context, ref)
-        // Lista de clientes
         else
           _buildClientesList(context, ref, state.clientesFiltrados),
       ],
     );
   }
 
-  // Widget para mostrar cuando no hay clientes interesados
   Widget _buildEmptyClientesMessage(BuildContext context, WidgetRef ref) {
     return Card(
       color: Colors.grey.shade100,
@@ -137,8 +166,15 @@ class ClientesInteresadosSection extends ConsumerWidget {
                 padding: const EdgeInsets.only(top: 16.0),
                 child: ElevatedButton.icon(
                   onPressed:
-                      () =>
-                          _mostrarDialogoAgregarClienteInteresado(context, ref),
+                      () => _ejecutarOperacionSegura(
+                        context,
+                        ref,
+                        'agregar_cliente',
+                        () async => _mostrarDialogoAgregarClienteInteresado(
+                          context,
+                          ref,
+                        ),
+                      ),
                   icon: const Icon(Icons.person_add),
                   label: const Text('Agregar cliente interesado'),
                   style: ElevatedButton.styleFrom(
@@ -153,34 +189,35 @@ class ClientesInteresadosSection extends ConsumerWidget {
     );
   }
 
-  // Widget para mostrar la lista de clientes interesados
   Widget _buildClientesList(
     BuildContext context,
     WidgetRef ref,
     List<Map<String, dynamic>> clientes,
   ) {
+    final limitedClientes =
+        clientes.length > 50 ? clientes.sublist(0, 50) : clientes;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
           child: Text(
-            'Mostrando ${clientes.length} cliente${clientes.length != 1 ? "s" : ""}',
+            'Mostrando ${limitedClientes.length} cliente${limitedClientes.length != 1 ? "s" : ""}${clientes.length > 50 ? " (primeros 50)" : ""}',
             style: TextStyle(
               color: Colors.grey.shade700,
               fontStyle: FontStyle.italic,
             ),
           ),
         ),
-
         ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: clientes.length,
+          itemCount: limitedClientes.length,
           itemBuilder: (context, index) {
-            final cliente = clientes[index];
+            final cliente = limitedClientes[index];
             final nombreCompleto =
-                '${cliente['nombre']} ${cliente['apellido_paterno']} ${cliente['apellido_materno'] ?? ''}';
+                '${cliente['nombre'] ?? ""} ${cliente['apellido_paterno'] ?? ""} ${cliente['apellido_materno'] ?? ""}';
             final fechaInteres =
                 cliente['fecha_interes'] != null
                     ? cliente['fecha_interes'].toString().split(' ')[0]
@@ -189,7 +226,16 @@ class ClientesInteresadosSection extends ConsumerWidget {
             final correo = cliente['correo_cliente'];
             final idCliente = cliente['id_cliente'];
 
+            if (idCliente == null) {
+              _registrarAdvertencia(
+                'cliente_invalido',
+                'Cliente interesado sin ID encontrado en inmueble $idInmueble',
+              );
+              return const SizedBox.shrink();
+            }
+
             return Card(
+              key: ValueKey('cliente_$idCliente'),
               margin: const EdgeInsets.only(bottom: 12),
               elevation: 2,
               child: InkWell(
@@ -245,16 +291,20 @@ class ClientesInteresadosSection extends ConsumerWidget {
                             tooltip: 'Ver perfil completo',
                             color: Colors.teal,
                             onPressed:
-                                () => _verDetallesClienteInteresado(
+                                () => _ejecutarOperacionSegura(
                                   context,
                                   ref,
-                                  idCliente,
+                                  'ver_cliente_$idCliente',
+                                  () async => _verDetallesClienteInteresado(
+                                    context,
+                                    ref,
+                                    int.parse(idCliente.toString()),
+                                  ),
                                 ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-
                       if (telefono != null && telefono.toString().isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0),
@@ -266,15 +316,20 @@ class ClientesInteresadosSection extends ConsumerWidget {
                                 color: Colors.teal,
                               ),
                               const SizedBox(width: 8),
-                              Text(telefono),
+                              Text(telefono.toString()),
                               const Spacer(),
                               IconButton(
                                 icon: const Icon(Icons.call, size: 20),
                                 color: Colors.teal,
                                 onPressed:
-                                    () => _llamarCliente(
+                                    () => _ejecutarOperacionSegura(
                                       context,
-                                      telefono.toString(),
+                                      ref,
+                                      'llamar_$idCliente',
+                                      () async => _llamarCliente(
+                                        context,
+                                        telefono.toString(),
+                                      ),
                                     ),
                                 tooltip: 'Llamar',
                                 constraints: const BoxConstraints(
@@ -287,9 +342,14 @@ class ClientesInteresadosSection extends ConsumerWidget {
                                 icon: const Icon(Icons.message, size: 20),
                                 color: Colors.blue,
                                 onPressed:
-                                    () => _enviarMensaje(
+                                    () => _ejecutarOperacionSegura(
                                       context,
-                                      telefono.toString(),
+                                      ref,
+                                      'mensaje_$idCliente',
+                                      () async => _enviarMensaje(
+                                        context,
+                                        telefono.toString(),
+                                      ),
                                     ),
                                 tooltip: 'Mensaje SMS',
                                 constraints: const BoxConstraints(
@@ -301,7 +361,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
                             ],
                           ),
                         ),
-
                       if (correo != null && correo.toString().isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 8.0),
@@ -326,9 +385,14 @@ class ClientesInteresadosSection extends ConsumerWidget {
                                 ),
                                 color: Colors.orange,
                                 onPressed:
-                                    () => _enviarEmail(
+                                    () => _ejecutarOperacionSegura(
                                       context,
-                                      correo.toString(),
+                                      ref,
+                                      'email_$idCliente',
+                                      () async => _enviarEmail(
+                                        context,
+                                        correo.toString(),
+                                      ),
                                     ),
                                 tooltip: 'Enviar correo',
                                 constraints: const BoxConstraints(
@@ -340,7 +404,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
                             ],
                           ),
                         ),
-
                       if (cliente['comentarios'] != null &&
                           cliente['comentarios'].toString().isNotEmpty)
                         Container(
@@ -388,30 +451,55 @@ class ClientesInteresadosSection extends ConsumerWidget {
     );
   }
 
-  // Métodos para interactuar con los clientes
+  Future<void> _ejecutarOperacionSegura(
+    BuildContext context,
+    WidgetRef ref,
+    String identificador,
+    Future<void> Function() operacion,
+  ) async {
+    final operacionKey = '$idInmueble-$identificador';
+
+    if (_operacionesEnProceso[operacionKey] == true) {
+      return;
+    }
+
+    _operacionesEnProceso[operacionKey] = true;
+
+    try {
+      await operacion();
+    } catch (e, stack) {
+      _registrarError('Error en operación $identificador', e, stack);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_obtenerMensajeErrorFriendly(e.toString())),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      _operacionesEnProceso[operacionKey] = false;
+    }
+  }
+
   Future<void> _verDetallesClienteInteresado(
     BuildContext context,
     WidgetRef ref,
     int idCliente,
   ) async {
     try {
-      // Indicar que está cargando
       final notifier = ref.read(
         clientesInteresadosStateProvider(idInmueble).notifier,
       );
-      // Iniciar carga
-      notifier.cargarClientesInteresados(); // Esto establecerá isLoading = true
+      notifier.cargarClientesInteresados();
 
-      // Obtener controlador a través del provider
       final clienteController = ref.read(clienteControllerProvider);
       Cliente? cliente;
 
-      // Buscar primero en clientes activos
       final clientes = await clienteController.getClientes();
       try {
         cliente = clientes.firstWhere((c) => c.id == idCliente);
       } catch (_) {
-        // Si no se encuentra, buscar en inactivos
         final inactivos = await clienteController.getClientesInactivos();
         try {
           cliente = inactivos.firstWhere((c) => c.id == idCliente);
@@ -422,39 +510,55 @@ class ClientesInteresadosSection extends ConsumerWidget {
 
       if (!context.mounted) return;
 
-      // La carga terminó, recargar datos para actualizar el estado
+      // Recargar datos antes de navegar
       notifier.cargarClientesInteresados();
 
-      Navigator.push(
+      // Navegar con resultado para actualizar al regresar
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => VistaClientes(clienteInicial: cliente),
         ),
       );
-    } catch (e) {
+
+      // Al regresar, verificamos si debemos recargar datos
+      if (result == true && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actualizando información de clientes...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        await notifier.cargarClientesInteresados();
+      }
+    } catch (e, stack) {
+      _registrarError('Error al cargar detalles de cliente', e, stack);
       if (!context.mounted) return;
 
-      // Mostrar error
       final notifier = ref.read(
         clientesInteresadosStateProvider(idInmueble).notifier,
       );
-      // Recargar para restablecer el estado y mostrar el error
       notifier.cargarClientesInteresados();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al cargar detalles del cliente: $e'),
+          content: Text(_obtenerMensajeErrorFriendly(e.toString())),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
 
-  void _llamarCliente(BuildContext context, String telefono) async {
+  Future<void> _llamarCliente(BuildContext context, String telefono) async {
     final uri = Uri.parse('tel:$telefono');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        throw Exception('No se puede realizar la llamada');
+      }
+    } catch (e, stack) {
+      _registrarError('Error al intentar llamar', e, stack);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -465,11 +569,16 @@ class ClientesInteresadosSection extends ConsumerWidget {
     }
   }
 
-  void _enviarMensaje(BuildContext context, String telefono) async {
+  Future<void> _enviarMensaje(BuildContext context, String telefono) async {
     final uri = Uri.parse('sms:$telefono');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        throw Exception('No se puede enviar mensaje');
+      }
+    } catch (e, stack) {
+      _registrarError('Error al enviar SMS', e, stack);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -480,11 +589,16 @@ class ClientesInteresadosSection extends ConsumerWidget {
     }
   }
 
-  void _enviarEmail(BuildContext context, String email) async {
+  Future<void> _enviarEmail(BuildContext context, String email) async {
     final uri = Uri.parse('mailto:$email');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    } else {
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        throw Exception('No se puede enviar email');
+      }
+    } catch (e, stack) {
+      _registrarError('Error al enviar email', e, stack);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -526,7 +640,7 @@ class ClientesInteresadosSection extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '${cliente['nombre']} ${cliente['apellido_paterno']} ${cliente['apellido_materno'] ?? ''}',
+                    '${cliente['nombre'] ?? ""} ${cliente['apellido_paterno'] ?? ""} ${cliente['apellido_materno'] ?? ""}',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -534,7 +648,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 24),
-
                   _buildDetailItem(
                     Icons.calendar_today,
                     'Interesado desde',
@@ -543,7 +656,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
                         : 'Fecha no disponible',
                   ),
                   const Divider(height: 20),
-
                   _buildDetailItem(
                     Icons.phone,
                     'Teléfono',
@@ -555,7 +667,6 @@ class ClientesInteresadosSection extends ConsumerWidget {
                     'Email',
                     cliente['correo_cliente'] ?? 'No disponible',
                   ),
-
                   if (cliente['telefono_cliente'] != null ||
                       cliente['correo_cliente'] != null)
                     Padding(
@@ -570,7 +681,7 @@ class ClientesInteresadosSection extends ConsumerWidget {
                               Colors.green,
                               () => _llamarCliente(
                                 context,
-                                cliente['telefono_cliente'],
+                                cliente['telefono_cliente'].toString(),
                               ),
                             ),
                           if (cliente['telefono_cliente'] != null)
@@ -580,7 +691,7 @@ class ClientesInteresadosSection extends ConsumerWidget {
                               Colors.blue,
                               () => _enviarMensaje(
                                 context,
-                                cliente['telefono_cliente'],
+                                cliente['telefono_cliente'].toString(),
                               ),
                             ),
                           if (cliente['correo_cliente'] != null)
@@ -590,7 +701,7 @@ class ClientesInteresadosSection extends ConsumerWidget {
                               Colors.orange,
                               () => _enviarEmail(
                                 context,
-                                cliente['correo_cliente'],
+                                cliente['correo_cliente'].toString(),
                               ),
                             ),
                           _buildActionButton(
@@ -602,14 +713,13 @@ class ClientesInteresadosSection extends ConsumerWidget {
                               _verDetallesClienteInteresado(
                                 context,
                                 ref,
-                                cliente['id_cliente'],
+                                int.parse(cliente['id_cliente'].toString()),
                               );
                             },
                           ),
                         ],
                       ),
                     ),
-
                   if (cliente['comentarios'] != null &&
                       cliente['comentarios'].toString().isNotEmpty)
                     Padding(
@@ -645,6 +755,212 @@ class ClientesInteresadosSection extends ConsumerWidget {
         );
       },
     );
+  }
+
+  Future<void> _mostrarDialogoAgregarClienteInteresado(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cargando clientes disponibles...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      final clienteController = ref.read(clienteControllerProvider);
+      final clientes = await clienteController.getClientes();
+
+      if (!context.mounted) return;
+
+      if (clientes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No hay clientes disponibles para agregar como interesados',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      Cliente? clienteSeleccionado;
+      final comentariosController = TextEditingController();
+      String searchQuery = '';
+      List<Cliente> filteredClientes = clientes;
+
+      final resultado = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return AlertDialog(
+                title: const Text('Agregar Cliente Interesado'),
+                content: SizedBox(
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        onChanged: (value) {
+                          setStateDialog(() {
+                            searchQuery = value.toLowerCase();
+                            filteredClientes =
+                                searchQuery.isEmpty
+                                    ? clientes
+                                    : clientes.where((cliente) {
+                                      return cliente.nombreCompleto
+                                              .toLowerCase()
+                                              .contains(searchQuery) ||
+                                          cliente.telefono
+                                              .toLowerCase()
+                                              .contains(searchQuery) ||
+                                          (cliente.correo
+                                                  ?.toLowerCase()
+                                                  .contains(searchQuery) ??
+                                              false);
+                                    }).toList();
+                          });
+                        },
+                        decoration: const InputDecoration(
+                          labelText: 'Buscar cliente',
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child:
+                            filteredClientes.isEmpty
+                                ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Text(
+                                      'No se encontraron clientes',
+                                      style: TextStyle(
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                : ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: filteredClientes.length,
+                                  itemBuilder: (context, index) {
+                                    final cliente = filteredClientes[index];
+                                    return RadioListTile<Cliente>(
+                                      title: Text(cliente.nombreCompleto),
+                                      subtitle: Text(
+                                        '${cliente.telefono}${cliente.correo != null ? ' • ${cliente.correo}' : ''}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      value: cliente,
+                                      groupValue: clienteSeleccionado,
+                                      onChanged: (value) {
+                                        setStateDialog(() {
+                                          clienteSeleccionado = value;
+                                        });
+                                      },
+                                    );
+                                  },
+                                ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: comentariosController,
+                        decoration: const InputDecoration(
+                          labelText: 'Comentarios',
+                          hintText: 'Detalles sobre el interés del cliente',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed:
+                        clienteSeleccionado == null
+                            ? null
+                            : () => Navigator.of(context).pop(true),
+                    child: const Text('Guardar'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+
+      if (resultado == true && clienteSeleccionado != null && context.mounted) {
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registrando cliente interesado...'),
+              duration: Duration(seconds: 1),
+            ),
+          );
+
+          final success = await ref
+              .read(clientesInteresadosStateProvider(idInmueble).notifier)
+              .registrarClienteInteresado(
+                clienteSeleccionado!.id!,
+                comentariosController.text.isNotEmpty
+                    ? comentariosController.text
+                    : null,
+              );
+
+          if (!context.mounted) return;
+
+          if (success) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Cliente interesado registrado correctamente'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } catch (e, stack) {
+          _registrarError('Error al registrar cliente interesado', e, stack);
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Error al registrar cliente interesado: ${_obtenerMensajeErrorFriendly(e.toString())}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e, stack) {
+      _registrarError('Error al mostrar diálogo de clientes', e, stack);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error al cargar clientes: ${_obtenerMensajeErrorFriendly(e.toString())}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildDetailItem(IconData icon, String label, String value) {
@@ -692,185 +1008,72 @@ class ClientesInteresadosSection extends ConsumerWidget {
     );
   }
 
-  // Método para mostrar el diálogo para agregar un cliente interesado
-  void _mostrarDialogoAgregarClienteInteresado(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    // Obtener controlador y clientes a través del provider
-    final clienteController = ref.read(clienteControllerProvider);
-    final clientes = await clienteController.getClientes();
+  void _registrarError(String mensaje, Object error, StackTrace? stackTrace) {
+    final ahora = DateTime.now();
+    final key = '$idInmueble-$mensaje-${error.toString()}';
 
-    if (!context.mounted) return;
+    if (_ultimosLogs.containsKey(key)) {
+      final ultimoRegistro = _ultimosLogs[key]!;
+      if (ahora.difference(ultimoRegistro) < _tiempoMinimoDuplicado) {
+        return;
+      }
+    }
 
-    Cliente? clienteSeleccionado;
-    final comentariosController = TextEditingController();
-    String searchQuery = '';
+    _ultimosLogs[key] = ahora;
+    AppLogger.error(mensaje, error, stackTrace);
+  }
 
-    List<Cliente> filteredClientes = clientes;
+  void _registrarAdvertencia(String tipo, String mensaje) {
+    final ahora = DateTime.now();
+    final key = '$idInmueble-$tipo-$mensaje';
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Agregar Cliente Interesado'),
-              content: SizedBox(
-                width: 400,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      onChanged: (value) {
-                        setStateDialog(() {
-                          searchQuery = value.toLowerCase();
-                          if (searchQuery.isEmpty) {
-                            filteredClientes = clientes;
-                          } else {
-                            filteredClientes =
-                                clientes.where((cliente) {
-                                  return cliente.nombreCompleto
-                                          .toLowerCase()
-                                          .contains(searchQuery) ||
-                                      cliente.telefono.toLowerCase().contains(
-                                        searchQuery,
-                                      ) ||
-                                      (cliente.correo?.toLowerCase().contains(
-                                            searchQuery,
-                                          ) ??
-                                          false);
-                                }).toList();
-                          }
-                        });
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'Buscar cliente',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+    if (_ultimosLogs.containsKey(key)) {
+      final ultimoRegistro = _ultimosLogs[key]!;
+      if (ahora.difference(ultimoRegistro) < _tiempoMinimoDuplicado) {
+        return;
+      }
+    }
 
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child:
-                          filteredClientes.isEmpty
-                              ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: Text(
-                                    'No se encontraron clientes',
-                                    style: TextStyle(
-                                      fontStyle: FontStyle.italic,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: filteredClientes.length,
-                                itemBuilder: (context, index) {
-                                  final cliente = filteredClientes[index];
-                                  return RadioListTile<Cliente>(
-                                    title: Text(cliente.nombreCompleto),
-                                    subtitle: Text(
-                                      '${cliente.telefono}${cliente.correo != null ? ' • ${cliente.correo}' : ''}',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    value: cliente,
-                                    groupValue: clienteSeleccionado,
-                                    onChanged: (value) {
-                                      setStateDialog(() {
-                                        clienteSeleccionado = value;
-                                      });
-                                    },
-                                  );
-                                },
-                              ),
-                    ),
-                    const SizedBox(height: 16),
+    _ultimosLogs[key] = ahora;
+    AppLogger.warning(mensaje);
+  }
 
-                    TextField(
-                      controller: comentariosController,
-                      decoration: const InputDecoration(
-                        labelText: 'Comentarios',
-                        hintText: 'Detalles sobre el interés del cliente',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed:
-                      clienteSeleccionado == null
-                          ? null
-                          : () async {
-                            try {
-                              // Registrar al cliente interesado mediante el notifier
-                              final success = await ref
-                                  .read(
-                                    clientesInteresadosStateProvider(
-                                      idInmueble,
-                                    ).notifier,
-                                  )
-                                  .registrarClienteInteresado(
-                                    clienteSeleccionado!.id!,
-                                    comentariosController.text.isNotEmpty
-                                        ? comentariosController.text
-                                        : null,
-                                  );
-
-                              if (!context.mounted) return;
-
-                              Navigator.of(context).pop();
-
-                              if (success) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Cliente interesado registrado correctamente',
-                                    ),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (!context.mounted) return;
-
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Error al registrar cliente interesado: $e',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+  String _obtenerMensajeErrorFriendly(String errorOriginal) {
+    if (errorOriginal.contains('Connection refused') ||
+        errorOriginal.contains('SocketException')) {
+      return 'Error de conexión a la base de datos. Verifica tu conexión a Internet.';
+    } else if (errorOriginal.contains('ObtenerClientesInteresados')) {
+      if (errorOriginal.contains('Access denied')) {
+        return 'No tienes permisos para ver los clientes interesados en este inmueble.';
+      }
+      return 'Error al obtener clientes interesados. Intenta nuevamente más tarde.';
+    } else if (errorOriginal.contains('RegistrarClienteInteresado')) {
+      if (errorOriginal.contains('Duplicate entry')) {
+        return 'Este cliente ya está registrado como interesado en este inmueble.';
+      } else if (errorOriginal.contains('foreign key constraint fails')) {
+        return 'No se puede registrar este cliente debido a un problema de referencia.';
+      }
+      return 'Error al registrar el cliente como interesado. Verifica los datos e intenta nuevamente.';
+    } else if (errorOriginal.contains('Cliente no encontrado')) {
+      return 'No se encontró la información del cliente.';
+    } else if (errorOriginal.contains('permission denied') ||
+        errorOriginal.contains('not authorized') ||
+        errorOriginal.contains('Access denied')) {
+      return 'No tienes permisos para realizar esta operación.';
+    } else if (errorOriginal.contains('timed out') ||
+        errorOriginal.contains('timeout')) {
+      return 'La operación tardó demasiado tiempo. Intenta de nuevo más tarde.';
+    } else if (errorOriginal.contains('max_allowed_packet')) {
+      return 'Datos demasiado grandes para procesar. Contacta al soporte técnico.';
+    } else if (errorOriginal.contains('constraint') ||
+        errorOriginal.contains('integrity')) {
+      return 'Error de validación de datos. Revisa la información ingresada.';
+    } else if (errorOriginal.contains('SQL') ||
+        errorOriginal.contains('syntax')) {
+      return 'Error en la consulta a la base de datos. Contacta al soporte técnico.';
+    } else if (errorOriginal.length > 100) {
+      return 'Ocurrió un error inesperado. Contacta al soporte técnico.';
+    }
+    return errorOriginal;
   }
 }

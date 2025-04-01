@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../utils/applogger.dart';
 import '../../../models/inmueble_imagen.dart';
 import '../../../services/image_service.dart';
 
@@ -22,18 +23,38 @@ class InmuebleImageItem extends StatelessWidget {
     return Stack(
       children: [
         FutureBuilder<String?>(
-          future: imageService.obtenerRutaCompletaImagen(imagen.rutaImagen),
+          // Usar un futuro con tiempo límite para evitar congelamiento
+          future: Future.any([
+            imageService.obtenerRutaCompletaImagen(imagen.rutaImagen),
+            // Timeout de 5 segundos para evitar que la UI se quede esperando indefinidamente
+            Future.delayed(const Duration(seconds: 5), () => null),
+          ]),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
             }
 
-            if (snapshot.hasError ||
-                !snapshot.hasData ||
-                snapshot.data == null) {
+            if (snapshot.hasError) {
+              AppLogger.warning('Error cargando imagen: ${snapshot.error}');
               return Container(
                 color: Colors.grey.shade200,
                 child: const Icon(Icons.broken_image, color: Colors.grey),
+              );
+            }
+
+            if (!snapshot.hasData || snapshot.data == null) {
+              return Container(
+                color: Colors.grey.shade200,
+                child: const Icon(
+                  Icons.image_not_supported,
+                  color: Colors.grey,
+                ),
               );
             }
 
@@ -46,7 +67,25 @@ class InmuebleImageItem extends StatelessWidget {
                           ? Border.all(color: Colors.blue, width: 3)
                           : null,
                 ),
-                child: Image.file(File(snapshot.data!), fit: BoxFit.cover),
+                child: Hero(
+                  tag: 'inmueble_imagen_${imagen.id}',
+                  child: Image.file(
+                    File(snapshot.data!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Registro de error solo una vez, no en bucle
+                      AppLogger.categoryWarning(
+                        'image_load',
+                        'Error al cargar imagen ${imagen.id}: $error',
+                        expiration: const Duration(minutes: 5),
+                      );
+                      return Container(
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.error, color: Colors.red),
+                      );
+                    },
+                  ),
+                ),
               ),
             );
           },

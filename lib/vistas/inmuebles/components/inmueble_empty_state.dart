@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/applogger.dart'; // Importar AppLogger
 
 class InmuebleEmptyState extends StatelessWidget {
   final bool isFiltering;
@@ -12,6 +13,11 @@ class InmuebleEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Registrar evento para facilitar depuración
+    AppLogger.debug(
+      'Renderizando InmuebleEmptyState (filtrando: $isFiltering)',
+    );
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -32,7 +38,12 @@ class InmuebleEmptyState extends StatelessWidget {
           if (isFiltering) ...[
             const SizedBox(height: 12),
             ElevatedButton.icon(
-              onPressed: onLimpiarFiltros,
+              onPressed: () {
+                AppLogger.info(
+                  'Usuario ha limpiado filtros de búsqueda de inmuebles',
+                );
+                onLimpiarFiltros();
+              },
               icon: const Icon(Icons.clear_all),
               label: const Text('Limpiar filtros'),
               style: ElevatedButton.styleFrom(

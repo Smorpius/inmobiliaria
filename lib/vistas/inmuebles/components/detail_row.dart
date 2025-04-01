@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
 
+/// Widget que muestra un detalle con formato consistente de icono, etiqueta y valor.
+/// Usado para mostrar información en vistas de detalle de inmuebles, clientes, etc.
 class DetailRow extends StatelessWidget {
+  /// Etiqueta descriptiva del campo
   final String label;
+
+  /// Valor del campo a mostrar
   final String value;
+
+  /// Icono que representa el tipo de información
   final IconData icon;
+
+  /// Indica si el elemento está en estado inactivo para aplicar estilo atenuado
   final bool isInactivo;
-  final Color? valueColor; // Agregado nuevo parámetro
+
+  /// Color opcional para el valor (útil para estados o valores especiales)
+  final Color? valueColor;
+
+  /// Color opcional para personalizar el ícono
+  final Color iconColor;
+
+  /// Estilo constante para la etiqueta para mejorar rendimiento
+  static const TextStyle _labelStyle = TextStyle(
+    fontWeight: FontWeight.bold,
+    fontSize: 14,
+    color: Colors.indigo,
+  );
 
   const DetailRow({
     super.key,
@@ -13,7 +34,8 @@ class DetailRow extends StatelessWidget {
     required this.value,
     required this.icon,
     this.isInactivo = false,
-    this.valueColor, // Parámetro opcional para el color del valor
+    this.valueColor,
+    this.iconColor = Colors.indigo,
   });
 
   @override
@@ -23,31 +45,22 @@ class DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Colors.indigo),
+          Icon(icon, size: 20, color: isInactivo ? Colors.grey : iconColor),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.indigo,
-                  ),
-                ),
+                Text(label, style: _labelStyle),
                 const SizedBox(height: 4),
                 Text(
-                  value,
+                  value.isNotEmpty ? value : 'No especificado',
                   style: TextStyle(
                     fontSize: 16,
                     color:
                         isInactivo
                             ? Colors.grey.shade600
-                            : (valueColor ??
-                                Colors
-                                    .black), // Usar color proporcionado si existe
+                            : (valueColor ?? Colors.black),
                   ),
                 ),
               ],

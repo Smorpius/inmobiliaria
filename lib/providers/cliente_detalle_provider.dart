@@ -1,5 +1,5 @@
 import 'providers_global.dart';
-import 'dart:developer' as developer;
+import '../utils/applogger.dart';
 import '../models/inmueble_model.dart';
 import '../controllers/cliente_controller.dart';
 import '../controllers/inmueble_controller.dart';
@@ -37,6 +37,12 @@ class ClienteDetalleNotifier extends StateNotifier<ClienteDetalleState> {
   final InmuebleController _inmuebleController;
   final int clienteId;
 
+  // Control para evitar operaciones duplicadas
+  bool _procesandoOperacion = false;
+
+  // Control para evitar logs duplicados
+  bool _procesandoError = false;
+
   ClienteDetalleNotifier(
     this._clienteController,
     this._inmuebleController,
@@ -47,47 +53,101 @@ class ClienteDetalleNotifier extends StateNotifier<ClienteDetalleState> {
 
   /// Carga los inmuebles asociados al cliente
   Future<void> cargarInmuebles() async {
-    try {
-      state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log('Cargando inmuebles para cliente ID: $clienteId');
+    // Evitar operaciones duplicadas
+    if (_procesandoOperacion) {
+      AppLogger.info(
+        'Operación en progreso, evitando duplicación de cargarInmuebles()',
+      );
+      return;
+    }
 
+    try {
+      _procesandoOperacion = true;
+      state = state.copyWith(isLoading: true, errorMessage: null);
+      AppLogger.info('Cargando inmuebles para cliente ID: $clienteId');
+
+      // Validar ID del cliente
+      if (clienteId <= 0) {
+        throw Exception('ID de cliente inválido');
+      }
+
+      // Llamada al procedimiento almacenado a través del controller
       final inmuebles = await _clienteController.getInmueblesPorCliente(
         clienteId,
       );
-      developer.log('Inmuebles cargados: ${inmuebles.length}');
+      AppLogger.info('Inmuebles cargados: ${inmuebles.length}');
 
       state = state.copyWith(inmuebles: inmuebles, isLoading: false);
     } catch (e) {
-      developer.log('Error al cargar inmuebles del cliente: $e', error: e);
+      // Evitar logs duplicados del mismo error
+      if (!_procesandoError) {
+        _procesandoError = true;
+        AppLogger.error(
+          'Error al cargar inmuebles del cliente',
+          e,
+          StackTrace.current,
+        );
+        _procesandoError = false;
+      }
+
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Error al cargar inmuebles: $e',
+        errorMessage:
+            'Error al cargar inmuebles: ${e.toString().split('\n').first}',
       );
+    } finally {
+      _procesandoOperacion = false;
     }
   }
 
   /// Desasocia un inmueble del cliente
   Future<bool> desasignarInmueble(int idInmueble) async {
+    // Evitar operaciones duplicadas
+    if (_procesandoOperacion) {
+      AppLogger.warning(
+        'Operación en progreso, evitando duplicación de desasignarInmueble()',
+      );
+      return false;
+    }
+
     try {
+      _procesandoOperacion = true;
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log(
+
+      // Validar parámetros
+      if (idInmueble <= 0 || clienteId <= 0) {
+        throw Exception('ID de inmueble o cliente inválido');
+      }
+
+      AppLogger.info(
         'Desasignando inmueble ID: $idInmueble del cliente ID: $clienteId',
       );
 
+      // Llamada al procedimiento almacenado a través del controller
       final resultado = await _clienteController.desasignarInmuebleDeCliente(
         idInmueble,
       );
 
-      // Recargar la lista después de desasignar
+      // Recargar la lista después de desasignar para mantener datos frescos
       await cargarInmuebles();
+
       return resultado;
     } catch (e) {
-      developer.log('Error al desasignar inmueble: $e', error: e);
+      // Evitar logs duplicados del mismo error
+      if (!_procesandoError) {
+        _procesandoError = true;
+        AppLogger.error('Error al desasignar inmueble', e, StackTrace.current);
+        _procesandoError = false;
+      }
+
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Error al desasignar inmueble: $e',
+        errorMessage:
+            'Error al desasignar inmueble: ${e.toString().split('\n').first}',
       );
       return false;
+    } finally {
+      _procesandoOperacion = false;
     }
   }
 
@@ -96,55 +156,106 @@ class ClienteDetalleNotifier extends StateNotifier<ClienteDetalleState> {
     int idInmueble, [
     DateTime? fechaAdquisicion,
   ]) async {
+    // Evitar operaciones duplicadas
+    if (_procesandoOperacion) {
+      AppLogger.warning(
+        'Operación en progreso, evitando duplicación de asignarInmueble()',
+      );
+      return false;
+    }
+
     try {
+      _procesandoOperacion = true;
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log(
+
+      // Validar parámetros
+      if (idInmueble <= 0 || clienteId <= 0) {
+        throw Exception('ID de inmueble o cliente inválido');
+      }
+
+      AppLogger.info(
         'Asignando inmueble ID: $idInmueble al cliente ID: $clienteId',
       );
 
+      // Llamada al procedimiento almacenado a través del controller
       final resultado = await _clienteController.asignarInmuebleACliente(
         clienteId,
         idInmueble,
         fechaAdquisicion,
       );
 
-      // Recargar la lista después de asignar
+      // Recargar la lista después de asignar para mantener datos frescos
       await cargarInmuebles();
+
       return resultado;
     } catch (e) {
-      developer.log('Error al asignar inmueble: $e', error: e);
+      // Evitar logs duplicados del mismo error
+      if (!_procesandoError) {
+        _procesandoError = true;
+        AppLogger.error('Error al asignar inmueble', e, StackTrace.current);
+        _procesandoError = false;
+      }
+
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Error al asignar inmueble: $e',
+        errorMessage:
+            'Error al asignar inmueble: ${e.toString().split('\n').first}',
       );
       return false;
+    } finally {
+      _procesandoOperacion = false;
     }
   }
 
   /// Obtiene inmuebles disponibles para asignar
   Future<List<Inmueble>> getInmueblesDisponibles() async {
-    try {
-      state = state.copyWith(isLoading: true);
-      developer.log('Obteniendo inmuebles disponibles para asignar');
+    // Evitar operaciones duplicadas
+    if (_procesandoOperacion) {
+      AppLogger.warning(
+        'Operación en progreso, evitando duplicación de getInmueblesDisponibles()',
+      );
+      return [];
+    }
 
-      // Usar el InmuebleController inyectado
+    try {
+      _procesandoOperacion = true;
+      state = state.copyWith(isLoading: true, errorMessage: null);
+      AppLogger.info('Obteniendo inmuebles disponibles para asignar');
+
+      // Usar el InmuebleController inyectado para obtener todos los inmuebles
       final inmuebles = await _inmuebleController.getInmuebles();
 
-      // Filtrar solo los inmuebles disponibles (sin cliente o con estado=3)
+      // Filtrar solo los inmuebles disponibles (sin cliente o con estado=3: disponible)
       final disponibles =
           inmuebles
-              .where((i) => i.idCliente == null || i.idEstado == 3)
+              .where((i) => i.idCliente == null && i.idEstado == 3)
               .toList();
 
+      AppLogger.info(
+        'Inmuebles disponibles encontrados: ${disponibles.length}',
+      );
       state = state.copyWith(isLoading: false);
       return disponibles;
     } catch (e) {
-      developer.log('Error al obtener inmuebles disponibles: $e', error: e);
+      // Evitar logs duplicados del mismo error
+      if (!_procesandoError) {
+        _procesandoError = true;
+        AppLogger.error(
+          'Error al obtener inmuebles disponibles',
+          e,
+          StackTrace.current,
+        );
+        _procesandoError = false;
+      }
+
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Error al obtener inmuebles disponibles: $e',
+        errorMessage:
+            'Error al obtener inmuebles disponibles: ${e.toString().split('\n').first}',
       );
       return [];
+    } finally {
+      _procesandoOperacion = false;
     }
   }
 }

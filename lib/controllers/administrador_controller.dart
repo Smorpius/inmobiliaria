@@ -9,21 +9,21 @@ class AdministradorController {
     String nombreAdmin,
     String contrasena,
   ) async {
-    final conn = await dbHelper.connection;
-    final results = await conn.query(
-      'SELECT * FROM ADMINISTRADOR WHERE NombreAdmin = ? AND Contraseña = ?',
-      [nombreAdmin, contrasena],
-    );
-
-    return results.isNotEmpty;
+    return await dbHelper.withConnection((conn) async {
+      final results = await conn.query(
+        'SELECT * FROM ADMINISTRADOR WHERE NombreAdmin = ? AND Contraseña = ?',
+        [nombreAdmin, contrasena],
+      );
+      return results.isNotEmpty;
+    });
   }
 
   // Obtener todos los administradores
   Future<List<Administrador>> getAdministradores() async {
-    final conn = await dbHelper.connection;
-    final results = await conn.query('SELECT * FROM ADMINISTRADOR');
-
-    return results.map((row) => Administrador.fromMap(row.fields)).toList();
+    return await dbHelper.withConnection((conn) async {
+      final results = await conn.query('SELECT * FROM ADMINISTRADOR');
+      return results.map((row) => Administrador.fromMap(row.fields)).toList();
+    });
   }
 
   // Insertar nuevo administrador

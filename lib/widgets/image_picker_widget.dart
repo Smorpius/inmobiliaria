@@ -1,10 +1,11 @@
 import 'dart:io';
+import 'dart:async';
+import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import '../services/image_service.dart';
-import 'package:image_picker/image_picker.dart';
 
-/// Widget para seleccionar imágenes desde la galería o cámara
-/// y mostrar la imagen seleccionada
+/// Widget para seleccionar imágenes desde la galería y mostrar la imagen seleccionada
+/// Version optimizada con manejo mejorado de errores y sin opción de cámara
 class ImagePickerWidget extends StatefulWidget {
   final String? currentImagePath;
   final Function(String?) onImageSelected;
@@ -34,16 +35,20 @@ class ImagePickerWidget extends StatefulWidget {
 }
 
 class _ImagePickerWidgetState extends State<ImagePickerWidget> {
+  // Uso de final para prevenir reasignaciones accidentales
   final ImageService _imageService = ImageService();
   String? _imagePath;
   File? _imageFile;
   bool _isLoading = false;
+  bool _isDisposed =
+      false; // Bandera para evitar actualizar estado después de dispose
 
   @override
   void initState() {
     super.initState();
     _imagePath = widget.currentImagePath;
-    _loadImage();
+    // Cargar imagen con pequeño retraso para evitar bloqueo de UI durante inicialización
+    Future.microtask(_loadImage);
   }
 
   @override
@@ -55,43 +60,67 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     }
   }
 
-  /// Carga la imagen desde el sistema de archivos
+  /// Carga la imagen desde el sistema de archivos de manera optimizada
   Future<void> _loadImage() async {
+    if (_isDisposed) return;
     if (_imagePath == null || _imagePath!.isEmpty) {
-      setState(() {
-        _imageFile = null;
-      });
+      if (mounted) {
+        setState(() => _imageFile = null);
+      }
       return;
     }
 
-    setState(() {
-      _isLoading = true;
+    // Solo mostrar carga si toma más de 100ms
+    bool showLoading = false;
+    final timer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted && !_isDisposed) {
+        setState(() => _isLoading = true);
+        showLoading = true;
+      }
     });
 
     try {
       final file = File.fromUri(Uri.file(_imagePath!));
+
       if (await file.exists()) {
-        setState(() {
-          _imageFile = file;
-          _isLoading = false;
-        });
+        if (mounted && !_isDisposed) {
+          setState(() {
+            _imageFile = file;
+            _isLoading = false;
+          });
+        }
       } else {
+        AppLogger.warning('Imagen no encontrada: $_imagePath');
+        if (mounted && !_isDisposed) {
+          setState(() {
+            _imageFile = null;
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      AppLogger.error(
+        'Error al cargar imagen: $_imagePath',
+        e,
+        StackTrace.current,
+      );
+      if (mounted && !_isDisposed) {
         setState(() {
           _imageFile = null;
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _imageFile = null;
-        _isLoading = false;
-      });
+    } finally {
+      // Cancelar el timer si aún no se ha mostrado
+      if (!showLoading) {
+        timer.cancel();
+      }
     }
   }
 
-  /// Muestra un diálogo para seleccionar la fuente de la imagen
+  /// Muestra un diálogo simplificado para seleccionar la imagen (solo galería)
   Future<void> _showImageSourceDialog() async {
-    if (_isLoading) return;
+    if (_isLoading || _isDisposed) return;
 
     await showDialog(
       context: context,
@@ -106,15 +135,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                   title: const Text('Galería'),
                   onTap: () async {
                     Navigator.pop(context);
-                    await _pickImage(ImageSource.gallery);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt),
-                  title: const Text('Cámara'),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _pickImage(ImageSource.camera);
+                    await _pickImage();
                   },
                 ),
                 if (_imagePath != null)
@@ -141,79 +162,108 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     );
   }
 
-  /// Selecciona una imagen y la guarda
-  Future<void> _pickImage(ImageSource source) async {
-    setState(() {
-      _isLoading = true;
-    });
+  /// Selecciona una imagen de la galería y la guarda optimizadamente
+  Future<void> _pickImage() async {
+    if (_isLoading || _isDisposed) return;
+
+    _setLoading(true);
 
     try {
-      final imageFile = await _imageService.pickImage(source);
+      // Utilizamos directamente pickImageFromGallery en lugar de pickImage con source
+      final imageFile = await _imageService.pickImageFromGallery();
+
       if (imageFile != null) {
-        // Eliminar imagen anterior si existe
+        // Eliminar imagen anterior si existe antes de guardar la nueva
         if (_imagePath != null && _imagePath!.isNotEmpty) {
           await _imageService.deleteImage(_imagePath);
         }
 
+        // Guardar la nueva imagen
         final savedPath = await _imageService.saveImage(
           imageFile,
           widget.category,
           widget.prefix,
         );
 
-        setState(() {
-          _imagePath = savedPath;
-          _imageFile = imageFile;
-          _isLoading = false;
-        });
+        if (savedPath != null) {
+          if (!_isDisposed && mounted) {
+            setState(() {
+              _imagePath = savedPath;
+              _imageFile = imageFile;
+            });
+          }
 
-        widget.onImageSelected(savedPath);
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
+          // Notificar al padre sobre la imagen seleccionada
+          widget.onImageSelected(savedPath);
+
+          AppLogger.info('Imagen guardada exitosamente en: $savedPath');
+        } else {
+          _mostrarError('No se pudo guardar la imagen seleccionada');
+        }
       }
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al seleccionar imagen')),
-        );
-      }
+      AppLogger.error(
+        'Error al seleccionar imagen de galería',
+        e,
+        StackTrace.current,
+      );
+      _mostrarError('Error al procesar imagen: ${e.toString().split('\n')[0]}');
+    } finally {
+      _setLoading(false);
     }
   }
 
-  /// Elimina la imagen actual
+  /// Elimina la imagen actual con manejo mejorado de errores
   Future<void> _deleteImage() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (_isLoading || _isDisposed || _imagePath == null) return;
 
-    if (_imagePath != null) {
+    _setLoading(true);
+
+    try {
       final success = await _imageService.deleteImage(_imagePath);
+
       if (success) {
-        setState(() {
-          _imagePath = null;
-          _imageFile = null;
-          _isLoading = false;
-        });
-        widget.onImageSelected(null);
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error al eliminar imagen')),
-          );
+        if (!_isDisposed && mounted) {
+          setState(() {
+            _imagePath = null;
+            _imageFile = null;
+          });
         }
+
+        // Notificar al padre que la imagen ha sido eliminada
+        widget.onImageSelected(null);
+
+        AppLogger.info('Imagen eliminada correctamente: $_imagePath');
+      } else {
+        _mostrarError('No se pudo eliminar la imagen');
+        AppLogger.warning('Fallo al eliminar imagen: $_imagePath');
       }
-    } else {
-      setState(() {
-        _isLoading = false;
-      });
+    } catch (e) {
+      AppLogger.error('Error al eliminar imagen', e, StackTrace.current);
+      _mostrarError('Error al eliminar imagen: ${e.toString().split('\n')[0]}');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Muestra un mensaje de error al usuario
+  void _mostrarError(String mensaje) {
+    if (mounted && !_isDisposed) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(mensaje),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  /// Actualiza el estado de carga de manera segura
+  void _setLoading(bool loading) {
+    if (mounted && !_isDisposed) {
+      setState(() => _isLoading = loading);
     }
   }
 
@@ -225,15 +275,15 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     return Column(
       children: [
         InkWell(
-          onTap: _showImageSourceDialog,
+          onTap: _isLoading ? null : _showImageSourceDialog,
           child: Container(
             width: widget.size,
             height: widget.size,
             decoration: BoxDecoration(
               color: Color.fromRGBO(
-                (widget.backgroundColor.r * 255).round(),
-                (widget.backgroundColor.g * 255).round(),
-                (widget.backgroundColor.b * 255).round(),
+                widget.backgroundColor.r.round(),
+                widget.backgroundColor.g.round(),
+                widget.backgroundColor.b.round(),
                 0.1,
               ),
               border: Border.all(color: widget.backgroundColor, width: 2),
@@ -252,6 +302,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                     ? Center(
                       child: CircularProgressIndicator(
                         color: widget.backgroundColor,
+                        strokeWidth: 2.0, // Más delgado para mejor apariencia
                       ),
                     )
                     : _imageFile == null
@@ -260,7 +311,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.add_a_photo,
+                            Icons.add_photo_alternate, // Icono solo de galería
                             size: widget.size * 0.4,
                             color: widget.backgroundColor,
                           ),
@@ -282,7 +333,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
           Padding(
             padding: const EdgeInsets.only(top: 8.0),
             child: TextButton(
-              onPressed: _showImageSourceDialog,
+              onPressed: _isLoading ? null : _showImageSourceDialog,
               child: Text(
                 _imagePath == null ? 'Seleccionar imagen' : 'Cambiar imagen',
               ),
@@ -290,5 +341,12 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
           ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    // Marcar como eliminado para evitar setState después de dispose
+    _isDisposed = true;
+    super.dispose();
   }
 }

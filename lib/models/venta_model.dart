@@ -10,8 +10,7 @@ class Venta {
   final double ingreso;
   final double comisionProveedores;
   final double utilidadBruta; // Calculado: ingreso - comisionProveedores
-  final double
-  utilidadNeta; // Utilidad final (ya no depende de gastos adicionales)
+  final double utilidadNeta; // Utilidad final considerando gastos adicionales
   final int
   idEstado; // 7: venta_en_proceso, 8: venta_completada, 9: venta_cancelada
 
@@ -24,9 +23,9 @@ class Venta {
   final String? estadoVenta;
   final String? nombreEmpleado;
   final double? precioOriginalInmueble;
-  final double? margenGanancia; // Porcentaje de ganancia sobre el precio
+  final double? margenGanancia;
 
-  // En el constructor, ya no incluimos gastosAdicionales
+  /// Constructor principal con validaciones mejoradas
   Venta({
     this.id,
     required this.idCliente,
@@ -46,30 +45,54 @@ class Venta {
     this.nombreEmpleado,
     this.precioOriginalInmueble,
     this.margenGanancia,
-  }) : // Asignar valores calculados o proporcionados
+  }) : // Calcular utilidad bruta siempre como ingreso - comisión
        utilidadBruta = utilidadBruta ?? (ingreso - comisionProveedores),
        // Si se proporciona utilidadNeta, usarla, sino usar utilidadBruta
        utilidadNeta =
            utilidadNeta ?? (utilidadBruta ?? (ingreso - comisionProveedores));
 
-  // Modifica el método fromMap para manejar valores nulos
-
+  /// Crea una instancia de Venta a partir de un mapa de datos con manejo robusto de errores
   factory Venta.fromMap(Map<String, dynamic> map) {
     try {
+      // Verificar campos obligatorios
+      if (map['id_cliente'] == null) {
+        throw Exception('El campo id_cliente es obligatorio');
+      }
+      if (map['id_inmueble'] == null) {
+        throw Exception('El campo id_inmueble es obligatorio');
+      }
+      if (map['fecha_venta'] == null) {
+        throw Exception('El campo fecha_venta es obligatorio');
+      }
+      if (map['ingreso'] == null) {
+        throw Exception('El campo ingreso es obligatorio');
+      }
+
+      // Calcular comisión de proveedores si no está presente
+      final comisionProveedores =
+          map['comision_proveedores'] != null
+              ? double.parse(map['comision_proveedores'].toString())
+              : 0.0;
+
+      // Crear instancia
       return Venta(
-        id: map['id_venta'] ?? 0, // Añadir valor por defecto
-        idCliente: map['id_cliente'] ?? 0, // Añadir valor por defecto
-        idInmueble: map['id_inmueble'] ?? 0, // Añadir valor por defecto
+        id: map['id_venta'],
+        idCliente: map['id_cliente'],
+        idInmueble: map['id_inmueble'],
         fechaVenta:
             map['fecha_venta'] is DateTime
                 ? map['fecha_venta']
                 : DateTime.parse(map['fecha_venta'].toString()),
-        ingreso: double.parse((map['ingreso'] ?? 0).toString()),
-        comisionProveedores: double.parse(
-          (map['comision_proveedores'] ?? 0).toString(),
-        ),
-        utilidadBruta: double.parse((map['utilidad_bruta'] ?? 0).toString()),
-        utilidadNeta: double.parse((map['utilidad_neta'] ?? 0).toString()),
+        ingreso: double.parse(map['ingreso'].toString()),
+        comisionProveedores: comisionProveedores,
+        utilidadBruta:
+            map['utilidad_bruta'] != null
+                ? double.parse(map['utilidad_bruta'].toString())
+                : null, // Permitir cálculo automático
+        utilidadNeta:
+            map['utilidad_neta'] != null
+                ? double.parse(map['utilidad_neta'].toString())
+                : null, // Permitir cálculo automático
         idEstado: map['id_estado'] ?? 7,
         nombreCliente: map['nombre_cliente'],
         apellidoCliente: map['apellido_cliente'],
@@ -92,6 +115,8 @@ class Venta {
       rethrow;
     }
   }
+
+  /// Convierte la instancia de Venta a un mapa para almacenamiento
   Map<String, dynamic> toMap() {
     return {
       'id_venta': id,
@@ -106,8 +131,14 @@ class Venta {
     };
   }
 
-  // Actualiza directamente la utilidad neta sin usar gastos adicionales
+  /// Actualiza la utilidad neta sin modificar otras propiedades
   Venta actualizarUtilidadNeta(double nuevaUtilidadNeta) {
+    if (nuevaUtilidadNeta > utilidadBruta) {
+      _logger.warning(
+        'La utilidad neta no debería ser mayor que la utilidad bruta',
+      );
+    }
+
     return Venta(
       id: id,
       idCliente: idCliente,
@@ -130,8 +161,12 @@ class Venta {
     );
   }
 
-  // Cambiar el estado de la venta
+  /// Crea una nueva instancia con un estado diferente
   Venta conNuevoEstado(int nuevoEstado) {
+    if (![7, 8, 9].contains(nuevoEstado)) {
+      _logger.warning('Estado no válido: $nuevoEstado');
+    }
+
     return Venta(
       id: id,
       idCliente: idCliente,
@@ -152,5 +187,22 @@ class Venta {
       precioOriginalInmueble: precioOriginalInmueble,
       margenGanancia: margenGanancia,
     );
+  }
+
+  /// Calcula los gastos adicionales como la diferencia entre utilidad bruta y neta
+  double get gastosAdicionales => utilidadBruta - utilidadNeta;
+
+  /// Genera una representación en cadena para depuración
+  @override
+  String toString() {
+    return 'Venta{id: $id, cliente: $nombreCliente $apellidoCliente, inmueble: $nombreInmueble, ingreso: $ingreso, utilidadNeta: $utilidadNeta}';
+  }
+
+  /// Obtiene el nombre completo del cliente si está disponible
+  String? get clienteNombreCompleto {
+    if (nombreCliente != null || apellidoCliente != null) {
+      return '$nombreCliente $apellidoCliente'.trim();
+    }
+    return null;
   }
 }

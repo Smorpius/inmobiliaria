@@ -1,343 +1,482 @@
-import 'dart:developer' as developer;
-import 'package:logging/logging.dart';
+import '../utils/applogger.dart';
 import '../models/cliente_model.dart';
 import '../services/mysql_helper.dart';
 
 class ClienteController {
   final DatabaseService _dbService;
-  final Logger _logger = Logger('ClienteController');
 
   // Constructor con inyección de dependencia
   ClienteController({DatabaseService? dbService})
     : _dbService = dbService ?? DatabaseService();
 
-  // Crear un nuevo cliente con los campos de dirección completos
+  // Método auxiliar para ejecutar operaciones con manejo de errores consistente
+  Future<T> _ejecutarOperacion<T>(
+    String descripcion,
+    Future<T> Function() operacion,
+  ) async {
+    try {
+      AppLogger.info('Iniciando operación: $descripcion');
+      final resultado = await operacion();
+      AppLogger.info('Operación completada: $descripcion');
+      return resultado;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error en operación "$descripcion"', e, stackTrace);
+      throw Exception('Error en $descripcion: $e');
+    }
+  }
+
+  // Crear un nuevo cliente usando el procedimiento almacenado con validaciones mejoradas
   Future<int> insertCliente(Cliente cliente) async {
-    final conn = await _dbService.connection;
-
-    try {
-      _logger.info(
-        'Iniciando inserción de cliente: ${cliente.nombre} ${cliente.apellidoPaterno}',
-      );
-      developer.log(
-        'Guardando cliente en BD: ${cliente.nombre}, Estado: ${cliente.idEstado ?? 1}',
-      );
-
-      await conn.query(
-        'CALL CrearCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_cliente_out)',
-        [
-          cliente.nombre,
-          cliente.apellidoPaterno,
-          cliente.apellidoMaterno ?? '',
-          cliente.calle ?? '',
-          cliente.numero ?? '',
-          cliente.colonia ?? '',
-          cliente.ciudad ?? '',
-          cliente.estadoGeografico ?? '',
-          cliente.codigoPostal ?? '',
-          cliente.referencias ?? '',
-          cliente.telefono,
-          cliente.rfc,
-          cliente.curp,
-          cliente.correo ?? '',
-          cliente.tipoCliente,
-        ],
-      );
-
-      final idResult = await conn.query('SELECT @id_cliente_out as id');
-
-      if (idResult.isEmpty || idResult.first.fields['id'] == null) {
-        developer.log(
-          'No se pudo obtener ID mediante variable OUT, intentando con LAST_INSERT_ID()',
-        );
-        final altResult = await conn.query('SELECT LAST_INSERT_ID() as id');
-
-        if (altResult.isEmpty || altResult.first.fields['id'] == null) {
-          developer.log('No se pudo obtener ID del cliente creado');
-          return -1;
-        }
-
-        final idCliente = altResult.first.fields['id'] as int;
-        developer.log('Cliente insertado con ID alternativo: $idCliente');
-        return idCliente;
+    return _ejecutarOperacion('insertar cliente', () async {
+      // Validación de campos obligatorios
+      if (cliente.nombre.isEmpty || cliente.apellidoPaterno.isEmpty) {
+        throw Exception('El nombre y apellido paterno son obligatorios');
       }
 
-      final idCliente = idResult.first.fields['id'] as int;
-      developer.log(
-        'Cliente insertado con ID: $idCliente, Estado: ${cliente.idEstado ?? 1}',
-      );
+      if (cliente.rfc.isEmpty || cliente.rfc.length != 13) {
+        throw Exception('El RFC debe tener exactamente 13 caracteres');
+      }
 
-      await Future.delayed(const Duration(milliseconds: 300));
-      return idCliente;
-    } catch (e) {
-      _logger.severe('Error al insertar cliente: $e');
-      developer.log('Error al insertar cliente: $e');
-      throw Exception('Error al insertar cliente: $e');
-    }
+      if (cliente.curp.isEmpty || cliente.curp.length != 18) {
+        throw Exception('El CURP debe tener exactamente 18 caracteres');
+      }
+
+      // Verificar si el correo ya existe (si se proporciona)
+      if (cliente.correo != null && cliente.correo!.isNotEmpty) {
+        final clientesExistentes = await _dbService.withConnection((
+          conn,
+        ) async {
+          return await conn.query(
+            'SELECT id_cliente FROM clientes WHERE correo_cliente = ? AND id_cliente != ?',
+            [cliente.correo, cliente.id ?? 0],
+          );
+        });
+
+        if (clientesExistentes.isNotEmpty) {
+          throw Exception('Ya existe un cliente con este correo electrónico');
+        }
+      }
+
+      // Iniciar transacción para asegurar consistencia
+      return await _dbService.withConnection((conn) async {
+        await conn.query('START TRANSACTION');
+        try {
+          // Primero creamos la dirección si hay datos de dirección
+          int? idDireccion;
+          if (cliente.calle != null &&
+              cliente.ciudad != null &&
+              cliente.estadoGeografico != null) {
+            final direccionResult = await conn.query(
+              'INSERT INTO direcciones(calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias) '
+              'VALUES(?, ?, ?, ?, ?, ?, ?)',
+              [
+                cliente.calle,
+                cliente.numero,
+                cliente.colonia,
+                cliente.ciudad,
+                cliente.estadoGeografico,
+                cliente.codigoPostal,
+                cliente.referencias,
+              ],
+            );
+            idDireccion = direccionResult.insertId;
+          }
+
+          // Ahora registramos el cliente con la dirección asociada
+          final result = await conn.query(
+            'INSERT INTO clientes(nombre, apellido_paterno, apellido_materno, id_direccion, '
+            'telefono_cliente, rfc, curp, tipo_cliente, correo_cliente) '
+            'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+              cliente.nombre,
+              cliente.apellidoPaterno,
+              cliente.apellidoMaterno,
+              idDireccion,
+              cliente.telefono,
+              cliente.rfc,
+              cliente.curp,
+              cliente.tipoCliente,
+              cliente.correo,
+            ],
+          );
+
+          await conn.query('COMMIT');
+          AppLogger.info('Cliente registrado con ID: ${result.insertId}');
+          return result.insertId!;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          AppLogger.error('Error al insertar cliente', e, StackTrace.current);
+
+          // Devolver mensajes de error más específicos
+          if (e.toString().contains('idx_clientes_correo')) {
+            throw Exception(
+              'El correo electrónico ya está en uso por otro cliente',
+            );
+          }
+          throw Exception('Error al insertar cliente: $e');
+        }
+      });
+    });
   }
 
-  // Obtener todos los clientes activos con datos completos de dirección
+  // Obtener todos los clientes activos usando el procedimiento almacenado
   Future<List<Cliente>> getClientes() async {
-    final conn = await _dbService.connection;
+    return _ejecutarOperacion('obtener clientes activos', () async {
+      return await _dbService.withConnection((conn) async {
+        AppLogger.info('Consultando clientes activos');
+        final results = await conn.query('CALL ObtenerClientesActivos()');
 
-    try {
-      developer.log('Consultando clientes activos...');
-      final results = await conn.query('''
-        SELECT 
-          c.*,
-          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
-          d.codigo_postal, d.referencias,
-          e.nombre_estado AS estado_cliente
-        FROM clientes c
-        LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
-        LEFT JOIN estados e ON c.id_estado = e.id_estado
-        WHERE c.id_estado = 1
-        ORDER BY c.fecha_registro DESC
-      ''');
+        AppLogger.info('Clientes activos recibidos: ${results.length}');
 
-      developer.log('Clientes activos recibidos de BD: ${results.length}');
+        if (results.isEmpty) return [];
 
-      if (results.isEmpty) return [];
-
-      final List<Cliente> clientesList = [];
-
-      for (var row in results) {
-        try {
-          final cliente = Cliente.fromMap(row.fields);
-          clientesList.add(cliente);
-        } catch (e) {
-          _logger.warning(
-            'Error al procesar cliente: ${row.fields['nombre']}: $e',
-          );
-          developer.log('ERROR al procesar cliente: $e', error: e);
+        final List<Cliente> clientesList = [];
+        for (var row in results) {
+          try {
+            final cliente = Cliente.fromMap(row.fields);
+            clientesList.add(cliente);
+          } catch (e) {
+            AppLogger.warning(
+              'Error al procesar cliente: ${row.fields['nombre']}: $e',
+            );
+          }
         }
-      }
 
-      return clientesList;
-    } catch (e) {
-      _logger.severe('Error al obtener clientes activos: $e');
-      developer.log('ERROR AL OBTENER CLIENTES ACTIVOS: $e', error: e);
-      throw Exception('Error al obtener clientes: $e');
-    }
+        return clientesList;
+      });
+    });
   }
 
-  // Obtener clientes inactivos con datos completos de dirección
+  // Obtener clientes inactivos usando el procedimiento almacenado
   Future<List<Cliente>> getClientesInactivos() async {
-    final conn = await _dbService.connection;
+    return _ejecutarOperacion('obtener clientes inactivos', () async {
+      return await _dbService.withConnection((conn) async {
+        AppLogger.info('Consultando clientes inactivos');
+        final results = await conn.query('CALL ObtenerClientesInactivos()');
 
-    try {
-      developer.log('Consultando clientes inactivos...');
-      final results = await conn.query('''
-        SELECT 
-          c.*,
-          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
-          d.codigo_postal, d.referencias,
-          e.nombre_estado AS estado_cliente
-        FROM clientes c
-        LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
-        LEFT JOIN estados e ON c.id_estado = e.id_estado
-        WHERE c.id_estado != 1
-        ORDER BY c.fecha_registro DESC
-      ''');
+        if (results.isEmpty) return [];
 
-      if (results.isEmpty) return [];
+        final List<Cliente> clientesList = [];
+        for (var row in results) {
+          try {
+            final cliente = Cliente.fromMap(row.fields);
+            clientesList.add(cliente);
+          } catch (e) {
+            AppLogger.warning(
+              'Error al procesar cliente inactivo: ${row.fields['id_cliente']}: $e',
+            );
+          }
+        }
 
-      final List<Cliente> clientesList = [];
+        return clientesList;
+      });
+    });
+  }
 
-      for (var row in results) {
-        try {
-          final cliente = Cliente.fromMap(row.fields);
-          clientesList.add(cliente);
-        } catch (e) {
-          _logger.warning(
-            'Error al procesar cliente inactivo: ${row.fields['id_cliente']}: $e',
+  // Obtener cliente por ID usando el procedimiento almacenado
+  Future<Cliente?> getClientePorId(int id) async {
+    return _ejecutarOperacion('obtener cliente por ID', () async {
+      return await _dbService.withConnection((conn) async {
+        AppLogger.info('Buscando cliente con ID: $id');
+        final results = await conn.query('CALL ObtenerClientePorId(?)', [id]);
+
+        if (results.isEmpty) {
+          AppLogger.info('No se encontró cliente con ID: $id');
+          return null;
+        }
+
+        return Cliente.fromMap(results.first.fields);
+      });
+    });
+  }
+
+  // Actualizar cliente usando el procedimiento almacenado con manejo transaccional mejorado
+  Future<int> updateCliente(Cliente cliente) async {
+    return _ejecutarOperacion('actualizar cliente', () async {
+      // Validación de campos obligatorios
+      // También funciona bien
+      if (cliente.id == null || (cliente.id ?? 0) <= 0) {
+        throw Exception('ID de cliente inválido');
+      }
+
+      if (cliente.nombre.isEmpty || cliente.apellidoPaterno.isEmpty) {
+        throw Exception('El nombre y apellido paterno son obligatorios');
+      }
+
+      if (cliente.rfc.isEmpty || cliente.rfc.length != 13) {
+        throw Exception('El RFC debe tener exactamente 13 caracteres');
+      }
+
+      if (cliente.curp.isEmpty || cliente.curp.length != 18) {
+        throw Exception('El CURP debe tener exactamente 18 caracteres');
+      }
+
+      // Verificar si el correo ya existe excluyendo el cliente actual
+      if (cliente.correo != null && cliente.correo!.isNotEmpty) {
+        final clientesExistentes = await _dbService.withConnection((
+          conn,
+        ) async {
+          return await conn.query(
+            'SELECT id_cliente FROM clientes WHERE correo_cliente = ? AND id_cliente != ?',
+            [cliente.correo, cliente.id],
           );
+        });
+
+        if (clientesExistentes.isNotEmpty) {
+          throw Exception('Ya existe otro cliente con este correo electrónico');
         }
       }
 
-      return clientesList;
-    } catch (e) {
-      _logger.severe('Error al obtener clientes inactivos: $e');
-      developer.log('ERROR AL OBTENER CLIENTES INACTIVOS: $e');
-      throw Exception('Error al obtener clientes inactivos: $e');
-    }
+      // Iniciar transacción para asegurar consistencia
+      return await _dbService.withConnection((conn) async {
+        await conn.query('START TRANSACTION');
+        try {
+          // Primero verificamos si ya tiene una dirección asociada
+          final clienteActual = await conn.query(
+            'SELECT id_direccion FROM clientes WHERE id_cliente = ?',
+            [cliente.id],
+          );
+
+          if (clienteActual.isEmpty) {
+            await conn.query('ROLLBACK');
+            throw Exception('Cliente no encontrado');
+          }
+
+          int? idDireccion = clienteActual.first['id_direccion'];
+
+          // Si tiene datos de dirección, actualizamos o creamos la dirección
+          if (cliente.calle != null &&
+              cliente.ciudad != null &&
+              cliente.estadoGeografico != null) {
+            if (idDireccion != null) {
+              // Actualizar dirección existente
+              await conn.query(
+                'UPDATE direcciones SET calle = ?, numero = ?, colonia = ?, ciudad = ?, '
+                'estado_geografico = ?, codigo_postal = ?, referencias = ? WHERE id_direccion = ?',
+                [
+                  cliente.calle,
+                  cliente.numero,
+                  cliente.colonia,
+                  cliente.ciudad,
+                  cliente.estadoGeografico,
+                  cliente.codigoPostal,
+                  cliente.referencias,
+                  idDireccion,
+                ],
+              );
+            } else {
+              // Crear nueva dirección
+              final direccionResult = await conn.query(
+                'INSERT INTO direcciones(calle, numero, colonia, ciudad, estado_geografico, codigo_postal, referencias) '
+                'VALUES(?, ?, ?, ?, ?, ?, ?)',
+                [
+                  cliente.calle,
+                  cliente.numero,
+                  cliente.colonia,
+                  cliente.ciudad,
+                  cliente.estadoGeografico,
+                  cliente.codigoPostal,
+                  cliente.referencias,
+                ],
+              );
+              idDireccion = direccionResult.insertId;
+            }
+          }
+
+          // Actualizar datos del cliente
+          final result = await conn.query(
+            'UPDATE clientes SET nombre = ?, apellido_paterno = ?, apellido_materno = ?, '
+            'id_direccion = ?, telefono_cliente = ?, rfc = ?, curp = ?, tipo_cliente = ?, '
+            'correo_cliente = ? WHERE id_cliente = ?',
+            [
+              cliente.nombre,
+              cliente.apellidoPaterno,
+              cliente.apellidoMaterno,
+              idDireccion,
+              cliente.telefono,
+              cliente.rfc,
+              cliente.curp,
+              cliente.tipoCliente,
+              cliente.correo,
+              cliente.id,
+            ],
+          );
+
+          await conn.query('COMMIT');
+          AppLogger.info('Cliente actualizado con ID: ${cliente.id}');
+          return result.affectedRows ?? 0;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          AppLogger.error('Error al actualizar cliente', e, StackTrace.current);
+
+          // Devolver mensajes de error más específicos
+          if (e.toString().contains('idx_clientes_correo')) {
+            throw Exception(
+              'El correo electrónico ya está en uso por otro cliente',
+            );
+          }
+          throw Exception('Error al actualizar cliente: $e');
+        }
+      });
+    });
   }
 
-  // Obtener cliente por ID
-  Future<Cliente?> getClientePorId(int id) async {
-    final conn = await _dbService.connection;
-
-    try {
-      final results = await conn.query(
-        '''
-        SELECT 
-          c.*,
-          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
-          d.codigo_postal, d.referencias,
-          e.nombre_estado AS estado_cliente
-        FROM clientes c
-        LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
-        LEFT JOIN estados e ON c.id_estado = e.id_estado
-        WHERE c.id_cliente = ?
-      ''',
-        [id],
-      );
-
-      if (results.isEmpty) return null;
-      return Cliente.fromMap(results.first.fields);
-    } catch (e) {
-      _logger.severe('Error al obtener cliente por ID: $e');
-      throw Exception('Error al obtener cliente por ID: $e');
-    }
-  }
-
-  // Actualizar cliente con campos de dirección completos
-  Future<int> updateCliente(Cliente cliente) async {
-    final conn = await _dbService.connection;
-
-    try {
-      if (cliente.id == null) {
-        throw Exception('ID de cliente no proporcionado');
-      }
-
-      var result = await conn.query(
-        'CALL ActualizarCliente(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          cliente.id,
-          cliente.nombre,
-          cliente.apellidoPaterno,
-          cliente.apellidoMaterno ?? '',
-          cliente.telefono,
-          cliente.rfc,
-          cliente.curp,
-          cliente.correo ?? '',
-          cliente.calle ?? '',
-          cliente.numero ?? '',
-          cliente.colonia ?? '',
-          cliente.ciudad ?? '',
-          cliente.estadoGeografico ?? '',
-          cliente.codigoPostal ?? '',
-          cliente.tipoCliente,
-        ],
-      );
-
-      _logger.info('Cliente actualizado exitosamente: ID=${cliente.id}');
-      return result.affectedRows ?? 0;
-    } catch (e) {
-      _logger.severe('Error al actualizar cliente: $e');
-      throw Exception('Error al actualizar cliente: $e');
-    }
-  }
-
-  // Inactivar cliente
+  // Inactivar cliente usando el procedimiento almacenado
   Future<int> inactivarCliente(int id) async {
-    final conn = await _dbService.connection;
+    return _ejecutarOperacion('inactivar cliente', () async {
+      return await _dbService.withConnection((conn) async {
+        await conn.query('START TRANSACTION');
+        try {
+          var result = await conn.query('CALL InactivarCliente(?)', [id]);
+          await conn.query('COMMIT');
 
-    try {
-      var result = await conn.query('CALL InactivarCliente(?)', [id]);
-      _logger.info('Cliente inactivado: ID=$id');
-      return result.affectedRows ?? 0;
-    } catch (e) {
-      _logger.severe('Error al inactivar cliente: $e');
-      throw Exception('Error al inactivar cliente: $e');
-    }
+          AppLogger.info('Cliente inactivado: ID=$id');
+          return result.affectedRows ?? 0;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          AppLogger.error('Error al inactivar cliente', e, StackTrace.current);
+          rethrow;
+        }
+      });
+    });
   }
 
-  // Reactivar cliente
+  // Reactivar cliente usando el procedimiento almacenado
   Future<int> reactivarCliente(int id) async {
-    final conn = await _dbService.connection;
+    return _ejecutarOperacion('reactivar cliente', () async {
+      return await _dbService.withConnection((conn) async {
+        await conn.query('START TRANSACTION');
+        try {
+          var result = await conn.query('CALL ReactivarCliente(?)', [id]);
+          await conn.query('COMMIT');
 
-    try {
-      var result = await conn.query('CALL ReactivarCliente(?)', [id]);
-      _logger.info('Cliente reactivado: ID=$id');
-      return result.affectedRows ?? 0;
-    } catch (e) {
-      _logger.severe('Error al reactivar cliente: $e');
-      throw Exception('Error al reactivar cliente: $e');
-    }
+          AppLogger.info('Cliente reactivado: ID=$id');
+          return result.affectedRows ?? 0;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          AppLogger.error('Error al reactivar cliente', e, StackTrace.current);
+          rethrow;
+        }
+      });
+    });
   }
 
-  // Obtener inmuebles asociados a un cliente
+  // Obtener inmuebles asociados a un cliente usando el procedimiento almacenado
   Future<List<Map<String, dynamic>>> getInmueblesPorCliente(
     int idCliente,
   ) async {
-    final conn = await _dbService.connection;
+    return _ejecutarOperacion('obtener inmuebles por cliente', () async {
+      return await _dbService.withConnection((conn) async {
+        AppLogger.info(
+          'Consultando inmuebles asociados al cliente: $idCliente',
+        );
+        final results = await conn.query('CALL ObtenerInmueblesPorCliente(?)', [
+          idCliente,
+        ]);
 
-    try {
-      final results = await conn.query(
-        '''
-        SELECT 
-          i.*,
-          d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
-          d.codigo_postal, d.referencias,
-          e.nombre_estado AS estado_inmueble
-        FROM inmuebles i
-        JOIN direcciones d ON i.id_direccion = d.id_direccion
-        JOIN estados e ON i.id_estado = e.id_estado
-        WHERE i.id_cliente = ?
-      ''',
-        [idCliente],
-      );
+        if (results.isEmpty) {
+          AppLogger.info(
+            'No se encontraron inmuebles para el cliente: $idCliente',
+          );
+          return [];
+        }
 
-      if (results.isEmpty) return [];
-      return results.map((row) => row.fields).toList();
-    } catch (e) {
-      _logger.severe('Error al obtener inmuebles por cliente: $e');
-      throw Exception('Error al buscar inmuebles por cliente: $e');
-    }
+        return results.map((row) => row.fields).toList();
+      });
+    });
   }
 
-  // Asignar un inmueble a un cliente
+  // Asignar un inmueble a un cliente usando el procedimiento almacenado
   Future<bool> asignarInmuebleACliente(
     int idCliente,
     int idInmueble, [
     DateTime? fechaAdquisicion,
   ]) async {
-    final conn = await _dbService.connection;
-    final fecha = fechaAdquisicion ?? DateTime.now();
+    return _ejecutarOperacion('asignar inmueble a cliente', () async {
+      return await _dbService.withConnection((conn) async {
+        final fecha = fechaAdquisicion ?? DateTime.now();
+        final fechaStr = fecha.toIso8601String().split('T')[0];
 
-    try {
-      // Verificar si el inmueble ya está asignado a otro cliente
-      final existeAsignacion = await conn.query(
-        'SELECT id FROM cliente_inmueble WHERE id_inmueble = ?',
-        [idInmueble],
-      );
+        AppLogger.info(
+          'Asignando inmueble $idInmueble al cliente $idCliente (fecha: $fechaStr)',
+        );
 
-      if (existeAsignacion.isNotEmpty) {
-        _logger.warning('El inmueble ya está asignado a otro cliente');
-        return false;
-      }
+        await conn.query('START TRANSACTION');
+        try {
+          // Llamada al procedimiento almacenado con variable de salida
+          await conn.query(
+            'CALL AsignarInmuebleACliente(?, ?, ?, @resultado)',
+            [idCliente, idInmueble, fechaStr],
+          );
 
-      await conn.query(
-        'INSERT INTO cliente_inmueble (id_cliente, id_inmueble, fecha_adquisicion) VALUES (?, ?, ?)',
-        [idCliente, idInmueble, fecha.toIso8601String().split('T')[0]],
-      );
+          // Obtención del resultado
+          final resultadoQuery = await conn.query('SELECT @resultado as exito');
+          final exito =
+              resultadoQuery.isNotEmpty &&
+              resultadoQuery.first.fields['exito'] == 1;
 
-      _logger.info('Inmueble $idInmueble asignado al cliente $idCliente');
-      return true;
-    } catch (e) {
-      _logger.severe('Error al asignar inmueble a cliente: $e');
-      throw Exception('Error al asignar inmueble: $e');
-    }
+          await conn.query('COMMIT');
+
+          if (exito) {
+            AppLogger.info(
+              'Inmueble $idInmueble asignado exitosamente al cliente $idCliente',
+            );
+          } else {
+            AppLogger.warning(
+              'No se pudo asignar el inmueble $idInmueble (posiblemente ya asignado)',
+            );
+          }
+
+          return exito;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          AppLogger.error('Error al asignar inmueble', e, StackTrace.current);
+          rethrow;
+        }
+      });
+    });
   }
 
-  // Eliminar asignación de inmueble a cliente
+  // Eliminar asignación de inmueble a cliente usando el procedimiento almacenado
   Future<bool> desasignarInmuebleDeCliente(int idInmueble) async {
-    final conn = await _dbService.connection;
+    return _ejecutarOperacion('desasignar inmueble de cliente', () async {
+      return await _dbService.withConnection((conn) async {
+        AppLogger.info('Desasignando inmueble: $idInmueble');
 
-    try {
-      final result = await conn.query(
-        'DELETE FROM cliente_inmueble WHERE id_inmueble = ?',
-        [idInmueble],
-      );
+        await conn.query('START TRANSACTION');
+        try {
+          // Llamada al procedimiento almacenado con variable de salida
+          await conn.query('CALL DesasignarInmuebleDeCliente(?, @resultado)', [
+            idInmueble,
+          ]);
 
-      _logger.info(
-        'Inmueble $idInmueble desasignado. Filas afectadas: ${result.affectedRows}',
-      );
-      return (result.affectedRows ?? 0) > 0;
-    } catch (e) {
-      _logger.severe('Error al desasignar inmueble: $e');
-      throw Exception('Error al desasignar inmueble: $e');
-    }
+          // Obtención del resultado
+          final resultadoQuery = await conn.query('SELECT @resultado as exito');
+          final exito =
+              resultadoQuery.isNotEmpty &&
+              resultadoQuery.first.fields['exito'] == 1;
+
+          await conn.query('COMMIT');
+
+          if (exito) {
+            AppLogger.info('Inmueble $idInmueble desasignado exitosamente');
+          } else {
+            AppLogger.info(
+              'El inmueble $idInmueble no estaba asignado a ningún cliente',
+            );
+          }
+
+          return exito;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          AppLogger.error(
+            'Error al desasignar inmueble',
+            e,
+            StackTrace.current,
+          );
+          rethrow;
+        }
+      });
+    });
   }
 }

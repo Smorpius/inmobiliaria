@@ -1,159 +1,187 @@
 import 'dart:async';
 import 'mysql_helper.dart';
+import '../utils/applogger.dart';
 import '../models/proveedor.dart';
-import 'dart:developer' as developer;
 
 class ProveedoresService {
   final DatabaseService _db;
 
+  // Control para evitar errores duplicados
+  bool _procesandoError = false;
+
   ProveedoresService([DatabaseService? db]) : _db = db ?? DatabaseService();
 
-  /// Obtiene la lista de todos los proveedores
+  /// Obtiene la lista de todos los proveedores usando procedimiento almacenado
   Future<List<Proveedor>> obtenerProveedores() async {
     try {
-      final conn = await _db.connection;
-      final result = await conn.query('CALL ObtenerProveedores()');
+      return await _db.withConnection((conn) async {
+        AppLogger.info('Consultando lista completa de proveedores');
+        final results = await conn.query('CALL ObtenerProveedores()');
 
-      return result.map((row) {
-        final map = <String, dynamic>{};
-        for (var field in row.fields.keys) {
-          map[field] = row[field];
+        if (results.isEmpty) {
+          AppLogger.info('No se encontraron proveedores');
+          return [];
         }
-        return Proveedor.fromMap(map);
-      }).toList();
+
+        return results.map((row) => Proveedor.fromMap(row.fields)).toList();
+      });
     } catch (e) {
-      developer.log('Error al obtener proveedores: $e', error: e);
-      rethrow;
+      _manejarError('obtener proveedores', e);
+      throw Exception('Error al obtener la lista de proveedores: $e');
     }
   }
 
   /// Asegura que exista un usuario administrador para las operaciones de auditoría
   Future<int> _asegurarUsuarioAdministrador(int? usuarioModificacion) async {
     try {
-      final conn = await _db.connection;
-      final idUsuario = usuarioModificacion ?? 1;
+      return await _db.withConnection((conn) async {
+        final idUsuario = usuarioModificacion ?? 1;
 
-      // Verificar si existe el usuario
-      final verificacion = await conn.query(
-        'SELECT id_usuario FROM usuarios WHERE id_usuario = ?',
-        [idUsuario],
-      );
+        // Verificar si existe el usuario usando procedimiento almacenado
+        await conn.query('START TRANSACTION');
+        try {
+          await conn.query('CALL VerificarUsuarioExiste(?, @existe)', [
+            idUsuario,
+          ]);
+          final verificacion = await conn.query('SELECT @existe as existe');
 
-      if (verificacion.isEmpty) {
-        developer.log(
-          'ATENCIÓN: No existe usuario con ID=$idUsuario en la base de datos',
-        );
-        developer.log('Creando usuario administrador automáticamente...');
+          if (verificacion.isEmpty || verificacion.first['existe'] != 1) {
+            AppLogger.warning(
+              'ATENCIÓN: No existe usuario con ID=$idUsuario en la base de datos',
+            );
+            AppLogger.info('Creando usuario administrador automáticamente...');
 
-        await conn.query('''
-          INSERT INTO usuarios (
-            id_usuario, 
-            nombre, 
-            apellido, 
-            nombre_usuario, 
-            contraseña_usuario, 
-            correo_cliente,
-            id_estado
-          ) 
-          VALUES (1, 'Administrador', 'Sistema', 'admin', 'admin123', 'admin@sistema.com', 1)
-          ON DUPLICATE KEY UPDATE id_usuario = 1
-        ''');
+            // Reiniciar variable de salida
+            await conn.query('SET @id_admin_out = 0');
 
-        developer.log(
-          'Usuario administrador creado con credenciales completas',
-        );
-        return 1;
-      }
+            // Crear usuario administrador usando procedimiento almacenado
+            await conn.query(
+              'CALL CrearUsuarioAdministrador(?, ?, ?, ?, ?, @id_admin_out)',
+              [
+                'Administrador',
+                'Sistema',
+                'admin',
+                'admin123',
+                'admin@sistema.com',
+              ],
+            );
 
-      return idUsuario;
+            await conn.query('COMMIT');
+            AppLogger.info('Usuario administrador creado exitosamente');
+            return 1;
+          }
+
+          await conn.query('COMMIT');
+          return idUsuario;
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          rethrow;
+        }
+      });
     } catch (e) {
-      developer.log('Error verificando usuario: $e', error: e);
-      return 1;
+      _manejarError('verificar usuario administrador', e);
+      return 1; // En caso de error, devolver el ID por defecto
     }
   }
 
-  /// Crea un nuevo proveedor
+  /// Crea un nuevo proveedor usando procedimiento almacenado
   Future<Proveedor> crearProveedor(
     Proveedor proveedor, {
     int? usuarioModificacion,
   }) async {
     try {
-      final conn = await _db.connection;
-      int idNuevoProveedor;
+      return await _db.withConnection((conn) async {
+        AppLogger.info('Iniciando creación de proveedor: ${proveedor.nombre}');
 
-      try {
-        developer.log('Intentando crear proveedor: ${proveedor.nombre}');
+        await conn.query('START TRANSACTION');
+        try {
+          // Verifica o crea el usuario para la auditoría
+          final idUsuarioReal = await _asegurarUsuarioAdministrador(
+            usuarioModificacion,
+          );
 
-        // Verifica o crea el usuario para la auditoría
-        final idUsuarioReal = await _asegurarUsuarioAdministrador(
-          usuarioModificacion,
-        );
+          // Reinicia la variable de salida
+          await conn.query('SET @p_id_proveedor_out = 0');
 
-        // Reinicia la variable de salida
-        await conn.query('SET @p_id_proveedor_out = 0');
+          // Llamada al procedimiento almacenado
+          await conn.query(
+            'CALL CrearProveedor(?, ?, ?, ?, ?, ?, ?, ?, @p_id_proveedor_out)',
+            [
+              proveedor.nombre,
+              proveedor.nombreEmpresa,
+              proveedor.nombreContacto,
+              proveedor.direccion,
+              proveedor.telefono,
+              proveedor.correo,
+              proveedor.tipoServicio,
+              idUsuarioReal,
+            ],
+          );
 
-        // Llamada al procedimiento almacenado
-        await conn.query(
-          '''
-          CALL CrearProveedor(?, ?, ?, ?, ?, ?, ?, ?, @p_id_proveedor_out)
-        ''',
-          [
-            proveedor.nombre,
-            proveedor.nombreEmpresa,
-            proveedor.nombreContacto,
-            proveedor.direccion,
-            proveedor.telefono,
-            proveedor.correo,
-            proveedor.tipoServicio,
-            idUsuarioReal,
-          ],
-        );
+          // Obtiene el ID del proveedor creado
+          final result = await conn.query('SELECT @p_id_proveedor_out AS id');
+          if (result.isEmpty || result.first['id'] == null) {
+            throw Exception('No se pudo obtener el ID del proveedor creado');
+          }
 
-        // Obtiene el ID del proveedor creado
-        final result = await conn.query('SELECT @p_id_proveedor_out AS id');
-        if (result.isEmpty || result.first['id'] == null) {
-          throw Exception('No se pudo obtener el ID del proveedor creado');
+          final idNuevoProveedor = result.first['id'] as int;
+          AppLogger.info(
+            'Proveedor creado exitosamente con ID: $idNuevoProveedor',
+          );
+
+          await conn.query('COMMIT');
+          return proveedor.copyWith(idProveedor: idNuevoProveedor);
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          rethrow;
         }
-
-        idNuevoProveedor = result.first['id'] as int;
-        developer.log('Proveedor creado con ID: $idNuevoProveedor');
-      } catch (e) {
-        developer.log('Error SQL específico: $e', error: e);
-        throw Exception('Error en la operación de base de datos: $e');
-      }
-
-      return proveedor.copyWith(idProveedor: idNuevoProveedor);
+      });
     } catch (e) {
-      developer.log('Error detallado al crear proveedor: $e', error: e);
-      rethrow;
+      _manejarError('crear proveedor', e);
+      throw Exception('Error al crear proveedor: $e');
     }
   }
 
-  /// Actualiza un proveedor existente
+  /// Actualiza un proveedor existente usando procedimiento almacenado
   Future<void> actualizarProveedor(
     Proveedor proveedor, {
     int? usuarioModificacion,
   }) async {
     try {
-      final conn = await _db.connection;
-      final idUsuarioReal = await _asegurarUsuarioAdministrador(
-        usuarioModificacion,
-      );
+      return await _db.withConnection((conn) async {
+        AppLogger.info('Actualizando proveedor ID: ${proveedor.idProveedor}');
 
-      await conn.query('CALL ActualizarProveedor(?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-        proveedor.idProveedor,
-        proveedor.nombre,
-        proveedor.nombreEmpresa,
-        proveedor.nombreContacto,
-        proveedor.direccion,
-        proveedor.telefono,
-        proveedor.correo,
-        proveedor.tipoServicio,
-        idUsuarioReal,
-      ]);
+        await conn.query('START TRANSACTION');
+        try {
+          final idUsuarioReal = await _asegurarUsuarioAdministrador(
+            usuarioModificacion,
+          );
+
+          await conn
+              .query('CALL ActualizarProveedor(?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                proveedor.idProveedor,
+                proveedor.nombre,
+                proveedor.nombreEmpresa,
+                proveedor.nombreContacto,
+                proveedor.direccion,
+                proveedor.telefono,
+                proveedor.correo,
+                proveedor.tipoServicio,
+                idUsuarioReal,
+              ]);
+
+          await conn.query('COMMIT');
+          AppLogger.info(
+            'Proveedor ${proveedor.idProveedor} actualizado exitosamente',
+          );
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          rethrow;
+        }
+      });
     } catch (e) {
-      developer.log('Error al actualizar proveedor: $e', error: e);
-      rethrow;
+      _manejarError('actualizar proveedor', e);
+      throw Exception('Error al actualizar proveedor: $e');
     }
   }
 
@@ -162,198 +190,124 @@ class ProveedoresService {
     try {
       return await _db.connection;
     } catch (e) {
-      developer.log('Error al obtener conexión: $e', error: e);
-      rethrow;
+      _manejarError('verificar conexión', e);
+      throw Exception('Error al establecer conexión con la base de datos: $e');
     }
   }
 
-  /// Inactiva un proveedor
+  /// Inactiva un proveedor usando procedimiento almacenado
   Future<void> inactivarProveedor(
     int idProveedor, {
     int? usuarioModificacion,
   }) async {
     try {
-      final conn = await _db.connection;
-      final idUsuarioReal = await _asegurarUsuarioAdministrador(
-        usuarioModificacion,
-      );
+      return await _db.withConnection((conn) async {
+        AppLogger.info('Inactivando proveedor con ID: $idProveedor');
 
-      // CORREGIDO: Eliminar usuario_modificacion del UPDATE
-      developer.log(
-        'Inactivando proveedor con ID: $idProveedor (cambiando estado a 2)',
-      );
-      await conn.query(
-        '''
-        UPDATE proveedores 
-        SET id_estado = 2, 
-            fecha_modificacion = NOW() 
-        WHERE id_proveedor = ?
-        ''',
-        [idProveedor],
-      );
-
-      // Actualizar tabla historial_proveedores para auditoría
-      try {
-        // Obtener estado anterior
-        final estadoAnteriorResult = await conn.query(
-          'SELECT id_estado FROM proveedores WHERE id_proveedor = ?',
-          [idProveedor],
-        );
-
-        // CORREGIDO: Usar isNotEmpty en lugar de !isEmpty
-        if (estadoAnteriorResult.isNotEmpty) {
-          final estadoAnterior = estadoAnteriorResult.first['id_estado'] as int;
-
-          // Registrar en historial
-          await conn.query(
-            '''
-            INSERT INTO historial_proveedores
-            (id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion)
-            VALUES (?, ?, 2, ?)
-            ''',
-            [idProveedor, estadoAnterior, idUsuarioReal],
+        await conn.query('START TRANSACTION');
+        try {
+          final idUsuarioReal = await _asegurarUsuarioAdministrador(
+            usuarioModificacion,
           );
+
+          // Usar el procedimiento almacenado para inactivar proveedor
+          await conn.query('CALL InactivarProveedor(?, ?)', [
+            idProveedor,
+            idUsuarioReal,
+          ]);
+
+          await conn.query('COMMIT');
+          AppLogger.info('Proveedor ID:$idProveedor inactivado correctamente');
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          rethrow;
         }
-      } catch (historialError) {
-        developer.log(
-          'Advertencia: No se pudo actualizar el historial: $historialError',
-          error: historialError,
-        );
-        // No interrumpimos la operación principal si falla el historial
-      }
-
-      // Verificar que el proveedor siga existiendo pero con estado inactivo
-      final check = await conn.query(
-        'SELECT id_estado FROM proveedores WHERE id_proveedor = ?',
-        [idProveedor],
-      );
-
-      if (check.isEmpty) {
-        developer.log(
-          'ERROR: El proveedor ID:$idProveedor no existe después de inactivarlo',
-        );
-        throw Exception(
-          'El proveedor fue eliminado en lugar de ser inactivado',
-        );
-      } else {
-        developer.log(
-          'Proveedor ID:$idProveedor inactivado correctamente, estado actual: ${check.first['id_estado']}',
-        );
-      }
+      });
     } catch (e) {
-      developer.log('Error al inactivar proveedor: $e', error: e);
-      rethrow;
+      _manejarError('inactivar proveedor', e);
+      throw Exception('Error al inactivar proveedor: $e');
     }
   }
 
-  /// Busca proveedores según un término de búsqueda
+  /// Busca proveedores según un término de búsqueda usando procedimiento almacenado
   Future<List<Proveedor>> buscarProveedores(String termino) async {
     try {
-      final conn = await _db.connection;
-      developer.log('Buscando proveedores con término: "$termino"');
+      return await _db.withConnection((conn) async {
+        AppLogger.info('Buscando proveedores con término: "$termino"');
 
-      final result = await conn.query('CALL BuscarProveedores(?)', [termino]);
+        final result = await conn.query('CALL BuscarProveedores(?)', [termino]);
 
-      final proveedores =
-          result.map((row) {
-            // Mapeo completo para incluir todos los campos de tu procedimiento
-            final map = <String, dynamic>{};
-            for (var field in row.fields.keys) {
-              map[field] = row[field];
-            }
-            // Asegurarse de que el campo estado_proveedor se maneje correctamente
-            if (map.containsKey('estado_proveedor')) {
-              map['nombre_estado'] = map['estado_proveedor'];
-            }
-            return Proveedor.fromMap(map);
-          }).toList();
+        final proveedores =
+            result.map((row) {
+              final map = <String, dynamic>{};
+              for (var field in row.fields.keys) {
+                map[field] = row[field];
+              }
+              // Asegurarse de que el campo estado_proveedor se maneje correctamente
+              if (map.containsKey('estado_proveedor')) {
+                map['nombre_estado'] = map['estado_proveedor'];
+              }
+              return Proveedor.fromMap(map);
+            }).toList();
 
-      developer.log('Proveedores encontrados: ${proveedores.length}');
-      return proveedores;
+        AppLogger.info('Búsqueda completada: ${proveedores.length} resultados');
+        return proveedores;
+      });
     } catch (e) {
-      developer.log('Error al buscar proveedores: $e', error: e);
-      rethrow;
+      _manejarError('buscar proveedores', e);
+      throw Exception('Error al buscar proveedores: $e');
     }
   }
 
-  /// Reactiva un proveedor
+  /// Reactiva un proveedor usando procedimiento almacenado
   Future<void> reactivarProveedor(
     int idProveedor, {
     int? usuarioModificacion,
   }) async {
     try {
-      final conn = await _db.connection;
-      final idUsuarioReal = await _asegurarUsuarioAdministrador(
-        usuarioModificacion,
-      );
+      return await _db.withConnection((conn) async {
+        AppLogger.info('Reactivando proveedor con ID: $idProveedor');
 
-      // CORREGIDO: Eliminar usuario_modificacion del UPDATE
-      developer.log(
-        'Reactivando proveedor con ID: $idProveedor (cambiando estado a 1)',
-      );
-      await conn.query(
-        '''
-        UPDATE proveedores 
-        SET id_estado = 1, 
-            fecha_modificacion = NOW() 
-        WHERE id_proveedor = ?
-        ''',
-        [idProveedor],
-      );
-
-      // Actualizar tabla historial_proveedores para auditoría
-      try {
-        // Obtener estado anterior
-        final estadoAnteriorResult = await conn.query(
-          'SELECT id_estado FROM proveedores WHERE id_proveedor = ?',
-          [idProveedor],
-        );
-
-        // CORREGIDO: Usar isNotEmpty en lugar de !isEmpty
-        if (estadoAnteriorResult.isNotEmpty) {
-          final estadoAnterior = estadoAnteriorResult.first['id_estado'] as int;
-
-          // Registrar en historial
-          await conn.query(
-            '''
-            INSERT INTO historial_proveedores
-            (id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion)
-            VALUES (?, ?, 1, ?)
-            ''',
-            [idProveedor, estadoAnterior, idUsuarioReal],
+        await conn.query('START TRANSACTION');
+        try {
+          final idUsuarioReal = await _asegurarUsuarioAdministrador(
+            usuarioModificacion,
           );
+
+          // Usar el procedimiento almacenado para reactivar proveedor
+          await conn.query('CALL ReactivarProveedor(?, ?)', [
+            idProveedor,
+            idUsuarioReal,
+          ]);
+
+          await conn.query('COMMIT');
+          AppLogger.info('Proveedor ID:$idProveedor reactivado correctamente');
+        } catch (e) {
+          await conn.query('ROLLBACK');
+          rethrow;
         }
-      } catch (historialError) {
-        developer.log(
-          'Advertencia: No se pudo actualizar el historial: $historialError',
-          error: historialError,
-        );
-        // No interrumpimos la operación principal si falla el historial
-      }
-
-      // Verificar que el proveedor siga existiendo pero con estado activo
-      final check = await conn.query(
-        'SELECT id_estado FROM proveedores WHERE id_proveedor = ?',
-        [idProveedor],
-      );
-
-      if (check.isEmpty) {
-        developer.log(
-          'ERROR: El proveedor ID:$idProveedor no existe después de reactivarlo',
-        );
-        throw Exception('El proveedor no pudo ser reactivado');
-      } else {
-        developer.log(
-          'Proveedor ID:$idProveedor reactivado correctamente, estado actual: ${check.first['id_estado']}',
-        );
-      }
+      });
     } catch (e) {
-      developer.log('Error al reactivar proveedor: $e', error: e);
-      rethrow;
+      _manejarError('reactivar proveedor', e);
+      throw Exception('Error al reactivar proveedor: $e');
+    }
+  }
+
+  /// Método auxiliar para manejar errores evitando duplicados
+  void _manejarError(String operacion, dynamic error) {
+    if (!_procesandoError) {
+      _procesandoError = true;
+      AppLogger.error(
+        'Error en operación "$operacion"',
+        error,
+        StackTrace.current,
+      );
+      _procesandoError = false;
     }
   }
 }
 
+/// Extensión para facilitar la creación de copias de Proveedor
 extension ProveedorExtension on Proveedor {
   Proveedor copyWith({
     int? idProveedor,

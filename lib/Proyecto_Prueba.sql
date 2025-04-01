@@ -1,16 +1,7 @@
 -- Configuración recomendada para servidor MySQL
-SET GLOBAL max_connections = 300;             -- Aumentar de 200 a 300
-SET GLOBAL wait_timeout = 600;                -- Aumentar de 300 a 600 segundos
-SET GLOBAL interactive_timeout = 600;         -- Aumentar de 300 a 600 segundos
-SET GLOBAL connect_timeout = 30;              -- Aumentar de 10 a 30 segundos
-SET GLOBAL net_read_timeout = 120;            -- Aumentar de 60 a 120 segundos
-SET GLOBAL net_write_timeout = 120;           -- Aumentar de 60 a 120 segundos
-
--- Mostrar los valores actuales para verificar
-SHOW VARIABLES LIKE 'wait_timeout';
-SHOW VARIABLES LIKE 'interactive_timeout';
-SHOW VARIABLES LIKE 'max_allowed_packet';
-
+SET GLOBAL max_allowed_packet = 16777216; -- 16MB
+SET GLOBAL net_read_timeout = 180;
+SET GLOBAL net_write_timeout = 180;
 -- Crear base de datos si no existe y seleccionarla
 CREATE DATABASE IF NOT EXISTS Proyecto_Prueba CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Proyecto_Prueba;
@@ -26,6 +17,8 @@ DROP PROCEDURE IF EXISTS InactivarCliente;
 DROP PROCEDURE IF EXISTS ReactivarCliente;
 DROP PROCEDURE IF EXISTS CrearInmueble;
 DROP PROCEDURE IF EXISTS ActualizarInmueble;
+DROP PROCEDURE IF EXISTS InactivarInmueble;
+DROP PROCEDURE IF EXISTS ReactivarInmueble;
 DROP PROCEDURE IF EXISTS CrearProveedor;
 DROP PROCEDURE IF EXISTS LeerProveedores;
 DROP PROCEDURE IF EXISTS ObtenerProveedores;
@@ -56,26 +49,83 @@ DROP PROCEDURE IF EXISTS RecalcularFinanzasInmuebles;
 DROP PROCEDURE IF EXISTS ActualizarUtilidadVenta;
 DROP PROCEDURE IF EXISTS ObtenerEstadisticasVentas;
 DROP PROCEDURE IF EXISTS AnalisisRentabilidadPorTipo;
-DROP FUNCTION IF EXISTS EncriptarContraseña;
 DROP PROCEDURE IF EXISTS CambiarEstadoVenta;
--- Eliminar tablas respetando dependencias
-DROP TABLE IF EXISTS historial_usuarios;
-DROP TABLE IF EXISTS historial_proveedores;
-DROP TABLE IF EXISTS historial_proveedores_detallado;
-DROP TABLE IF EXISTS historial_ventas;
-DROP TABLE IF EXISTS comisiones_pagadas;
-DROP TABLE IF EXISTS inmuebles_imagenes;
-DROP TABLE IF EXISTS inmuebles_clientes_interesados;
-DROP TABLE IF EXISTS cliente_inmueble;
-DROP TABLE IF EXISTS ventas;
-DROP TABLE IF EXISTS inmueble_proveedor_servicio;
-DROP TABLE IF EXISTS inmuebles;
-DROP TABLE IF EXISTS clientes;
-DROP TABLE IF EXISTS empleados;
-DROP TABLE IF EXISTS proveedores;
-DROP TABLE IF EXISTS usuarios;
-DROP TABLE IF EXISTS direcciones;
-DROP TABLE IF EXISTS estados;
+DROP PROCEDURE IF EXISTS ObtenerInmuebles;
+DROP PROCEDURE IF EXISTS VerificarExistenciaInmueble;
+DROP PROCEDURE IF EXISTS BuscarInmuebles;
+DROP PROCEDURE IF EXISTS ObtenerClientesInteresados;
+DROP PROCEDURE IF EXISTS RegistrarClienteInteresado;
+DROP PROCEDURE IF EXISTS ObtenerImagenesInmueble;
+DROP PROCEDURE IF EXISTS ObtenerImagenPrincipal;
+DROP PROCEDURE IF EXISTS AgregarImagenInmueble;
+DROP PROCEDURE IF EXISTS MarcarImagenComoPrincipal;
+DROP PROCEDURE IF EXISTS EliminarImagenInmueble;
+DROP PROCEDURE IF EXISTS ActualizarDescripcionImagen;
+DROP PROCEDURE IF EXISTS LimpiarImagenesHuerfanas;
+DROP PROCEDURE IF EXISTS ObtenerClientesActivos;
+DROP PROCEDURE IF EXISTS ObtenerClientesInactivos;
+DROP PROCEDURE IF EXISTS ObtenerClientePorId;
+DROP PROCEDURE IF EXISTS ObtenerInmueblesPorCliente;
+DROP PROCEDURE IF EXISTS AsignarInmuebleACliente;
+DROP PROCEDURE IF EXISTS DesasignarInmuebleDeCliente;
+DROP PROCEDURE IF EXISTS ObtenerUsuarios;
+DROP PROCEDURE IF EXISTS ObtenerUsuarioPorId;
+DROP PROCEDURE IF EXISTS VerificarCredenciales;
+DROP PROCEDURE IF EXISTS VerificarCredencialesAdmin;
+DROP PROCEDURE IF EXISTS ObtenerAdministradores;
+DROP PROCEDURE IF EXISTS CrearAdministrador;
+DROP PROCEDURE IF EXISTS ActualizarContrasenaAdmin;
+DROP PROCEDURE IF EXISTS ObtenerVentaPorId;
+DROP PROCEDURE IF EXISTS ObtenerEstadisticasVentasPorFecha;
+DROP PROCEDURE IF EXISTS ObtenerVentasMensuales;
+DROP PROCEDURE IF EXISTS VerificarNombreUsuarioExiste;
+DROP PROCEDURE IF EXISTS VerificarNombreUsuarioExisteExcluyendoId;
+DROP PROCEDURE IF EXISTS GuardarImagenInmueble;
+DROP PROCEDURE IF EXISTS VerificarUsuarioExiste;
+DROP PROCEDURE IF EXISTS CrearUsuarioAdministrador;
+DROP PROCEDURE IF EXISTS ObtenerVentaReporte;
+DROP PROCEDURE IF EXISTS ObtenerEstadisticasVentasDetalladas;
+DROP PROCEDURE IF EXISTS BuscarInmueblesAvanzado;
+DROP PROCEDURE IF EXISTS VerificarConexion;
+DROP PROCEDURE IF EXISTS ObtenerImagenInmuebleSegura;
+DROP PROCEDURE IF EXISTS RegistrarMovimientoRenta;
+DROP PROCEDURE IF EXISTS ObtenerMovimientosPorInmueble;
+DROP PROCEDURE IF EXISTS AgregarComprobanteMovimiento;
+DROP PROCEDURE IF EXISTS ObtenerComprobantesPorMovimiento;
+DROP PROCEDURE IF EXISTS ObtenerResumenMovimientosRenta;
+DROP PROCEDURE IF EXISTS EliminarMovimientoRenta;
+DROP PROCEDURE IF EXISTS ObtenerDetalleRenta;
+DROP PROCEDURE IF EXISTS RegistrarContratoRenta;
+DROP PROCEDURE IF EXISTS ActualizarEstadoContratoRenta;
+DROP PROCEDURE IF EXISTS  ObtenerContratos;
+DROP PROCEDURE IF EXISTS  BuscarContratos;
+DROP PROCEDURE IF EXISTS  ObtenerEstadisticasRentas;
+DROP FUNCTION IF EXISTS EncriptarContraseña;
+
+-- Eliminar tablas que dependen de otras primero
+DROP TABLE IF EXISTS comprobantes_movimientos;           -- Depende de movimientos_renta
+DROP TABLE IF EXISTS movimientos_renta;                 -- Depende de inmuebles y clientes
+DROP TABLE IF EXISTS contratos_renta;                   -- Depende de inmuebles y clientes
+DROP TABLE IF EXISTS historial_usuarios;                -- Depende de usuarios
+DROP TABLE IF EXISTS historial_proveedores;             -- Depende de proveedores y usuarios
+DROP TABLE IF EXISTS historial_proveedores_detallado;   -- Depende de proveedores y usuarios
+DROP TABLE IF EXISTS historial_ventas;                  -- Depende de ventas y usuarios
+DROP TABLE IF EXISTS comisiones_pagadas;                -- Depende de ventas y empleados
+DROP TABLE IF EXISTS inmuebles_imagenes;                -- Depende de inmuebles
+DROP TABLE IF EXISTS inmuebles_clientes_interesados;    -- Depende de inmuebles y clientes
+DROP TABLE IF EXISTS cliente_inmueble;                  -- Depende de inmuebles y clientes
+DROP TABLE IF EXISTS ventas;                            -- Depende de inmuebles y clientes
+DROP TABLE IF EXISTS inmueble_proveedor_servicio;       -- Depende de inmuebles y proveedores
+
+-- Ahora eliminar las tablas referenciadas
+DROP TABLE IF EXISTS inmuebles;                         -- Referenciada por varias tablas
+DROP TABLE IF EXISTS clientes;                          -- Referenciada por varias tablas
+DROP TABLE IF EXISTS empleados;                         -- Referenciada por inmuebles y comisiones_pagadas
+DROP TABLE IF EXISTS proveedores;                       -- Referenciada por historial_proveedores y inmueble_proveedor_servicio
+DROP TABLE IF EXISTS usuarios;                          -- Referenciada por empleados y historial_usuarios
+DROP TABLE IF EXISTS administrador;                     -- Sin dependencias directas
+DROP TABLE IF EXISTS direcciones;                       -- Referenciada por clientes e inmuebles
+DROP TABLE IF EXISTS estados;                           -- Referenciada por casi todas las tablas
 
 -- Crear tabla de estados con IDs fijos
 CREATE TABLE estados (
@@ -224,6 +274,16 @@ CREATE TABLE empleados (
     INDEX idx_empleados_usuario (id_usuario)
 );
 
+-- Crear tabla de administrador
+CREATE TABLE administrador (
+    id_admin INT AUTO_INCREMENT PRIMARY KEY,
+    NombreAdmin VARCHAR(100) NOT NULL,
+    Contraseña VARCHAR(255) NOT NULL,
+    id_estado INT DEFAULT 1,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
+);
+
 -- Crear tabla de inmuebles con la columna margen_utilidad
 CREATE TABLE inmuebles (
     id_inmueble INT AUTO_INCREMENT PRIMARY KEY,
@@ -241,8 +301,8 @@ CREATE TABLE inmuebles (
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     costo_cliente DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Costo que pide el cliente por su propiedad',
     costo_servicios DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Costo de servicios de proveedores',
-    comision_agencia DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para la agencia (30% del costo cliente)',
-    comision_agente DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para el agente (3% del costo cliente)',
+    comision_agencia DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para la agencia (30% del monto total)',
+    comision_agente DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Comisión para el agente (3% del monto total)',
     precio_venta_final DECIMAL(12,2) DEFAULT 0.00 COMMENT 'Suma total de todos los costos',
     margen_utilidad DECIMAL(5,2) DEFAULT 0.00 COMMENT 'Porcentaje de ganancia sobre el precio final',
     FOREIGN KEY (id_direccion) REFERENCES direcciones(id_direccion),
@@ -343,6 +403,57 @@ CREATE TABLE comisiones_pagadas (
     FOREIGN KEY (id_estado) REFERENCES estados(id_estado)
 );
 
+-- Tabla para registrar movimientos de renta
+CREATE TABLE movimientos_renta (
+    id_movimiento INT AUTO_INCREMENT PRIMARY KEY,
+    id_inmueble INT NOT NULL,
+    id_cliente INT NOT NULL,
+    tipo_movimiento ENUM('ingreso','egreso') NOT NULL,
+    concepto VARCHAR(100) NOT NULL,
+    monto DECIMAL(12,2) NOT NULL,
+    fecha_movimiento DATE NOT NULL,
+    mes_correspondiente VARCHAR(7) NOT NULL,
+    comentarios TEXT,
+    id_estado INT NOT NULL DEFAULT 1,
+    fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble) ON DELETE CASCADE,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE,
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado),
+    INDEX idx_movimientos_mes (mes_correspondiente),
+    INDEX idx_movimientos_inmueble (id_inmueble),
+    INDEX idx_movimientos_cliente (id_cliente)
+);
+
+-- Tabla para los comprobantes de movimientos
+CREATE TABLE comprobantes_movimientos (
+    id_comprobante INT AUTO_INCREMENT PRIMARY KEY,
+    id_movimiento INT NOT NULL,
+    ruta_imagen VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    es_principal TINYINT(1) NOT NULL DEFAULT 0,
+    fecha_carga TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_movimiento) REFERENCES movimientos_renta(id_movimiento) ON DELETE CASCADE,
+    INDEX idx_comprobantes_movimiento (id_movimiento)
+);
+
+CREATE TABLE contratos_renta (
+    id_contrato INT AUTO_INCREMENT PRIMARY KEY,
+    id_inmueble INT NOT NULL,
+    id_cliente INT NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE NOT NULL,
+    monto_mensual DECIMAL(12,2) NOT NULL,
+    condiciones_adicionales TEXT,
+    id_estado INT NOT NULL DEFAULT 1,
+    fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_inmueble) REFERENCES inmuebles(id_inmueble) ON DELETE CASCADE,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE,
+    FOREIGN KEY (id_estado) REFERENCES estados(id_estado),
+    UNIQUE KEY (id_inmueble, id_estado, fecha_inicio),
+    INDEX idx_contratos_inmueble (id_inmueble),
+    INDEX idx_contratos_cliente (id_cliente)
+);
+
 -- Índices para mejorar el rendimiento
 CREATE INDEX idx_inmueble_proveedor ON inmueble_proveedor_servicio(id_inmueble);
 CREATE INDEX idx_proveedor_inmueble ON inmueble_proveedor_servicio(id_proveedor);
@@ -364,6 +475,17 @@ CREATE INDEX idx_ventas_fecha ON ventas(fecha_venta);
 CREATE INDEX idx_ventas_fecha_estado ON ventas(fecha_venta, id_estado);
 CREATE INDEX idx_comisiones_venta ON comisiones_pagadas(id_venta);
 CREATE INDEX idx_historial_ventas_venta ON historial_ventas(id_venta);
+CREATE INDEX idx_direcciones_ciudad ON direcciones(ciudad);
+CREATE INDEX idx_inmuebles_tipo ON inmuebles(tipo_inmueble);
+CREATE INDEX idx_clientes_rfc ON clientes(rfc);
+CREATE INDEX idx_clientes_curp ON clientes(curp);
+CREATE INDEX idx_proveedores_tipo_servicio ON proveedores(tipo_servicio);
+CREATE INDEX idx_empleados_clave_sistema ON empleados(clave_sistema);
+CREATE INDEX idx_inmuebles_operacion ON inmuebles(tipo_operacion);
+CREATE INDEX idx_inmuebles_precio_venta ON inmuebles(precio_venta);
+CREATE INDEX idx_inmuebles_precio_renta ON inmuebles(precio_renta);
+CREATE INDEX idx_servicio_fecha_asignacion ON inmueble_proveedor_servicio(fecha_asignacion);
+CREATE INDEX idx_servicio_fecha_servicio ON inmueble_proveedor_servicio(fecha_servicio);
 
 -- Definir triggers
 DELIMITER //
@@ -832,8 +954,9 @@ BEGIN
     DECLARE v_precio_venta_final DECIMAL(12,2);
     DECLARE v_margen_utilidad DECIMAL(5,2);
     
-    SET v_comision_agencia = IFNULL(p_costo_cliente, 0) * 0.30;
-    SET v_comision_agente = IFNULL(p_costo_cliente, 0) * 0.03;
+    -- Modificado: Calcular comisiones sobre monto total en lugar de costo cliente
+    SET v_comision_agencia = p_monto_total * 0.30;
+    SET v_comision_agente = p_monto_total * 0.03;
     SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
     SET v_margen_utilidad = IF(v_precio_venta_final > 0, ((v_comision_agencia + v_comision_agente) / v_precio_venta_final) * 100, 0);
     
@@ -866,7 +989,7 @@ BEGIN
     SET p_id_inmueble_out = LAST_INSERT_ID();
     
     COMMIT;
-END //
+END//
 
 -- Procedimiento para actualizar inmueble
 CREATE PROCEDURE ActualizarInmueble(
@@ -898,21 +1021,22 @@ BEGIN
     DECLARE v_precio_venta_final DECIMAL(12,2);
     DECLARE v_margen_utilidad DECIMAL(5,2);
     
-    SET v_comision_agencia = IFNULL(p_costo_cliente, 0) * 0.30;
-    SET v_comision_agente = IFNULL(p_costo_cliente, 0) * 0.03;
-    SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
-    SET v_margen_utilidad = IF(v_precio_venta_final > 0, ((v_comision_agencia + v_comision_agente) / v_precio_venta_final) * 100, 0);
-
     SELECT id_direccion INTO v_id_direccion
     FROM inmuebles 
     WHERE id_inmueble = p_id_inmueble;
-
+    
     IF v_id_direccion IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Inmueble no encontrado';
     END IF;
 
-    START TRANSACTION;
+    -- Modificado: Calcular comisiones sobre monto total en lugar de costo cliente
+    SET v_comision_agencia = p_monto_total * 0.30;
+    SET v_comision_agente = p_monto_total * 0.03;
+    SET v_precio_venta_final = IFNULL(p_costo_cliente, 0) + IFNULL(p_costo_servicios, 0) + v_comision_agencia + v_comision_agente;
+    SET v_margen_utilidad = IF(v_precio_venta_final > 0, ((v_comision_agencia + v_comision_agente) / v_precio_venta_final) * 100, 0);
 
+    START TRANSACTION;
+    
     UPDATE direcciones SET
         calle = p_direccion_calle,
         numero = p_direccion_numero,
@@ -922,7 +1046,7 @@ BEGIN
         codigo_postal = p_direccion_codigo_postal,
         referencias = p_direccion_referencias
     WHERE id_direccion = v_id_direccion;
-
+    
     UPDATE inmuebles SET
         nombre_inmueble = p_nombre_inmueble,
         monto_total = p_monto_total,
@@ -930,7 +1054,7 @@ BEGIN
         tipo_operacion = COALESCE(p_tipo_operacion, 'venta'),
         precio_venta = p_precio_venta,
         precio_renta = p_precio_renta,
-        id_estado = p_id_estado,
+        id_estado = COALESCE(p_id_estado, id_estado),
         id_cliente = p_id_cliente,
         id_empleado = p_id_empleado,
         caracteristicas = p_caracteristicas,
@@ -941,33 +1065,82 @@ BEGIN
         precio_venta_final = v_precio_venta_final,
         margen_utilidad = v_margen_utilidad
     WHERE id_inmueble = p_id_inmueble;
+    
+    COMMIT;
+END //
 
+-- Procedimiento para inactivar inmueble
+CREATE PROCEDURE InactivarInmueble(IN p_id_inmueble INT)
+BEGIN
+    DECLARE v_id_estado_inactivo INT DEFAULT 2;
+    DECLARE v_estado_actual INT;
+    
+    SELECT id_estado INTO v_estado_actual
+    FROM inmuebles 
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Inmueble no encontrado';
+    END IF;
+    
+    IF v_estado_actual = 2 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble ya está inactivo';
+    END IF;
+    
+    START TRANSACTION;
+    
+    UPDATE inmuebles 
+    SET id_estado = v_id_estado_inactivo
+    WHERE id_inmueble = p_id_inmueble;
+    
+    COMMIT;
+END //
+
+-- Procedimiento para reactivar inmueble
+CREATE PROCEDURE ReactivarInmueble(IN p_id_inmueble INT)
+BEGIN
+    DECLARE v_id_estado_disponible INT DEFAULT 3;
+    DECLARE v_estado_actual INT;
+    
+    SELECT id_estado INTO v_estado_actual
+    FROM inmuebles 
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_estado_actual IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Inmueble no encontrado';
+    END IF;
+    
+    IF v_estado_actual = 3 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble ya está disponible';
+    END IF;
+    
+    START TRANSACTION;
+    
+    UPDATE inmuebles 
+    SET id_estado = v_id_estado_disponible
+    WHERE id_inmueble = p_id_inmueble;
+    
     COMMIT;
 END //
 
 -- Procedimiento para crear proveedor
 CREATE PROCEDURE CrearProveedor(
-    IN p_nombre VARCHAR(100), 
-    IN p_nombre_empresa VARCHAR(150), 
-    IN p_nombre_contacto VARCHAR(100), 
-    IN p_direccion VARCHAR(255), 
-    IN p_telefono VARCHAR(15), 
-    IN p_correo VARCHAR(100), 
+    IN p_nombre VARCHAR(100),
+    IN p_nombre_empresa VARCHAR(150),
+    IN p_nombre_contacto VARCHAR(100),
+    IN p_direccion VARCHAR(255),
+    IN p_telefono VARCHAR(15),
+    IN p_correo VARCHAR(100),
     IN p_tipo_servicio VARCHAR(100),
-    IN p_usuario_modificacion INT,
     OUT p_id_proveedor_out INT
 )
 BEGIN
     DECLARE v_id_estado_activo INT DEFAULT 1;
     
-    IF p_correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
+    IF EXISTS(SELECT 1 FROM proveedores WHERE correo = p_correo) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El correo del proveedor ya existe';
     END IF;
     
-    IF p_telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
-    END IF;
-
     START TRANSACTION;
     
     INSERT INTO proveedores (
@@ -979,9 +1152,9 @@ BEGIN
     SET p_id_proveedor_out = LAST_INSERT_ID();
     
     INSERT INTO historial_proveedores (
-        id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
+        id_proveedor, id_estado_anterior, id_estado_nuevo
     ) VALUES (
-        p_id_proveedor_out, NULL, v_id_estado_activo, p_usuario_modificacion
+        p_id_proveedor_out, NULL, v_id_estado_activo
     );
     
     COMMIT;
@@ -1012,17 +1185,7 @@ END //
 CREATE PROCEDURE ObtenerProveedores()
 BEGIN
     SELECT 
-        p.id_proveedor,
-        p.nombre,
-        p.nombre_empresa,
-        p.nombre_contacto,
-        p.direccion,
-        p.telefono,
-        p.correo,
-        p.tipo_servicio,
-        p.id_estado,
-        p.fecha_creacion,
-        p.fecha_modificacion,
+        p.*,
         e.nombre_estado AS estado_proveedor
     FROM proveedores p
     LEFT JOIN estados e ON p.id_estado = e.id_estado;
@@ -1042,85 +1205,39 @@ CREATE PROCEDURE ActualizarProveedor(
 )
 BEGIN
     DECLARE v_estado_actual INT;
-    DECLARE v_nombre_actual VARCHAR(100);
-    DECLARE v_empresa_actual VARCHAR(150);
-    DECLARE v_contacto_actual VARCHAR(100);
-    DECLARE v_direccion_actual VARCHAR(255);
-    DECLARE v_telefono_actual VARCHAR(15);
-    DECLARE v_correo_actual VARCHAR(100);
-    DECLARE v_servicio_actual VARCHAR(100);
-
-    SELECT id_estado, nombre, nombre_empresa, nombre_contacto, direccion, telefono, correo, tipo_servicio
-    INTO v_estado_actual, v_nombre_actual, v_empresa_actual, v_contacto_actual, v_direccion_actual, v_telefono_actual, v_correo_actual, v_servicio_actual
+    DECLARE v_correo_existente INT;
+    
+    SELECT id_estado INTO v_estado_actual
     FROM proveedores 
     WHERE id_proveedor = p_id_proveedor;
     
     IF v_estado_actual IS NULL THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor especificado no existe';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
     END IF;
     
     IF v_estado_actual != 1 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'No se puede actualizar un proveedor inactivo';
     END IF;
     
-    IF p_correo NOT REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Correo electrónico del proveedor inválido';
-    END IF;
+    SELECT COUNT(*) INTO v_correo_existente
+    FROM proveedores 
+    WHERE correo = p_correo AND id_proveedor != p_id_proveedor;
     
-    IF p_telefono NOT REGEXP '^[+]?[0-9]{10,15}$' THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Número de teléfono del proveedor inválido';
-    END IF;
-
-    IF EXISTS (
-        SELECT 1 
-        FROM proveedores 
-        WHERE correo = p_correo 
-        AND id_proveedor != p_id_proveedor
-    ) THEN
+    IF v_correo_existente > 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El correo ya está en uso por otro proveedor';
     END IF;
-
+    
     START TRANSACTION;
     
-    UPDATE proveedores 
-    SET nombre = p_nombre,
+    UPDATE proveedores SET 
+        nombre = p_nombre,
         nombre_empresa = p_nombre_empresa,
         nombre_contacto = p_nombre_contacto,
         direccion = p_direccion,
         telefono = p_telefono,
         correo = p_correo,
-        tipo_servicio = p_tipo_servicio,
-        fecha_modificacion = CURRENT_TIMESTAMP
+        tipo_servicio = p_tipo_servicio
     WHERE id_proveedor = p_id_proveedor;
-
-    IF v_nombre_actual != p_nombre THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'nombre', v_nombre_actual, p_nombre, p_usuario_modificacion);
-    END IF;
-    IF v_empresa_actual != p_nombre_empresa THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'nombre_empresa', v_empresa_actual, p_nombre_empresa, p_usuario_modificacion);
-    END IF;
-    IF v_contacto_actual != p_nombre_contacto THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'nombre_contacto', v_contacto_actual, p_nombre_contacto, p_usuario_modificacion);
-    END IF;
-    IF v_direccion_actual != p_direccion THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'direccion', v_direccion_actual, p_direccion, p_usuario_modificacion);
-    END IF;
-    IF v_telefono_actual != p_telefono THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'telefono', v_telefono_actual, p_telefono, p_usuario_modificacion);
-    END IF;
-    IF v_correo_actual != p_correo THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'correo', v_correo_actual, p_correo, p_usuario_modificacion);
-    END IF;
-    IF v_servicio_actual != p_tipo_servicio THEN
-        INSERT INTO historial_proveedores_detallado (id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion)
-        VALUES (p_id_proveedor, 'tipo_servicio', v_servicio_actual, p_tipo_servicio, p_usuario_modificacion);
-    END IF;
     
     COMMIT;
 END //
@@ -1142,7 +1259,7 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Proveedor no encontrado';
     END IF;
     
-    IF v_estado_actual = v_id_estado_inactivo THEN
+    IF v_estado_actual = 2 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El proveedor ya está inactivo';
     END IF;
     
@@ -1150,19 +1267,13 @@ BEGIN
     
     UPDATE proveedores 
     SET id_estado = v_id_estado_inactivo,
-        fecha_modificacion = CURRENT_TIMESTAMP
+        fecha_modificacion = NOW()
     WHERE id_proveedor = p_id_proveedor;
     
     INSERT INTO historial_proveedores (
         id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
     ) VALUES (
         p_id_proveedor, v_estado_actual, v_id_estado_inactivo, p_usuario_modificacion
-    );
-    
-    INSERT INTO historial_proveedores_detallado (
-        id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion
-    ) VALUES (
-        p_id_proveedor, 'id_estado', v_estado_actual, v_id_estado_inactivo, p_usuario_modificacion
     );
     
     COMMIT;
@@ -1193,19 +1304,13 @@ BEGIN
     
     UPDATE proveedores 
     SET id_estado = v_id_estado_activo,
-        fecha_modificacion = CURRENT_TIMESTAMP
+        fecha_modificacion = NOW()
     WHERE id_proveedor = p_id_proveedor;
     
     INSERT INTO historial_proveedores (
         id_proveedor, id_estado_anterior, id_estado_nuevo, usuario_modificacion
     ) VALUES (
         p_id_proveedor, v_estado_actual, v_id_estado_activo, p_usuario_modificacion
-    );
-    
-    INSERT INTO historial_proveedores_detallado (
-        id_proveedor, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion
-    ) VALUES (
-        p_id_proveedor, 'id_estado', v_estado_actual, v_id_estado_activo, p_usuario_modificacion
     );
     
     COMMIT;
@@ -1233,6 +1338,8 @@ BEGIN
         p.nombre LIKE CONCAT('%', p_termino_busqueda, '%') OR
         p.nombre_empresa LIKE CONCAT('%', p_termino_busqueda, '%') OR
         p.nombre_contacto LIKE CONCAT('%', p_termino_busqueda, '%') OR
+        p.telefono LIKE CONCAT('%', p_termino_busqueda, '%') OR
+        p.correo LIKE CONCAT('%', p_termino_busqueda, '%') OR
         p.tipo_servicio LIKE CONCAT('%', p_termino_busqueda, '%');
 END //
 
@@ -1767,7 +1874,6 @@ BEGIN
         SET MESSAGE_TEXT = 'El inmueble especificado no existe';
     END IF;
     
-    -- Verificar que el inmueble esté disponible (id_estado = 3)
     SELECT id_estado INTO estado_inmueble
     FROM inmuebles
     WHERE id_inmueble = p_id_inmueble;
@@ -1873,6 +1979,7 @@ CREATE PROCEDURE ActualizarCostoServiciosInmueble(
 BEGIN
     DECLARE v_costo_total DECIMAL(12,2);
     DECLARE v_costo_cliente DECIMAL(12,2);
+    DECLARE v_monto_total DECIMAL(12,2);
     DECLARE v_comision_agencia DECIMAL(12,2);
     DECLARE v_comision_agente DECIMAL(12,2);
     DECLARE v_precio_venta_final DECIMAL(12,2);
@@ -1882,12 +1989,13 @@ BEGIN
     FROM inmueble_proveedor_servicio
     WHERE id_inmueble = p_id_inmueble AND id_estado = 1;
     
-    SELECT IFNULL(costo_cliente, 0) INTO v_costo_cliente
+    SELECT IFNULL(costo_cliente, 0), IFNULL(monto_total, 0) INTO v_costo_cliente, v_monto_total
     FROM inmuebles
     WHERE id_inmueble = p_id_inmueble;
     
-    SET v_comision_agencia = v_costo_cliente * 0.30;
-    SET v_comision_agente = v_costo_cliente * 0.03;
+    -- Modificado: Calcular comisiones sobre monto total en lugar de costo cliente
+    SET v_comision_agencia = v_monto_total * 0.30;
+    SET v_comision_agente = v_monto_total * 0.03;
     SET v_precio_venta_final = v_costo_cliente + v_costo_total + v_comision_agencia + v_comision_agente;
     
     IF v_precio_venta_final > 0 THEN
@@ -1896,6 +2004,8 @@ BEGIN
         SET v_margen_utilidad = 0;
     END IF;
     
+    START TRANSACTION;
+    
     UPDATE inmuebles SET
         costo_servicios = v_costo_total,
         comision_agencia = v_comision_agencia,
@@ -1903,6 +2013,8 @@ BEGIN
         precio_venta_final = v_precio_venta_final,
         margen_utilidad = v_margen_utilidad
     WHERE id_inmueble = p_id_inmueble;
+    
+    COMMIT;
 END //
 
 -- Procedimiento para eliminar un servicio de proveedor
@@ -1977,54 +2089,41 @@ END //
 -- Procedimiento para actualizar las utilidades de una venta
 CREATE PROCEDURE ActualizarUtilidadVenta(
     IN p_id_venta INT,
-    IN p_gastos_adicionales DECIMAL(15,2)
+    IN p_gastos_adicionales DECIMAL(15,2),
+    IN p_usuario_modificacion INT
 )
 BEGIN
     DECLARE v_utilidad_bruta DECIMAL(15,2);
     DECLARE v_utilidad_neta DECIMAL(15,2);
-    DECLARE v_venta_existe INT;
-    DECLARE v_usuario_mod INT DEFAULT NULL;
     DECLARE v_valor_anterior DECIMAL(15,2);
     
-    -- Comprobar que la venta existe
-    SELECT COUNT(*), utilidad_bruta, utilidad_neta INTO v_venta_existe, v_utilidad_bruta, v_valor_anterior
+    SELECT utilidad_bruta, utilidad_neta 
+    INTO v_utilidad_bruta, v_valor_anterior
     FROM ventas 
     WHERE id_venta = p_id_venta;
     
-    IF v_venta_existe = 0 THEN
+    IF v_utilidad_bruta IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La venta especificada no existe';
     END IF;
     
-    -- Validar que los gastos no sean negativos
     IF p_gastos_adicionales < 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Los gastos adicionales no pueden ser negativos';
     END IF;
     
-    -- Calcular la nueva utilidad neta
     SET v_utilidad_neta = v_utilidad_bruta - p_gastos_adicionales;
     
     START TRANSACTION;
     
-    -- Actualizar la venta
     UPDATE ventas 
     SET utilidad_neta = v_utilidad_neta 
     WHERE id_venta = p_id_venta;
     
-    -- Registrar en historial
     INSERT INTO historial_ventas (
-        id_venta, 
-        campo_modificado, 
-        valor_anterior, 
-        valor_nuevo,
-        usuario_modificacion, 
-        fecha_modificacion
+        id_venta, campo_modificado, valor_anterior, valor_nuevo, 
+        usuario_modificacion, fecha_modificacion
     ) VALUES (
-        p_id_venta,
-        'utilidad_neta',
-        v_valor_anterior,
-        v_utilidad_neta,
-        v_usuario_mod,
-        CURRENT_TIMESTAMP
+        p_id_venta, 'utilidad_neta', v_valor_anterior, v_utilidad_neta,
+        p_usuario_modificacion, CURRENT_TIMESTAMP
     );
     
     COMMIT;
@@ -2036,7 +2135,6 @@ CREATE PROCEDURE ObtenerEstadisticasVentas(
     IN p_fecha_fin DATE
 )
 BEGIN
-    -- Si no se proporcionan fechas, usar valores por defecto
     SET p_fecha_inicio = COALESCE(p_fecha_inicio, '2000-01-01');
     SET p_fecha_fin = COALESCE(p_fecha_fin, CURRENT_DATE());
     
@@ -2048,7 +2146,7 @@ BEGIN
     FROM ventas v
     JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
     WHERE v.fecha_venta BETWEEN p_fecha_inicio AND p_fecha_fin
-    AND v.id_estado IN (7, 8); -- Considerar ventas en proceso y completadas
+    AND v.id_estado IN (7, 8);
 END //
 
 -- Procedimiento para análisis de rentabilidad por tipo de inmueble
@@ -2064,11 +2162,12 @@ BEGIN
         MAX(v.ingreso) AS precio_maximo
     FROM ventas v
     JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
-    WHERE v.id_estado IN (7, 8) -- Considerar ventas en proceso y completadas
+    WHERE v.id_estado IN (7, 8)
     GROUP BY i.tipo_inmueble
     ORDER BY utilidad_total DESC;
 END //
 
+-- Procedimiento para cambiar estado de venta
 CREATE PROCEDURE CambiarEstadoVenta(
     IN p_id_venta INT,
     IN p_nuevo_estado INT,
@@ -2077,68 +2176,1144 @@ CREATE PROCEDURE CambiarEstadoVenta(
 BEGIN
     DECLARE v_estado_actual INT;
     DECLARE v_id_inmueble INT;
-    DECLARE v_error_message VARCHAR(255);
-
-    -- Verificar que el nuevo estado sea válido (8: completada, 9: cancelada)
-    IF p_nuevo_estado NOT IN (8, 9) THEN
-        SET v_error_message = 'Estado nuevo inválido. Solo se permite 8 (completada) o 9 (cancelada)';
-        INSERT INTO historial_ventas (
-            id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
-        ) VALUES (
-            p_id_venta, 'id_estado', NULL, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
-        );
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_error_message;
-    END IF;
-
-    -- Obtener el estado actual y el id_inmueble de la venta
+    
     SELECT id_estado, id_inmueble INTO v_estado_actual, v_id_inmueble
     FROM ventas
     WHERE id_venta = p_id_venta;
-
+    
     IF v_estado_actual IS NULL THEN
-        SET v_error_message = 'La venta especificada no existe';
-        INSERT INTO historial_ventas (
-            id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
-        ) VALUES (
-            p_id_venta, 'id_estado', NULL, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
-        );
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_error_message;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La venta especificada no existe';
     END IF;
-
-    -- Solo se puede cambiar desde "venta_en_proceso" (id_estado = 7)
+    
+    IF p_nuevo_estado NOT IN (8, 9) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Estado no válido. Solo se permite 8 (completada) o 9 (cancelada)';
+    END IF;
+    
     IF v_estado_actual != 7 THEN
-        SET v_error_message = 'Solo se puede cambiar el estado de una venta en proceso';
-        INSERT INTO historial_ventas (
-            id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
-        ) VALUES (
-            p_id_venta, 'id_estado', v_estado_actual, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
-        );
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = v_error_message;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Solo se puede cambiar el estado de una venta en proceso';
     END IF;
-
-    -- Si todas las validaciones pasan, proceder con el cambio
+    
     START TRANSACTION;
-
-    -- Actualizar el estado de la venta
+    
     UPDATE ventas
     SET id_estado = p_nuevo_estado
     WHERE id_venta = p_id_venta;
-
-    -- Si la venta se cancela (9), revertir el estado del inmueble a "disponible" (3)
+    
     IF p_nuevo_estado = 9 THEN
         UPDATE inmuebles
         SET id_estado = 3
         WHERE id_inmueble = v_id_inmueble;
     END IF;
-
-    -- Registrar el cambio exitoso en historial_ventas
+    
     INSERT INTO historial_ventas (
-        id_venta, campo_modificado, valor_anterior, valor_nuevo, usuario_modificacion, fecha_modificacion
+        id_venta, campo_modificado, valor_anterior, valor_nuevo, 
+        usuario_modificacion, fecha_modificacion
     ) VALUES (
-        p_id_venta, 'id_estado', v_estado_actual, p_nuevo_estado, p_usuario_modificacion, CURRENT_TIMESTAMP
+        p_id_venta, 'id_estado', v_estado_actual, p_nuevo_estado,
+        p_usuario_modificacion, CURRENT_TIMESTAMP
     );
-
+    
     COMMIT;
 END //
 
+-- Procedimiento para obtener inmuebles
+CREATE PROCEDURE ObtenerInmuebles()
+BEGIN
+    SELECT 
+        i.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_inmueble
+    FROM inmuebles i
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON i.id_estado = e.id_estado
+    ORDER BY i.fecha_registro DESC;
+END //
+
+-- Procedimiento para verificar existencia de inmueble
+CREATE PROCEDURE VerificarExistenciaInmueble(
+    IN p_id_inmueble INT,
+    OUT p_existe INT
+)
+BEGIN
+    SELECT COUNT(*) INTO p_existe
+    FROM inmuebles 
+    WHERE id_inmueble = p_id_inmueble;
+END //
+
+-- Procedimiento para buscar inmuebles
+CREATE PROCEDURE BuscarInmuebles(
+    IN p_tipo VARCHAR(20),
+    IN p_operacion VARCHAR(20),
+    IN p_precio_min DECIMAL(12,2),
+    IN p_precio_max DECIMAL(12,2),
+    IN p_ciudad VARCHAR(100),
+    IN p_id_estado INT,
+    IN p_margen_min DECIMAL(5,2)
+)
+BEGIN
+    SELECT 
+        i.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_inmueble
+    FROM inmuebles i
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON i.id_estado = e.id_estado
+    WHERE 1=1 
+        AND (p_tipo IS NULL OR p_tipo = '' OR i.tipo_inmueble = p_tipo)
+        AND (p_operacion IS NULL OR p_operacion = '' OR i.tipo_operacion = p_operacion)
+        AND (p_precio_min IS NULL OR i.monto_total >= p_precio_min)
+        AND (p_precio_max IS NULL OR i.monto_total <= p_precio_max)
+        AND (p_ciudad IS NULL OR p_ciudad = '' OR d.ciudad LIKE CONCAT('%', p_ciudad, '%'))
+        AND (p_id_estado IS NULL OR i.id_estado = p_id_estado)
+        AND (p_margen_min IS NULL OR i.margen_utilidad >= p_margen_min)
+    ORDER BY i.fecha_registro DESC;
+END //
+
+-- Procedimiento para obtener clientes interesados
+CREATE PROCEDURE ObtenerClientesInteresados(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        ci.id, ci.id_inmueble, ci.id_cliente, ci.fecha_interes, ci.comentarios,
+        c.nombre, c.apellido_paterno, c.apellido_materno, c.telefono_cliente, c.correo_cliente
+    FROM inmuebles_clientes_interesados ci
+    JOIN clientes c ON ci.id_cliente = c.id_cliente
+    WHERE ci.id_inmueble = p_id_inmueble
+    ORDER BY ci.fecha_interes DESC;
+END //
+
+-- Procedimiento para registrar cliente interesado
+CREATE PROCEDURE RegistrarClienteInteresado(
+    IN p_id_inmueble INT,
+    IN p_id_cliente INT,
+    IN p_comentarios TEXT,
+    OUT p_id_registro INT
+)
+BEGIN
+    DECLARE v_inmueble_existe INT;
+    DECLARE v_cliente_existe INT;
+    
+    SELECT COUNT(*) INTO v_inmueble_existe
+    FROM inmuebles WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_inmueble_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble especificado no existe';
+    END IF;
+    
+    SELECT COUNT(*) INTO v_cliente_existe
+    FROM clientes WHERE id_cliente = p_id_cliente;
+    
+    IF v_cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El cliente especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    INSERT INTO inmuebles_clientes_interesados 
+        (id_inmueble, id_cliente, comentarios, fecha_interes)
+    VALUES 
+        (p_id_inmueble, p_id_cliente, p_comentarios, NOW());
+    
+    SET p_id_registro = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener imágenes de inmueble
+CREATE PROCEDURE ObtenerImagenesInmueble(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        id_imagen, id_inmueble, ruta_imagen, descripcion, 
+        es_principal, fecha_carga
+    FROM inmuebles_imagenes
+    WHERE id_inmueble = p_id_inmueble
+    ORDER BY es_principal DESC, fecha_carga DESC;
+END //
+
+-- Procedimiento para obtener imagen principal
+CREATE PROCEDURE ObtenerImagenPrincipal(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        id_imagen, id_inmueble, ruta_imagen, descripcion, 
+        es_principal, fecha_carga
+    FROM inmuebles_imagenes
+    WHERE id_inmueble = p_id_inmueble AND es_principal = 1
+    LIMIT 1;
+END //
+
+-- Procedimiento para agregar imagen a inmueble
+CREATE PROCEDURE AgregarImagenInmueble(
+    IN p_id_inmueble INT,
+    IN p_ruta_imagen VARCHAR(255),
+    IN p_descripcion VARCHAR(100),
+    IN p_es_principal BOOLEAN,
+    OUT p_id_imagen_out INT
+)
+BEGIN
+    DECLARE v_inmueble_existe INT;
+    
+    SELECT COUNT(*) INTO v_inmueble_existe
+    FROM inmuebles WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_inmueble_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    IF p_es_principal = 1 THEN
+        UPDATE inmuebles_imagenes
+        SET es_principal = 0
+        WHERE id_inmueble = p_id_inmueble;
+    END IF;
+    
+    INSERT INTO inmuebles_imagenes 
+        (id_inmueble, ruta_imagen, descripcion, es_principal, fecha_carga)
+    VALUES 
+        (p_id_inmueble, p_ruta_imagen, p_descripcion, p_es_principal, NOW());
+        
+    SET p_id_imagen_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para marcar imagen como principal
+CREATE PROCEDURE MarcarImagenComoPrincipal(
+    IN p_id_imagen INT,
+    IN p_id_inmueble INT
+)
+BEGIN
+    DECLARE v_imagen_valida INT;
+    
+    SELECT COUNT(*) INTO v_imagen_valida
+    FROM inmuebles_imagenes 
+    WHERE id_imagen = p_id_imagen AND id_inmueble = p_id_inmueble;
+    
+    IF v_imagen_valida = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La imagen no pertenece al inmueble especificado';
+    END IF;
+    
+    START TRANSACTION;
+    
+    UPDATE inmuebles_imagenes
+    SET es_principal = 0
+    WHERE id_inmueble = p_id_inmueble;
+    
+    UPDATE inmuebles_imagenes
+    SET es_principal = 1
+    WHERE id_imagen = p_id_imagen;
+    
+    COMMIT;
+END //
+
+-- Procedimiento para eliminar imagen de inmueble
+CREATE PROCEDURE EliminarImagenInmueble(
+    IN p_id_imagen INT
+)
+BEGIN
+    DECLARE v_es_principal BOOLEAN;
+    DECLARE v_id_inmueble INT;
+    
+    SELECT es_principal, id_inmueble 
+    INTO v_es_principal, v_id_inmueble
+    FROM inmuebles_imagenes
+    WHERE id_imagen = p_id_imagen;
+    
+    IF v_id_inmueble IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Imagen no encontrada';
+    END IF;
+    
+    START TRANSACTION;
+    
+    DELETE FROM inmuebles_imagenes
+    WHERE id_imagen = p_id_imagen;
+    
+    IF v_es_principal = 1 THEN
+        UPDATE inmuebles_imagenes
+        SET es_principal = 1
+        WHERE id_inmueble = v_id_inmueble
+        ORDER BY fecha_carga DESC
+        LIMIT 1;
+    END IF;
+    
+    COMMIT;
+END //
+
+-- Procedimiento para actualizar descripción de imagen
+CREATE PROCEDURE ActualizarDescripcionImagen(
+    IN p_id_imagen INT,
+    IN p_nueva_descripcion VARCHAR(100)
+)
+BEGIN
+    DECLARE v_imagen_existe INT;
+    
+    SELECT COUNT(*) INTO v_imagen_existe
+    FROM inmuebles_imagenes WHERE id_imagen = p_id_imagen;
+    
+    IF v_imagen_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La imagen especificada no existe';
+    END IF;
+    
+    UPDATE inmuebles_imagenes
+    SET descripcion = p_nueva_descripcion
+    WHERE id_imagen = p_id_imagen;
+END //
+
+-- Procedimiento para limpiar imágenes huérfanas
+CREATE PROCEDURE LimpiarImagenesHuerfanas(
+    OUT p_imagenes_eliminadas INT
+)
+BEGIN
+    DECLARE v_contador INT DEFAULT 0;
+    
+    CREATE TEMPORARY TABLE tmp_imagenes_huerfanas (
+        id_imagen INT,
+        ruta_imagen VARCHAR(255)
+    );
+    
+    INSERT INTO tmp_imagenes_huerfanas
+    SELECT id_imagen, ruta_imagen
+    FROM inmuebles_imagenes ii
+    WHERE NOT EXISTS (
+        SELECT 1 FROM inmuebles i 
+        WHERE i.id_inmueble = ii.id_inmueble
+    );
+    
+    SELECT COUNT(*) INTO v_contador FROM tmp_imagenes_huerfanas;
+    
+    DELETE FROM inmuebles_imagenes
+    WHERE id_imagen IN (SELECT id_imagen FROM tmp_imagenes_huerfanas);
+    
+    DROP TEMPORARY TABLE IF EXISTS tmp_imagenes_huerfanas;
+    
+    SET p_imagenes_eliminadas = v_contador;
+END //
+
+-- Procedimiento para obtener clientes activos
+CREATE PROCEDURE ObtenerClientesActivos()
+BEGIN
+    SELECT 
+        c.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_cliente
+    FROM clientes c
+    LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_estado = 1
+    ORDER BY c.fecha_registro DESC;
+END //
+
+-- Procedimiento para obtener clientes inactivos
+CREATE PROCEDURE ObtenerClientesInactivos()
+BEGIN
+    SELECT 
+        c.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_cliente
+    FROM clientes c
+    LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_estado != 1
+    ORDER BY c.fecha_registro DESC;
+END //
+
+-- Procedimiento para obtener cliente por ID
+CREATE PROCEDURE ObtenerClientePorId(IN p_id_cliente INT)
+BEGIN
+    SELECT 
+        c.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_cliente
+    FROM clientes c
+    LEFT JOIN direcciones d ON c.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON c.id_estado = e.id_estado
+    WHERE c.id_cliente = p_id_cliente;
+END //
+
+-- Procedimiento para obtener inmuebles por cliente
+CREATE PROCEDURE ObtenerInmueblesPorCliente(IN p_id_cliente INT)
+BEGIN
+    SELECT 
+        i.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_inmueble
+    FROM inmuebles i
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON i.id_estado = e.id_estado
+    WHERE i.id_cliente = p_id_cliente;
+END //
+
+-- Procedimiento para asignar inmueble a cliente
+CREATE PROCEDURE AsignarInmuebleACliente(
+    IN p_id_cliente INT,
+    IN p_id_inmueble INT,
+    IN p_fecha_adquisicion DATE,
+    OUT p_resultado BOOLEAN
+)
+BEGIN
+    DECLARE v_existe INT;
+    
+    SELECT COUNT(*) INTO v_existe
+    FROM cliente_inmueble 
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_existe > 0 THEN
+        SET p_resultado = FALSE;
+    ELSE
+        START TRANSACTION;
+        
+        INSERT INTO cliente_inmueble (id_cliente, id_inmueble, fecha_adquisicion)
+        VALUES (p_id_cliente, p_id_inmueble, p_fecha_adquisicion);
+        SET p_resultado = TRUE;
+        
+        COMMIT;
+    END IF;
+END //
+
+-- Procedimiento para desasignar inmueble de cliente
+CREATE PROCEDURE DesasignarInmuebleDeCliente(
+    IN p_id_inmueble INT,
+    OUT p_resultado BOOLEAN
+)
+BEGIN
+    START TRANSACTION;
+    
+    DELETE FROM cliente_inmueble 
+    WHERE id_inmueble = p_id_inmueble;
+    
+    SET p_resultado = ROW_COUNT() > 0;
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener todos los usuarios
+CREATE PROCEDURE ObtenerUsuarios()
+BEGIN
+    SELECT * FROM usuarios;
+END //
+
+-- Procedimiento para obtener usuario por ID
+CREATE PROCEDURE ObtenerUsuarioPorId(IN p_id_usuario INT)
+BEGIN
+    SELECT * FROM usuarios 
+    WHERE id_usuario = p_id_usuario;
+END //
+
+-- Procedimiento para verificar credenciales
+CREATE PROCEDURE VerificarCredenciales(
+    IN p_nombre_usuario VARCHAR(100),
+    IN p_contraseña VARCHAR(255),
+    OUT p_existe BOOLEAN
+)
+BEGIN
+    SELECT COUNT(*) > 0 INTO p_existe
+    FROM usuarios 
+    WHERE nombre_usuario = p_nombre_usuario 
+    AND contraseña_usuario = EncriptarContraseña(p_contraseña);
+END //
+
+-- Procedimiento para verificar credenciales de administrador
+CREATE PROCEDURE VerificarCredencialesAdmin(
+    IN p_nombre_admin VARCHAR(100),
+    IN p_contraseña VARCHAR(255),
+    OUT p_existe BOOLEAN
+)
+BEGIN
+    SELECT COUNT(*) > 0 INTO p_existe
+    FROM administrador 
+    WHERE NombreAdmin = p_nombre_admin 
+    AND Contraseña = p_contraseña;
+END //
+
+-- Procedimiento para obtener administradores
+CREATE PROCEDURE ObtenerAdministradores()
+BEGIN
+    SELECT * FROM administrador;
+END //
+
+-- Procedimiento para crear administrador
+CREATE PROCEDURE CrearAdministrador(
+    IN p_nombre_admin VARCHAR(100),
+    IN p_contraseña VARCHAR(255),
+    OUT p_id_admin_out INT
+)
+BEGIN
+    START TRANSACTION;
+    
+    INSERT INTO administrador (NombreAdmin, Contraseña)
+    VALUES (p_nombre_admin, p_contraseña);
+    
+    SET p_id_admin_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para actualizar contraseña de administrador
+CREATE PROCEDURE ActualizarContrasenaAdmin(
+    IN p_nombre_admin VARCHAR(100),
+    IN p_nueva_contraseña VARCHAR(255),
+    OUT p_filas_afectadas INT
+)
+BEGIN
+    START TRANSACTION;
+    
+    UPDATE administrador 
+    SET Contraseña = p_nueva_contraseña 
+    WHERE NombreAdmin = p_nombre_admin;
+    
+    SET p_filas_afectadas = ROW_COUNT();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener venta por ID
+CREATE PROCEDURE ObtenerVentaPorId(IN p_id_venta INT)
+BEGIN
+    SELECT 
+        v.id_venta,
+        v.fecha_venta,
+        v.id_cliente,
+        v.id_inmueble,
+        v.ingreso,
+        v.comision_proveedores,
+        v.utilidad_bruta,
+        v.utilidad_neta,
+        v.id_estado,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente,
+        i.nombre_inmueble,
+        i.tipo_inmueble,
+        i.tipo_operacion,
+        e.nombre_estado AS estado_venta
+    FROM ventas v
+    JOIN clientes c ON v.id_cliente = c.id_cliente
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    JOIN estados e ON v.id_estado = e.id_estado
+    WHERE v.id_venta = p_id_venta;
+END //
+
+-- Procedimiento para obtener estadísticas de ventas con filtro de fecha
+CREATE PROCEDURE ObtenerEstadisticasVentasPorFecha(
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE
+)
+BEGIN
+    SELECT 
+        COUNT(id_venta) AS total_ventas,
+        SUM(ingreso) AS ingresos_totales,
+        SUM(comision_proveedores) AS comisiones_totales,
+        SUM(utilidad_bruta) AS utilidad_bruta_total,
+        SUM(utilidad_neta) AS utilidad_neta_total,
+        AVG(utilidad_neta) AS utilidad_promedio
+    FROM ventas
+    WHERE fecha_venta BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND id_estado = 8;
+END //
+
+-- Procedimiento para obtener ventas mensuales para gráficos
+CREATE PROCEDURE ObtenerVentasMensuales(
+    IN p_anio INT
+)
+BEGIN
+    SELECT 
+        MONTH(fecha_venta) AS mes,
+        COUNT(id_venta) AS cantidad_ventas,
+        SUM(ingreso) AS ingresos_totales,
+        SUM(utilidad_neta) AS utilidad_neta
+    FROM ventas
+    WHERE YEAR(fecha_venta) = p_anio
+    AND id_estado = 8
+    GROUP BY MONTH(fecha_venta)
+    ORDER BY MONTH(fecha_venta);
+END //
+
+-- Procedimiento para verificar si existe un nombre de usuario
+CREATE PROCEDURE VerificarNombreUsuarioExiste(
+    IN p_nombre_usuario VARCHAR(100),
+    OUT p_existe BOOLEAN
+)
+BEGIN
+    SELECT COUNT(*) > 0 INTO p_existe
+    FROM usuarios
+    WHERE nombre_usuario = p_nombre_usuario;
+END //
+
+-- Procedimiento para verificar si existe un nombre de usuario excluyendo un ID
+CREATE PROCEDURE VerificarNombreUsuarioExisteExcluyendoId(
+    IN p_nombre_usuario VARCHAR(100),
+    IN p_id_excluir INT,
+    OUT p_existe BOOLEAN
+)
+BEGIN
+    SELECT COUNT(*) > 0 INTO p_existe
+    FROM usuarios
+    WHERE nombre_usuario = p_nombre_usuario AND id_usuario != p_id_excluir;
+END //
+
+-- Procedimiento para guardar una imagen de un inmueble
+CREATE PROCEDURE GuardarImagenInmueble(
+    IN p_id_inmueble INT,
+    IN p_ruta_imagen VARCHAR(255),
+    IN p_descripcion VARCHAR(100),
+    IN p_es_principal BOOLEAN
+)
+BEGIN
+    DECLARE v_inmueble_existe INT;
+    
+    SELECT COUNT(*) INTO v_inmueble_existe
+    FROM inmuebles WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_inmueble_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    IF p_es_principal = 1 THEN
+        UPDATE inmuebles_imagenes
+        SET es_principal = 0
+        WHERE id_inmueble = p_id_inmueble;
+    END IF;
+    
+    INSERT INTO inmuebles_imagenes 
+        (id_inmueble, ruta_imagen, descripcion, es_principal, fecha_carga)
+    VALUES 
+        (p_id_inmueble, p_ruta_imagen, p_descripcion, p_es_principal, NOW());
+    
+    COMMIT;
+END //
+
+-- Procedimiento para verificar si un usuario existe
+CREATE PROCEDURE VerificarUsuarioExiste(
+    IN p_id_usuario INT,
+    OUT p_existe BOOLEAN
+)
+BEGIN
+    SELECT COUNT(*) > 0 INTO p_existe
+    FROM usuarios
+    WHERE id_usuario = p_id_usuario;
+END //
+
+-- Procedimiento para crear un usuario administrador
+CREATE PROCEDURE CrearUsuarioAdministrador(
+    IN p_nombre_admin VARCHAR(100),
+    IN p_contraseña VARCHAR(255),
+    OUT p_id_admin_out INT
+)
+BEGIN
+    START TRANSACTION;
+    
+    INSERT INTO administrador (NombreAdmin, Contraseña)
+    VALUES (p_nombre_admin, p_contraseña);
+    
+    SET p_id_admin_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener datos de una venta para un reporte
+CREATE PROCEDURE ObtenerVentaReporte(
+    IN p_id_venta INT
+)
+BEGIN
+    SELECT 
+        v.id_venta,
+        v.fecha_venta,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente,
+        i.nombre_inmueble,
+        i.tipo_inmueble,
+        i.tipo_operacion,
+        v.ingreso,
+        v.comision_proveedores,
+        v.utilidad_bruta,
+        v.utilidad_neta,
+        e.nombre_estado AS estado_venta
+    FROM ventas v
+    JOIN clientes c ON v.id_cliente = c.id_cliente
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    JOIN estados e ON v.id_estado = e.id_estado
+    WHERE v.id_venta = p_id_venta;
+END //
+
+-- Procedimiento para obtener estadísticas detalladas de ventas
+CREATE PROCEDURE ObtenerEstadisticasVentasDetalladas(
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE
+)
+BEGIN
+    SET p_fecha_inicio = COALESCE(p_fecha_inicio, '2000-01-01');
+    SET p_fecha_fin = COALESCE(p_fecha_fin, CURRENT_DATE());
+    
+    -- Estadísticas generales
+    SELECT 
+        COUNT(*) AS total_ventas,
+        SUM(ingreso) AS ingreso_total,
+        SUM(utilidad_neta) AS utilidad_total,
+        AVG(utilidad_neta) AS utilidad_promedio,
+        MIN(ingreso) AS venta_minima,
+        MAX(ingreso) AS venta_maxima,
+        COALESCE(AVG(utilidad_neta / NULLIF(ingreso, 0)) * 100, 0) AS porcentaje_utilidad_promedio
+    FROM ventas
+    WHERE fecha_venta BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND id_estado = 8;
+    
+    -- Estadísticas por tipo de inmueble
+    SELECT 
+        i.tipo_inmueble,
+        COUNT(*) AS cantidad,
+        SUM(v.ingreso) AS ingreso_total,
+        SUM(v.utilidad_neta) AS utilidad_total,
+        COALESCE(AVG(v.utilidad_neta / NULLIF(v.ingreso, 0)) * 100, 0) AS porcentaje_utilidad
+    FROM ventas v
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    WHERE v.fecha_venta BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND v.id_estado = 8
+    GROUP BY i.tipo_inmueble
+    ORDER BY utilidad_total DESC;
+    
+    -- Ventas por mes
+    SELECT 
+        YEAR(fecha_venta) AS año,
+        MONTH(fecha_venta) AS mes,
+        COUNT(*) AS cantidad_ventas,
+        SUM(ingreso) AS ingreso_total,
+        SUM(utilidad_neta) AS utilidad_total
+    FROM ventas
+    WHERE fecha_venta BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND id_estado = 8
+    GROUP BY YEAR(fecha_venta), MONTH(fecha_venta)
+    ORDER BY YEAR(fecha_venta), MONTH(fecha_venta);
+END //
+
+-- Procedimiento para búsqueda avanzada de inmuebles
+CREATE PROCEDURE BuscarInmueblesAvanzado(
+    IN p_tipo VARCHAR(20),
+    IN p_operacion VARCHAR(20),
+    IN p_precio_min DECIMAL(12,2),
+    IN p_precio_max DECIMAL(12,2),
+    IN p_ciudad VARCHAR(100),
+    IN p_estado_geo VARCHAR(100),
+    IN p_margen_min DECIMAL(5,2)
+)
+BEGIN
+    SELECT 
+        i.*,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias,
+        e.nombre_estado AS estado_inmueble
+    FROM inmuebles i
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    LEFT JOIN estados e ON i.id_estado = e.id_estado
+    WHERE 1=1 
+        AND (p_tipo IS NULL OR p_tipo = '' OR i.tipo_inmueble = p_tipo)
+        AND (p_operacion IS NULL OR p_operacion = '' OR i.tipo_operacion = p_operacion)
+        AND (p_precio_min IS NULL OR i.monto_total >= p_precio_min)
+        AND (p_precio_max IS NULL OR i.monto_total <= p_precio_max)
+        AND (p_ciudad IS NULL OR p_ciudad = '' OR d.ciudad LIKE CONCAT('%', p_ciudad, '%'))
+        AND (p_estado_geo IS NULL OR p_estado_geo = '' OR d.estado_geografico LIKE CONCAT('%', p_estado_geo, '%'))
+        AND (p_margen_min IS NULL OR i.margen_utilidad >= p_margen_min)
+    ORDER BY i.fecha_registro DESC;
+END //
+
+-- Procedimiento para verificar conexion
+CREATE PROCEDURE VerificarConexion()
+BEGIN
+    SELECT 1 as test;
+END //
+
+-- Procedimiento para registrar un nuevo movimiento
+CREATE PROCEDURE RegistrarMovimientoRenta(
+    IN p_id_inmueble INT,
+    IN p_id_cliente INT,
+    IN p_tipo_movimiento ENUM('ingreso', 'egreso'),
+    IN p_concepto VARCHAR(100),
+    IN p_monto DECIMAL(12,2),
+    IN p_fecha_movimiento DATE,
+    IN p_comentarios TEXT,
+    OUT p_id_movimiento_out INT
+)
+BEGIN
+    DECLARE v_mes_correspondiente VARCHAR(7);
+    DECLARE v_estado_inmueble INT;
+    
+    -- Verificar que el inmueble exista y esté rentado
+    SELECT id_estado INTO v_estado_inmueble
+    FROM inmuebles 
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF v_estado_inmueble IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El inmueble especificado no existe';
+    END IF;
+    
+    IF v_estado_inmueble != 5 THEN -- 5 = rentado
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Solo se pueden registrar movimientos para inmuebles rentados';
+    END IF;
+    
+    -- Crear el formato YYYY-MM para mes correspondiente
+    SET v_mes_correspondiente = DATE_FORMAT(p_fecha_movimiento, '%Y-%m');
+    
+    START TRANSACTION;
+    
+    INSERT INTO movimientos_renta (
+        id_inmueble, id_cliente, tipo_movimiento, concepto, monto, 
+        fecha_movimiento, mes_correspondiente, comentarios
+    ) VALUES (
+        p_id_inmueble, p_id_cliente, p_tipo_movimiento, p_concepto, p_monto,
+        p_fecha_movimiento, v_mes_correspondiente, p_comentarios
+    );
+    
+    SET p_id_movimiento_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener movimientos de un inmueble
+CREATE PROCEDURE ObtenerMovimientosPorInmueble(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        mr.*,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente,
+        i.nombre_inmueble,
+        e.nombre_estado
+    FROM movimientos_renta mr
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN estados e ON mr.id_estado = e.id_estado
+    WHERE mr.id_inmueble = p_id_inmueble
+    ORDER BY mr.fecha_movimiento DESC;
+END //
+
+-- Procedimiento para agregar comprobante a un movimiento
+CREATE PROCEDURE AgregarComprobanteMovimiento(
+    IN p_id_movimiento INT,
+    IN p_ruta_imagen VARCHAR(255),
+    IN p_descripcion VARCHAR(100),
+    IN p_es_principal BOOLEAN,
+    OUT p_id_comprobante_out INT
+)
+BEGIN
+    DECLARE v_movimiento_existe INT;
+    
+    -- Verificar que el movimiento exista
+    SELECT COUNT(*) INTO v_movimiento_existe
+    FROM movimientos_renta 
+    WHERE id_movimiento = p_id_movimiento;
+    
+    IF v_movimiento_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El movimiento especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Si es principal, actualizar los demás comprobantes
+    IF p_es_principal = 1 THEN
+        UPDATE comprobantes_movimientos
+        SET es_principal = 0
+        WHERE id_movimiento = p_id_movimiento;
+    END IF;
+    
+    INSERT INTO comprobantes_movimientos (
+        id_movimiento, ruta_imagen, descripcion, es_principal
+    ) VALUES (
+        p_id_movimiento, p_ruta_imagen, p_descripcion, p_es_principal
+    );
+    
+    SET p_id_comprobante_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener comprobantes de un movimiento
+CREATE PROCEDURE ObtenerComprobantesPorMovimiento(
+    IN p_id_movimiento INT
+)
+BEGIN
+    SELECT *
+    FROM comprobantes_movimientos
+    WHERE id_movimiento = p_id_movimiento
+    ORDER BY es_principal DESC, fecha_carga DESC;
+END //
+
+-- Procedimiento para obtener resumen de movimientos por mes
+CREATE PROCEDURE ObtenerResumenMovimientosRenta(
+    IN p_id_inmueble INT,
+    IN p_anio INT,
+    IN p_mes INT
+)
+BEGIN
+    DECLARE v_mes_correspondiente VARCHAR(7);
+    
+    -- Crear formato YYYY-MM para filtrar
+    SET v_mes_correspondiente = CONCAT(
+        LPAD(CAST(p_anio AS CHAR), 4, '0'), '-',
+        LPAD(CAST(p_mes AS CHAR), 2, '0')
+    );
+    
+    -- Ingresos totales
+    SELECT SUM(monto) AS total_ingresos
+    FROM movimientos_renta
+    WHERE id_inmueble = p_id_inmueble 
+      AND tipo_movimiento = 'ingreso'
+      AND mes_correspondiente = v_mes_correspondiente;
+      
+    -- Egresos totales
+    SELECT SUM(monto) AS total_egresos
+    FROM movimientos_renta
+    WHERE id_inmueble = p_id_inmueble 
+      AND tipo_movimiento = 'egreso'
+      AND mes_correspondiente = v_mes_correspondiente;
+      
+    -- Detalles de movimientos
+    SELECT 
+        mr.*,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente
+    FROM movimientos_renta mr
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    WHERE mr.id_inmueble = p_id_inmueble
+      AND mr.mes_correspondiente = v_mes_correspondiente
+    ORDER BY mr.fecha_movimiento;
+END //
+
+-- Procedimiento para eliminar un movimiento
+CREATE PROCEDURE EliminarMovimientoRenta(
+    IN p_id_movimiento INT
+)
+BEGIN
+    DECLARE v_movimiento_existe INT;
+    
+    SELECT COUNT(*) INTO v_movimiento_existe
+    FROM movimientos_renta 
+    WHERE id_movimiento = p_id_movimiento;
+    
+    IF v_movimiento_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El movimiento especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Los comprobantes se eliminarán en cascada
+    DELETE FROM movimientos_renta
+    WHERE id_movimiento = p_id_movimiento;
+    
+    COMMIT;
+END //
+
+CREATE PROCEDURE ObtenerDetalleRenta(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        cr.*,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente,
+        e.nombre_estado AS estado_renta
+    FROM 
+        contratos_renta cr
+    JOIN 
+        clientes c ON cr.id_cliente = c.id_cliente
+    JOIN 
+        estados e ON cr.id_estado = e.id_estado
+    WHERE 
+        cr.id_inmueble = p_id_inmueble 
+        AND cr.id_estado = 1
+    ORDER BY 
+        cr.fecha_registro DESC
+    LIMIT 1;
+END //
+
+CREATE PROCEDURE RegistrarContratoRenta(
+    IN p_id_inmueble INT,
+    IN p_id_cliente INT,
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE,
+    IN p_monto_mensual DECIMAL(12,2),
+    IN p_condiciones_adicionales TEXT,
+    OUT p_id_contrato_out INT
+)
+BEGIN
+    -- Verificar si ya existe un contrato activo para este inmueble
+    DECLARE v_contrato_activo INT;
+    SELECT COUNT(*) INTO v_contrato_activo 
+    FROM contratos_renta 
+    WHERE id_inmueble = p_id_inmueble AND id_estado = 1;
+    
+    IF v_contrato_activo > 0 THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Ya existe un contrato activo para este inmueble';
+    END IF;
+    
+    -- Insertar el contrato
+    INSERT INTO contratos_renta(
+        id_inmueble,
+        id_cliente,
+        fecha_inicio,
+        fecha_fin,
+        monto_mensual,
+        condiciones_adicionales
+    ) VALUES (
+        p_id_inmueble,
+        p_id_cliente,
+        p_fecha_inicio,
+        p_fecha_fin,
+        p_monto_mensual,
+        p_condiciones_adicionales
+    );
+    
+    SET p_id_contrato_out = LAST_INSERT_ID();
+    
+    -- Actualizar el estado del inmueble a "Rentado" (5)
+    UPDATE inmuebles SET id_estado = 5 WHERE id_inmueble = p_id_inmueble;
+END //
+
+CREATE PROCEDURE ActualizarEstadoContratoRenta(
+    IN p_id_contrato INT,
+    IN p_nuevo_estado INT
+)
+BEGIN
+    DECLARE v_id_inmueble INT;
+    
+    -- Obtener el ID del inmueble asociado al contrato
+    SELECT id_inmueble INTO v_id_inmueble 
+    FROM contratos_renta 
+    WHERE id_contrato = p_id_contrato;
+    
+    IF v_id_inmueble IS NULL THEN
+        SIGNAL SQLSTATE '45000' 
+        SET MESSAGE_TEXT = 'Contrato no encontrado';
+    END IF;
+    
+    -- Actualizar el estado del contrato
+    UPDATE contratos_renta 
+    SET id_estado = p_nuevo_estado 
+    WHERE id_contrato = p_id_contrato;
+    
+    -- Si se finaliza el contrato (estado 2 = inactivo), actualizar el estado del inmueble a Disponible (3)
+    IF p_nuevo_estado = 2 THEN
+        UPDATE inmuebles SET id_estado = 3 WHERE id_inmueble = v_id_inmueble;
+    END IF;
+END //
+
+-- Procedimiento para obtener todos los contratos con datos relacionales
+CREATE PROCEDURE ObtenerContratos()
+BEGIN
+  SELECT 
+    cr.*,
+    c.nombre AS nombre_cliente,
+    c.apellido_paterno AS apellido_cliente,
+    e.nombre_estado AS estado_renta,
+    i.nombre_inmueble
+  FROM contratos_renta cr
+  JOIN clientes c ON cr.id_cliente = c.id_cliente
+  JOIN estados e ON cr.id_estado = e.id_estado
+  JOIN inmuebles i ON cr.id_inmueble = i.id_inmueble
+  ORDER BY cr.fecha_registro DESC;
+END //
+
+-- Procedimiento para buscar contratos con filtros específicos
+CREATE PROCEDURE BuscarContratos(
+  IN p_id_cliente INT,
+  IN p_id_inmueble INT,
+  IN p_id_estado INT,
+  IN p_fecha_inicio DATE,
+  IN p_fecha_fin DATE
+)
+BEGIN
+  SELECT 
+    cr.*,
+    c.nombre AS nombre_cliente,
+    c.apellido_paterno AS apellido_cliente,
+    e.nombre_estado AS estado_renta,
+    i.nombre_inmueble
+  FROM contratos_renta cr
+  JOIN clientes c ON cr.id_cliente = c.id_cliente
+  JOIN estados e ON cr.id_estado = e.id_estado
+  JOIN inmuebles i ON cr.id_inmueble = i.id_inmueble
+  WHERE 
+    (p_id_cliente IS NULL OR cr.id_cliente = p_id_cliente) AND
+    (p_id_inmueble IS NULL OR cr.id_inmueble = p_id_inmueble) AND
+    (p_id_estado IS NULL OR cr.id_estado = p_id_estado) AND
+    (p_fecha_inicio IS NULL OR cr.fecha_inicio >= p_fecha_inicio) AND
+    (p_fecha_fin IS NULL OR cr.fecha_fin <= p_fecha_fin)
+  ORDER BY cr.fecha_inicio DESC;
+END //
+
+-- Procedimiento para obtener estadísticas de rentas
+CREATE PROCEDURE ObtenerEstadisticasRentas(
+  IN p_fecha_inicio DATE,
+  IN p_fecha_fin DATE
+)
+BEGIN
+  -- Primera consulta: estadísticas de contratos
+  SELECT 
+    COUNT(*) as total_contratos,
+    SUM(monto_mensual) as ingresos_mensuales,
+    COUNT(IF(id_estado = 1, 1, NULL)) as contratos_activos
+  FROM contratos_renta
+  WHERE (fecha_inicio BETWEEN p_fecha_inicio AND p_fecha_fin) 
+     OR (fecha_fin BETWEEN p_fecha_inicio AND p_fecha_fin)
+     OR (fecha_inicio <= p_fecha_inicio AND fecha_fin >= p_fecha_fin);
+
+  -- Segunda consulta: estadísticas de movimientos
+  SELECT 
+    COALESCE(SUM(IF(tipo_movimiento = 'ingreso', monto, 0)), 0) as total_ingresos,
+    COALESCE(SUM(IF(tipo_movimiento = 'egreso', monto, 0)), 0) as total_egresos,
+    COALESCE(SUM(IF(tipo_movimiento = 'ingreso', monto, 0)), 0) - 
+    COALESCE(SUM(IF(tipo_movimiento = 'egreso', monto, 0)), 0) as balance
+  FROM movimientos_renta
+  WHERE fecha_movimiento BETWEEN p_fecha_inicio AND p_fecha_fin;
+END //
+
+-- Procedimiento para Obtener imagen de inmueble de manera segura
+CREATE PROCEDURE ObtenerImagenInmuebleSegura(
+    IN p_id_inmueble INT
+)
+BEGIN
+    DECLARE imagen_count INT;
+    
+    -- Verificar si hay imágenes para este inmueble
+    SELECT COUNT(*) INTO imagen_count
+    FROM inmuebles_imagenes
+    WHERE id_inmueble = p_id_inmueble;
+    
+    IF imagen_count = 0 THEN
+        -- No hay imágenes, devolver conjunto vacío
+        SELECT NULL as id_imagen, p_id_inmueble as id_inmueble, 
+               NULL as ruta_imagen, NULL as descripcion, 
+               0 as es_principal, NULL as fecha_carga;
+    ELSE
+        -- Primero intentar obtener la imagen principal
+        SELECT * FROM inmuebles_imagenes
+        WHERE id_inmueble = p_id_inmueble AND es_principal = 1
+        LIMIT 1 INTO @imagen_principal;
+        
+        IF @imagen_principal IS NULL THEN
+            -- Si no hay imagen principal, obtener la primera disponible
+            SELECT * FROM inmuebles_imagenes
+            WHERE id_inmueble = p_id_inmueble 
+            ORDER BY fecha_carga DESC
+            LIMIT 1;
+        ELSE
+            -- Devolver la imagen principal
+            SELECT * FROM inmuebles_imagenes
+            WHERE id_inmueble = p_id_inmueble AND es_principal = 1
+            LIMIT 1;
+        END IF;
+    END IF;
+END;
 DELIMITER ;

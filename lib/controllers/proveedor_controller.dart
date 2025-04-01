@@ -1,11 +1,14 @@
 import 'dart:async';
+import '../utils/applogger.dart';
 import '../models/proveedor.dart';
-import 'dart:developer' as developer;
 import '../services/proveedores_service.dart';
 
 class ProveedorController {
   final ProveedoresService _service;
   bool isInitialized = false;
+
+  // Control para evitar errores duplicados en la consola
+  bool _procesandoError = false;
 
   // Stream controller para proveedores
   final StreamController<List<Proveedor>> _proveedoresController =
@@ -23,53 +26,68 @@ class ProveedorController {
   // Constructor que requiere explícitamente un ProveedoresService
   ProveedorController(this._service);
 
+  /// Método auxiliar para ejecutar operaciones con manejo de errores consistente
+  Future<T> _ejecutarOperacion<T>(
+    String descripcion,
+    Future<T> Function() operacion,
+  ) async {
+    try {
+      AppLogger.info('Iniciando operación: $descripcion');
+      final resultado = await operacion();
+      AppLogger.info('Operación completada: $descripcion');
+      return resultado;
+    } catch (e, stackTrace) {
+      // Evitar múltiples procesamientos del mismo error
+      if (!_procesandoError) {
+        _procesandoError = true;
+        AppLogger.error('Error en operación "$descripcion"', e, stackTrace);
+        _proveedoresController.sink.addError("Error en $descripcion: $e");
+        _procesandoError = false;
+      }
+      throw Exception('Error en $descripcion: $e');
+    }
+  }
+
   /// Verifica y crea el usuario administrador si no existe
   Future<void> crearUsuarioAdministrador() async {
-    try {
-      developer.log('Verificando existencia del usuario administrador...');
-      final conn = await _service.verificarConexion();
+    return _ejecutarOperacion(
+      'verificar/crear usuario administrador',
+      () async {
+        AppLogger.info('Verificando existencia del usuario administrador');
+        final conn = await _service.verificarConexion();
 
-      // Verificar si existe el usuario
-      final verificacion = await conn.query(
-        'SELECT id_usuario FROM usuarios WHERE id_usuario = ?',
-        [1],
-      );
+        // Llamar al procedimiento almacenado para verificar existencia
+        await conn.query('CALL VerificarUsuarioExiste(1, @existe)');
+        final resultadoQuery = await conn.query('SELECT @existe as existe');
 
-      if (verificacion.isEmpty) {
-        developer.log('Creando usuario administrador automáticamente...');
+        final bool existe =
+            resultadoQuery.isNotEmpty && resultadoQuery.first['existe'] == 1;
 
-        // Crear usuario con todos los campos requeridos
-        await conn.query('''
-          INSERT INTO usuarios (
-            id_usuario, 
-            nombre, 
-            apellido, 
-            nombre_usuario, 
-            contraseña_usuario, 
-            correo_cliente,
-            id_estado
-          ) 
-          VALUES (1, 'Admin', 'Sistema', 'admin', 'admin123', 'admin@sistema.com', 1)
-          ON DUPLICATE KEY UPDATE id_usuario = 1
-        ''');
+        if (!existe) {
+          AppLogger.info('Creando usuario administrador automáticamente');
 
-        developer.log('Usuario administrador creado exitosamente');
-      } else {
-        developer.log('El usuario administrador ya existe');
-      }
-    } catch (e) {
-      developer.log(
-        'Error verificando/creando usuario administrador: $e',
-        error: e,
-      );
-      // No relanzamos la excepción para permitir que la aplicación continúe
-    }
+          // Llamar al procedimiento almacenado para crear admin
+          await conn.query('CALL CrearUsuarioAdministrador(?, ?, ?, ?, ?)', [
+            'Admin',
+            'Sistema',
+            'admin',
+            'admin123',
+            'admin@sistema.com',
+          ]);
+
+          AppLogger.info('Usuario administrador creado exitosamente');
+        } else {
+          AppLogger.info('El usuario administrador ya existe');
+        }
+        return;
+      },
+    );
   }
 
   /// Filtra los proveedores por un término de búsqueda
   Future<void> filtrarProveedores(String termino) async {
-    try {
-      developer.log('Filtrando proveedores con término: "$termino"');
+    return _ejecutarOperacion('filtrar proveedores', () async {
+      AppLogger.info('Filtrando proveedores con término: "$termino"');
 
       if (termino.trim().isEmpty) {
         // Si no hay término de búsqueda, cargar todos los proveedores
@@ -77,79 +95,62 @@ class ProveedorController {
         return;
       }
 
-      // Usar el método del servicio para buscar proveedores
+      // Usar el método del servicio para buscar proveedores (ya usa procedimiento almacenado)
       final proveedoresFiltrados = await _service.buscarProveedores(termino);
 
       // Actualizar la lista local y el stream
       _proveedoresList = proveedoresFiltrados;
-      _proveedoresController.add(List<Proveedor>.from(_proveedoresList));
+      _proveedoresController.sink.add(List<Proveedor>.from(_proveedoresList));
 
-      developer.log(
+      AppLogger.info(
         'Lista de proveedores filtrada: ${_proveedoresList.length} resultados',
       );
-    } catch (e) {
-      developer.log('Error al filtrar proveedores: $e', error: e);
-      rethrow;
-    }
+      return;
+    });
   }
 
   /// Inicializa el controlador cargando los proveedores
   Future<void> inicializar() async {
     if (isInitialized) return;
 
-    try {
-      developer.log('Inicializando controlador de proveedores');
+    return _ejecutarOperacion('inicializar controlador', () async {
+      AppLogger.info('Inicializando controlador de proveedores');
 
       // Verificar y crear usuario administrador si es necesario
       await crearUsuarioAdministrador();
 
       // Establecer ID de usuario por defecto para operaciones de auditoría
       usuarioActualId = 1;
-      developer.log(
-        'Inicializando controlador de proveedores con usuarioActualId=$usuarioActualId',
-      );
+      AppLogger.info('Inicializando con usuarioActualId=$usuarioActualId');
 
       await cargarProveedores();
       isInitialized = true;
-      developer.log('Controlador de proveedores inicializado correctamente');
-    } catch (e) {
-      developer.log(
-        'Error al inicializar el controlador de proveedores: $e',
-        error: e,
-      );
-      rethrow;
-    }
+      AppLogger.info('Controlador de proveedores inicializado correctamente');
+      return;
+    });
   }
 
   /// Carga o actualiza la lista de proveedores
   Future<void> cargarProveedores() async {
-    try {
+    return _ejecutarOperacion('cargar proveedores', () async {
+      // El método obtenerProveedores ya usa CALL ObtenerProveedores() internamente
       _proveedoresList = await _service.obtenerProveedores();
-      developer.log('Proveedores cargados: ${_proveedoresList.length}');
+      AppLogger.info('Proveedores cargados: ${_proveedoresList.length}');
 
-      // Depuración extra
-      for (var p in _proveedoresList) {
-        developer.log(
-          '  - ${p.idProveedor}: ${p.nombre} (Estado: ${p.idEstado})',
-        );
-      }
-
-      // CORREGIDO: Crear una nueva instancia de lista para forzar la actualización del stream
+      // Crear nueva instancia de lista para forzar la actualización del stream
       _proveedoresController.add(List<Proveedor>.from(_proveedoresList));
-      developer.log('Stream de proveedores actualizado con nueva referencia');
-    } catch (e) {
-      developer.log('Error al cargar proveedores: $e', error: e);
-      rethrow;
-    }
+      AppLogger.info('Stream de proveedores actualizado');
+      return;
+    });
   }
 
   /// Crea un nuevo proveedor
   Future<Proveedor> crearProveedor(Proveedor proveedor) async {
-    try {
+    return _ejecutarOperacion('crear proveedor', () async {
       // Verificar si hay un ID de usuario válido
       if (usuarioActualId == null) {
-        developer.log(
-          'Advertencia: No hay ID de usuario actual, usando ID=1 por defecto',
+        AppLogger.warning(
+          'No hay ID de usuario actual, usando ID=1 por defecto',
         );
         usuarioActualId = 1;
 
@@ -157,22 +158,23 @@ class ProveedorController {
         await crearUsuarioAdministrador();
       }
 
+      // El método crearProveedor ya usa CALL CrearProveedor() internamente
       final nuevoProveedor = await _service.crearProveedor(
         proveedor,
         usuarioModificacion: usuarioActualId,
       );
 
-      await cargarProveedores(); // Actualizar la lista
+      // Refrescar la lista después de crear un proveedor
+      await Future.delayed(const Duration(milliseconds: 300));
+      await cargarProveedores();
+
       return nuevoProveedor;
-    } catch (e) {
-      developer.log('Error al crear proveedor: $e', error: e);
-      rethrow;
-    }
+    });
   }
 
   /// Actualiza un proveedor existente
   Future<void> actualizarProveedor(Proveedor proveedor) async {
-    try {
+    return _ejecutarOperacion('actualizar proveedor', () async {
       if (proveedor.idProveedor == null) {
         throw Exception(
           'El ID del proveedor no puede ser nulo para actualizar',
@@ -181,8 +183,8 @@ class ProveedorController {
 
       // Verificar si hay un ID de usuario válido
       if (usuarioActualId == null) {
-        developer.log(
-          'Advertencia: No hay ID de usuario actual, usando ID=1 por defecto',
+        AppLogger.warning(
+          'No hay ID de usuario actual, usando ID=1 por defecto',
         );
         usuarioActualId = 1;
 
@@ -190,24 +192,27 @@ class ProveedorController {
         await crearUsuarioAdministrador();
       }
 
+      // El método actualizarProveedor ya usa CALL ActualizarProveedor() internamente
       await _service.actualizarProveedor(
         proveedor,
         usuarioModificacion: usuarioActualId,
       );
-      await cargarProveedores(); // Actualizar la lista
-    } catch (e) {
-      developer.log('Error al actualizar proveedor: $e', error: e);
-      rethrow;
-    }
+
+      // Esperar un poco para que la BD procese el cambio
+      await Future.delayed(const Duration(milliseconds: 300));
+      await cargarProveedores();
+
+      return;
+    });
   }
 
   /// Marca un proveedor como inactivo
   Future<void> inactivarProveedor(int idProveedor) async {
-    try {
+    return _ejecutarOperacion('inactivar proveedor', () async {
       // Verificar si hay un ID de usuario válido
       if (usuarioActualId == null) {
-        developer.log(
-          'Advertencia: No hay ID de usuario actual, usando ID=1 por defecto',
+        AppLogger.warning(
+          'No hay ID de usuario actual, usando ID=1 por defecto',
         );
         usuarioActualId = 1;
 
@@ -215,29 +220,30 @@ class ProveedorController {
         await crearUsuarioAdministrador();
       }
 
-      developer.log('Inactivando proveedor ID: $idProveedor');
+      AppLogger.info('Inactivando proveedor ID: $idProveedor');
 
-      // CORREGIDO: Usar la implementación corregida del servicio
+      // El método inactivarProveedor ya usa CALL InactivarProveedor() internamente
       await _service.inactivarProveedor(
         idProveedor,
         usuarioModificacion: usuarioActualId,
       );
 
-      await cargarProveedores(); // Actualizar la lista
-      developer.log('Proveedor inactivado y lista actualizada');
-    } catch (e) {
-      developer.log('Error al inactivar proveedor: $e', error: e);
-      rethrow;
-    }
+      // Esperar un poco para que la BD procese el cambio
+      await Future.delayed(const Duration(milliseconds: 300));
+      await cargarProveedores();
+
+      AppLogger.info('Proveedor inactivado y lista actualizada');
+      return;
+    });
   }
 
   /// Reactiva un proveedor inactivo
   Future<void> reactivarProveedor(int idProveedor) async {
-    try {
+    return _ejecutarOperacion('reactivar proveedor', () async {
       // Verificar si hay un ID de usuario válido
       if (usuarioActualId == null) {
-        developer.log(
-          'Advertencia: No hay ID de usuario actual, usando ID=1 por defecto',
+        AppLogger.warning(
+          'No hay ID de usuario actual, usando ID=1 por defecto',
         );
         usuarioActualId = 1;
 
@@ -245,30 +251,32 @@ class ProveedorController {
         await crearUsuarioAdministrador();
       }
 
-      developer.log('Reactivando proveedor ID: $idProveedor');
+      AppLogger.info('Reactivando proveedor ID: $idProveedor');
 
-      // CORREGIDO: Usar la implementación corregida del servicio
+      // El método reactivarProveedor ya usa CALL ReactivarProveedor() internamente
       await _service.reactivarProveedor(
         idProveedor,
         usuarioModificacion: usuarioActualId,
       );
 
-      await cargarProveedores(); // Actualizar la lista
-      developer.log('Proveedor reactivado y lista actualizada');
-    } catch (e) {
-      developer.log('Error al reactivar proveedor: $e', error: e);
-      rethrow;
-    }
+      // Esperar un poco para que la BD procese el cambio
+      await Future.delayed(const Duration(milliseconds: 300));
+      await cargarProveedores();
+
+      AppLogger.info('Proveedor reactivado y lista actualizada');
+      return;
+    });
   }
 
   /// Establece el ID del usuario actual para operaciones de auditoría
   void setUsuarioActual(int idUsuario) {
     usuarioActualId = idUsuario;
-    developer.log('ID de usuario establecido: $idUsuario');
+    AppLogger.info('ID de usuario establecido: $idUsuario');
   }
 
   /// Libera recursos cuando el controlador ya no se necesita
   void dispose() {
+    AppLogger.info('Liberando recursos de ProveedorController');
     _proveedoresController.close();
   }
 }

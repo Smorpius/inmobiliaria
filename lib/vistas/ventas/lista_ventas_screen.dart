@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import '../../utils/applogger.dart';
 import 'detalles_ventas_screen.dart';
 import 'package:flutter/material.dart';
 import '../../models/venta_model.dart';
@@ -9,11 +10,20 @@ import 'registrar_nueva_venta_screen.dart';
 import '../../providers/venta_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ListaVentasScreen extends ConsumerWidget {
+class ListaVentasScreen extends ConsumerStatefulWidget {
   const ListaVentasScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ListaVentasScreen> createState() => _ListaVentasScreenState();
+}
+
+class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
+  // Mapa para control de errores y evitar duplicados
+  final Map<String, DateTime> _ultimosErrores = {};
+  static const Duration _intervaloMinimoErrores = Duration(minutes: 1);
+
+  @override
+  Widget build(BuildContext context) {
     final ventasState = ref.watch(ventasStateProvider);
 
     return AppScaffold(
@@ -175,7 +185,16 @@ class ListaVentasScreen extends ConsumerWidget {
                 ],
               ),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Text('Error: $error'),
+          error: (error, stackTrace) {
+            // Registrar el error con AppLogger
+            _registrarErrorControlado(
+              'estadisticas_error',
+              'Error al cargar estadísticas generales',
+              error,
+              stackTrace,
+            );
+            return Text('Error al cargar estadísticas: $error');
+          },
         ),
       ),
     );
@@ -302,7 +321,7 @@ class ListaVentasScreen extends ConsumerWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
+                child: const Text('Cancelar'),
               ),
             ],
           ),
@@ -409,6 +428,45 @@ class ListaVentasScreen extends ConsumerWidget {
 
   String _obtenerNombreEstado(String idEstado) {
     return EstadosVenta.obtenerNombre(idEstado);
+  }
+
+  // Registrar error controlando duplicados
+  void _registrarErrorControlado(
+    String codigo,
+    String mensaje,
+    dynamic error,
+    StackTrace stackTrace,
+  ) {
+    final errorKey = codigo;
+    final ahora = DateTime.now();
+
+    // Evitar errores duplicados en corto periodo
+    if (_ultimosErrores.containsKey(errorKey) &&
+        ahora.difference(_ultimosErrores[errorKey]!) <
+            _intervaloMinimoErrores) {
+      return;
+    }
+
+    // Registrar error
+    _ultimosErrores[errorKey] = ahora;
+
+    // Limitar tamaño del mapa para evitar fugas de memoria
+    if (_ultimosErrores.length > 10) {
+      final entradaAntigua =
+          _ultimosErrores.entries
+              .reduce((a, b) => a.value.isBefore(b.value) ? a : b)
+              .key;
+      _ultimosErrores.remove(entradaAntigua);
+    }
+
+    AppLogger.error('$mensaje: ${error.toString()}', error, stackTrace);
+  }
+
+  @override
+  void dispose() {
+    // Limpiar recursos
+    _ultimosErrores.clear();
+    super.dispose();
   }
 }
 
@@ -517,13 +575,13 @@ class _VentaTarjeta extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: esVenta ? Colors.blue[100] : Colors.green[100],
+        color: esVenta ? Colors.blue[100] : Colors.amber[100],
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         tipo.toUpperCase(),
         style: TextStyle(
-          color: esVenta ? Colors.blue[800] : Colors.green[800],
+          color: esVenta ? Colors.blue[800] : Colors.amber[800],
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),

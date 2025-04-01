@@ -1,9 +1,10 @@
+import '../../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:inmobiliaria/widgets/informacion_general_widget.dart';
-import 'package:inmobiliaria/controllers/inmueble_form_controller.dart';
-import 'package:inmobiliaria/services/inmueble_validation_service.dart';
-import 'package:inmobiliaria/widgets/image_selector_multiple_widget.dart';
+import '../../widgets/informacion_general_widget.dart';
+import '../../controllers/inmueble_form_controller.dart';
+import '../../services/inmueble_validation_service.dart';
+import '../../widgets/image_selector_multiple_widget.dart';
 
 class AgregarInmuebleScreen extends StatefulWidget {
   const AgregarInmuebleScreen({super.key});
@@ -17,6 +18,11 @@ class _AgregarInmuebleScreenState extends State<AgregarInmuebleScreen> {
   final InmuebleValidationService _validationService =
       InmuebleValidationService();
 
+  // Controlar operaciones en progreso para evitar duplicados
+  bool _cargandoDatos = false;
+  bool _guardandoInmueble = false;
+  bool _operacionImagen = false;
+
   @override
   void initState() {
     super.initState();
@@ -24,20 +30,35 @@ class _AgregarInmuebleScreenState extends State<AgregarInmuebleScreen> {
   }
 
   Future<void> _cargarDatos() async {
+    if (_cargandoDatos) return;
+
+    _cargandoDatos = true;
+
     try {
+      AppLogger.info('Iniciando carga de datos para formulario de inmueble');
       await _controller.cargarClientes();
       if (mounted) setState(() {});
-    } catch (e) {
+      AppLogger.info('Datos cargados exitosamente');
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al cargar datos iniciales', e, stackTrace);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error al cargar datos: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error al cargar datos: ${e.toString().split('\n').first}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
+    } finally {
+      _cargandoDatos = false;
     }
   }
 
   @override
   void dispose() {
+    AppLogger.info('Liberando recursos de AgregarInmuebleScreen');
     _controller.formState.dispose();
     super.dispose();
   }
@@ -89,14 +110,18 @@ class _AgregarInmuebleScreenState extends State<AgregarInmuebleScreen> {
               tiposInmueble: _controller.formState.tiposInmueble,
               tiposOperacion: _controller.formState.tiposOperacion,
               onTipoInmuebleChanged: (value) {
-                setState(() {
-                  _controller.formState.tipoInmuebleSeleccionado = value!;
-                });
+                if (value != null) {
+                  setState(() {
+                    _controller.formState.tipoInmuebleSeleccionado = value;
+                  });
+                }
               },
               onTipoOperacionChanged: (value) {
-                setState(() {
-                  _controller.formState.tipoOperacionSeleccionado = value!;
-                });
+                if (value != null) {
+                  setState(() {
+                    _controller.formState.tipoOperacionSeleccionado = value;
+                  });
+                }
               },
               validarNombre: (value) => _validationService.validarNombre(value),
               validarMonto: (value) => _validationService.validarMonto(value),
@@ -171,61 +196,141 @@ class _AgregarInmuebleScreenState extends State<AgregarInmuebleScreen> {
   }
 
   Future<void> _agregarImagen(ImageSource source) async {
+    // Evitar múltiples operaciones simultáneas
+    if (_operacionImagen) {
+      AppLogger.warning('Operación de imagen ya en curso, ignorando solicitud');
+      return;
+    }
+
+    _operacionImagen = true;
+
     try {
       // Limitar a un máximo de 10 imágenes
       if (_controller.formState.imagenesTemporal.length >= 10) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Máximo 10 imágenes permitidas')),
+          const SnackBar(
+            content: Text('Máximo 10 imágenes permitidas'),
+            backgroundColor: Colors.orange,
+          ),
         );
         return;
       }
 
+      AppLogger.info('Agregando imagen de fuente: ${source.name}');
       await _controller.agregarImagen(source);
-      setState(() {});
-    } catch (e) {
+      if (mounted) setState(() {});
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al seleccionar imagen', e, stackTrace);
+
       if (mounted) {
+        final esErrorFormato = e.toString().contains('formato');
+        final esErrorPermiso =
+            e.toString().contains('permission') ||
+            e.toString().contains('permiso');
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al seleccionar imagen: $e')),
+          SnackBar(
+            content: Text(
+              esErrorFormato
+                  ? 'Formato de imagen no compatible'
+                  : esErrorPermiso
+                  ? 'No se tienen permisos para acceder a las imágenes'
+                  : 'Error al seleccionar imagen: ${e.toString().split('\n').first}',
+            ),
+            backgroundColor: esErrorPermiso ? Colors.orange : Colors.red,
+          ),
         );
       }
+    } finally {
+      _operacionImagen = false;
     }
   }
 
   void _eliminarImagen(int index) {
-    setState(() {
-      _controller.eliminarImagen(index);
-    });
+    try {
+      AppLogger.info('Eliminando imagen en posición: $index');
+      setState(() {
+        _controller.eliminarImagen(index);
+      });
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al eliminar imagen', e, stackTrace);
+    }
   }
 
   void _establecerImagenPrincipal(int index) {
-    setState(() {
-      _controller.establecerImagenPrincipal(index);
-    });
+    try {
+      AppLogger.info('Estableciendo imagen principal en posición: $index');
+      setState(() {
+        _controller.establecerImagenPrincipal(index);
+      });
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al establecer imagen principal', e, stackTrace);
+    }
   }
 
   Future<void> _guardarInmueble() async {
-    if (!_controller.validarFormulario()) return;
+    // Evitar guardado múltiple
+    if (_guardandoInmueble) {
+      AppLogger.warning('Operación de guardado en curso, ignorando solicitud');
+      return;
+    }
+
+    // Validar formulario
+    if (!_controller.validarFormulario()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Por favor complete correctamente todos los campos requeridos',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    _guardandoInmueble = true;
 
     setState(() {
       _controller.formState.isLoading = true;
     });
 
     try {
-      await _controller.guardarInmueble();
+      AppLogger.info('Iniciando proceso de guardado de inmueble');
+      final idInmueble = await _controller.guardarInmueble();
+      AppLogger.info('Inmueble guardado exitosamente con ID: $idInmueble');
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Inmueble agregado correctamente')),
+        const SnackBar(
+          content: Text('Inmueble agregado correctamente'),
+          backgroundColor: Colors.green,
+        ),
       );
       Navigator.pop(context, true);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al guardar inmueble', e, stackTrace);
+
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error al guardar inmueble: $e')));
+      final esErrorConexion =
+          e.toString().toLowerCase().contains('conexión') ||
+          e.toString().toLowerCase().contains('connection') ||
+          e.toString().toLowerCase().contains('timeout');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            esErrorConexion
+                ? 'Error de conexión con la base de datos. Intente nuevamente.'
+                : 'Error al guardar inmueble: ${e.toString().split('\n').first}',
+          ),
+          backgroundColor: esErrorConexion ? Colors.orange : Colors.red,
+        ),
+      );
     } finally {
+      _guardandoInmueble = false;
+
       if (mounted) {
         setState(() {
           _controller.formState.isLoading = false;

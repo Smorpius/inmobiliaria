@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:async';
+import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import '../models/inmueble_imagen.dart';
 import 'package:photo_view/photo_view.dart';
@@ -11,13 +13,12 @@ class InmuebleImagenCarousel extends StatefulWidget {
   final VoidCallback? onAddTap;
   final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
 
-  // Corrigiendo el uso de super parameters
   const InmuebleImagenCarousel({
     super.key,
     required this.imagenes,
     this.onImagenTap,
     this.onAddTap,
-    required this.errorBuilder,
+    this.errorBuilder,
   });
 
   @override
@@ -27,48 +28,44 @@ class InmuebleImagenCarousel extends StatefulWidget {
 class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
+  bool _isLoading = false; // Para gestionar estado de carga
+
+  // Caché para optimizar la verificación de existencia de archivos
+  final Map<String, bool> _fileExistsCache = {};
+  final Map<String, int> _fileSizeCache = {};
+
+  // Timer para limpiar caché periódicamente
+  Timer? _cacheCleanupTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupCacheCleanup();
+  }
+
+  // Configurar limpieza periódica de caché para evitar fugas de memoria
+  void _setupCacheCleanup() {
+    _cacheCleanupTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (!mounted) return;
+      _fileExistsCache.clear();
+      _fileSizeCache.clear();
+      AppLogger.debug('InmuebleImagenCarousel: Caché limpiado');
+    });
+  }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _cacheCleanupTimer?.cancel();
+    _fileExistsCache.clear();
+    _fileSizeCache.clear();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (widget.imagenes.isEmpty) {
-      return Container(
-        height: 240,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.image_not_supported,
-                size: 48,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No hay imágenes disponibles',
-                style: TextStyle(color: Colors.grey.shade600),
-              ),
-              if (widget.onAddTap != null) ...[
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: widget.onAddTap,
-                  icon: const Icon(Icons.add_photo_alternate),
-                  label: const Text('Agregar imagen'),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
+      return _buildEmptyState();
     }
 
     return Column(
@@ -95,12 +92,14 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                 PhotoViewGallery.builder(
                   scrollPhysics: const BouncingScrollPhysics(),
                   builder: (BuildContext context, int index) {
-                    // CAMBIO IMPORTANTE: Validar la ruta de imagen y prevenir errores
                     return PhotoViewGalleryPageOptions.customChild(
                       child: _buildSafeImage(widget.imagenes[index].rutaImagen),
                       initialScale: PhotoViewComputedScale.contained,
                       minScale: PhotoViewComputedScale.contained,
                       maxScale: PhotoViewComputedScale.covered * 2,
+                      heroAttributes: PhotoViewHeroAttributes(
+                        tag: 'imagen_${widget.imagenes[index].id ?? index}',
+                      ),
                     );
                   },
                   itemCount: widget.imagenes.length,
@@ -172,24 +171,29 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                         widget.imagenes[_currentIndex].descripcion!,
                         style: const TextStyle(color: Colors.white),
                         textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
 
                 // Botón de opciones
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  child: Material(
-                    elevation: 4,
-                    color: Colors.black.withAlpha((0.5 * 255).round()),
-                    shape: const CircleBorder(),
-                    child: IconButton(
-                      icon: const Icon(Icons.more_vert, color: Colors.white),
-                      onPressed: () => widget.onImagenTap?.call(_currentIndex),
+                if (widget.onImagenTap != null)
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    child: Material(
+                      elevation: 4,
+                      color: Colors.black.withAlpha((0.5 * 255).round()),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        onPressed:
+                            () => widget.onImagenTap?.call(_currentIndex),
+                        tooltip: 'Opciones de imagen',
+                      ),
                     ),
                   ),
-                ),
 
                 // Botón para añadir
                 if (widget.onAddTap != null)
@@ -198,9 +202,19 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                     right: 16,
                     child: FloatingActionButton(
                       mini: true,
-                      onPressed: widget.onAddTap,
+                      onPressed: _isLoading ? null : widget.onAddTap,
                       backgroundColor: Colors.teal,
-                      child: const Icon(Icons.add_photo_alternate),
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                              : const Icon(Icons.add_photo_alternate),
                     ),
                   ),
               ],
@@ -226,7 +240,7 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                   ),
                 ),
 
-                // Miniaturas
+                // Miniaturas - Implementación optimizada
                 SizedBox(
                   height: 70,
                   child: ListView.builder(
@@ -259,7 +273,6 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
-                                // CAMBIO IMPORTANTE: Usar el método seguro para las miniaturas también
                                 child: _buildSafeThumbnail(imagen.rutaImagen),
                               ),
                               if (imagen.esPrincipal)
@@ -295,60 +308,169 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
     );
   }
 
-  // Método principal para mostrar imágenes de forma segura
+  // Widget para mostrar cuando no hay imágenes
+  Widget _buildEmptyState() {
+    return Container(
+      height: 240,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.image_not_supported,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No hay imágenes disponibles',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            if (widget.onAddTap != null) ...[
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: widget.onAddTap,
+                icon: const Icon(Icons.add_photo_alternate),
+                label: const Text('Agregar imagen'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Método principal para mostrar imágenes de forma segura y eficiente
   Widget _buildSafeImage(String rutaImagen) {
     try {
-      final file = File(rutaImagen);
+      final cacheKey = 'exists_$rutaImagen';
+      final sizeCacheKey = 'size_$rutaImagen';
 
-      // Verificación robusta de existencia del archivo
-      if (!file.existsSync()) {
-        return _buildImageErrorWidget('Imagen no encontrada');
-      }
+      return FutureBuilder<bool>(
+        future: _verificarImagenValida(rutaImagen, cacheKey, sizeCacheKey),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-      // Verificar tamaño mínimo para asegurar que es una imagen válida
-      if (file.lengthSync() < 100) {
-        return _buildImageErrorWidget('Archivo de imagen dañado o incompleto');
-      }
-
-      // Verificar si el archivo tiene datos mínimos para ser una imagen
-      try {
-        final bytes = file.readAsBytesSync().take(16).toList();
-        if (bytes.isEmpty) {
-          return _buildImageErrorWidget('Archivo de imagen sin datos válidos');
-        }
-      } catch (headerError) {
-        return _buildImageErrorWidget('Error al verificar formato de imagen');
-      }
-
-      // Cargar la imagen con manejo de errores específicos
-      return Image.file(
-        file,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) {
-          if (error.toString().contains('byteOffset') ||
-              error.toString().contains('index') ||
-              error is RangeError) {
+          if (snapshot.hasError || snapshot.data != true) {
             return _buildImageErrorWidget(
-              'Datos de imagen dañados',
-              showRecover: true,
-            );
-          } else if (error.toString().contains('decode') ||
-              error.toString().contains('PNG') ||
-              error.toString().contains('codec')) {
-            return _buildImageErrorWidget(
-              'Formato de imagen incompatible',
-              showRecover: true,
+              snapshot.hasError
+                  ? 'Error: ${snapshot.error.toString().split('\n').first}'
+                  : 'Imagen no encontrada o inválida',
             );
           }
-          return _buildImageErrorWidget('Error al mostrar la imagen');
+
+          // La imagen es válida, mostrarla
+          final file = File(rutaImagen);
+          return Image.file(
+            file,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              AppLogger.error(
+                'Error al mostrar imagen: $rutaImagen',
+                error,
+                stackTrace,
+              );
+
+              if (error.toString().contains('byteOffset') ||
+                  error.toString().contains('index') ||
+                  error is RangeError) {
+                return _buildImageErrorWidget(
+                  'Datos de imagen dañados',
+                  showRecover: true,
+                );
+              } else if (error.toString().contains('decode') ||
+                  error.toString().contains('PNG') ||
+                  error.toString().contains('codec')) {
+                return _buildImageErrorWidget(
+                  'Formato de imagen incompatible',
+                  showRecover: true,
+                );
+              }
+
+              return _buildImageErrorWidget('Error al mostrar la imagen');
+            },
+            gaplessPlayback: true,
+            cacheWidth: 1000, // Optimización de memoria
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              // Mostrar un indicador de carga hasta que la imagen esté lista
+              if (wasSynchronouslyLoaded) return child;
+              return frame != null
+                  ? child
+                  : Center(
+                    child: CircularProgressIndicator(
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  );
+            },
+          );
         },
-        gaplessPlayback: true,
-        cacheWidth: 1000,
       );
-    } catch (e) {
+    } catch (e, stack) {
+      AppLogger.error(
+        'Error inesperado al procesar imagen: $rutaImagen',
+        e,
+        stack,
+      );
       return _buildImageErrorWidget(
         'Error inesperado al procesar imagen: ${e.toString().split('\n').first}',
       );
+    }
+  }
+
+  // Verificar si la imagen es válida (existe y tiene tamaño mínimo) usando caché
+  Future<bool> _verificarImagenValida(
+    String rutaImagen,
+    String cacheKey,
+    String sizeCacheKey,
+  ) async {
+    try {
+      // Usar caché para evitar verificaciones repetidas
+      if (_fileExistsCache.containsKey(cacheKey)) {
+        final exists = _fileExistsCache[cacheKey]!;
+        if (!exists) return false;
+
+        // También verificar el tamaño mínimo (ya cacheado)
+        return (_fileSizeCache[sizeCacheKey] ?? 0) >= 100;
+      }
+
+      // No está en caché, verificar físicamente
+      final file = File(rutaImagen);
+      final exists = await file.exists();
+      _fileExistsCache[cacheKey] = exists;
+
+      if (!exists) return false;
+
+      // Verificar tamaño mínimo para asegurar que es una imagen válida
+      final size = await file.length();
+      _fileSizeCache[sizeCacheKey] = size;
+
+      if (size < 100) {
+        return false;
+      }
+
+      // Verificar datos mínimos para considerar como imagen válida
+      try {
+        final bytes = await file.openRead(0, 16).first;
+        return bytes.isNotEmpty;
+      } catch (headerError) {
+        AppLogger.warning(
+          'Error al verificar cabecera de imagen: $rutaImagen - $headerError',
+        );
+        return false;
+      }
+    } catch (e) {
+      AppLogger.error('Error al validar imagen: $rutaImagen', e);
+      return false;
     }
   }
 
@@ -362,10 +484,13 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
           children: [
             const Icon(Icons.broken_image, size: 48, color: Colors.grey),
             const SizedBox(height: 16),
-            Text(
-              mensaje,
-              style: const TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(
+                mensaje,
+                style: const TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
             ),
             if (showRecover) ...[
               const SizedBox(height: 12),
@@ -385,48 +510,89 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
     );
   }
 
-  // Método para miniaturas seguras
+  // Método optimizado para miniaturas seguras
   Widget _buildSafeThumbnail(String rutaImagen) {
     try {
-      final file = File(rutaImagen);
+      // Usar una clave similar pero específica para miniaturas
+      final thumbCacheKey = 'thumb_exists_$rutaImagen';
+      final thumbSizeCacheKey = 'thumb_size_$rutaImagen';
 
-      // Verificar existencia y tamaño mínimo
-      if (!file.existsSync() || file.lengthSync() < 100) {
-        return Container(
-          width: 60,
-          height: 60,
-          color: Colors.grey.shade200,
-          child: const Icon(Icons.broken_image, color: Colors.grey, size: 20),
-        );
-      }
+      return FutureBuilder<bool>(
+        future: _verificarImagenValida(
+          rutaImagen,
+          thumbCacheKey,
+          thumbSizeCacheKey,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Container(
+              width: 60,
+              height: 60,
+              color: Colors.grey.shade200,
+              child: const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
 
-      // Cargar miniatura con manejo de errores
-      return Image.file(
-        file,
-        fit: BoxFit.cover,
-        width: 60,
-        height: 60,
-        cacheWidth: 120,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
+          if (snapshot.hasError || snapshot.data != true) {
+            return Container(
+              width: 60,
+              height: 60,
+              color: Colors.grey.shade200,
+              child: const Icon(
+                Icons.broken_image,
+                color: Colors.grey,
+                size: 20,
+              ),
+            );
+          }
+
+          // Si la imagen es válida, mostrar miniatura
+          final file = File(rutaImagen);
+          return Image.file(
+            file,
+            fit: BoxFit.cover,
             width: 60,
             height: 60,
-            color: Colors.grey.shade200,
-            child: const Icon(
-              Icons.error_outline,
-              color: Colors.grey,
-              size: 20,
-            ),
+            cacheWidth: 120, // Optimización para miniaturas
+            errorBuilder: (context, error, stackTrace) {
+              AppLogger.debug('Error en miniatura: $rutaImagen - $error');
+              return Container(
+                width: 60,
+                height: 60,
+                color: Colors.grey.shade200,
+                child: const Icon(
+                  Icons.error_outline,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+              );
+            },
           );
         },
       );
     } catch (e) {
+      AppLogger.warning('Error en miniatura: $rutaImagen - $e');
       return Container(
         width: 60,
         height: 60,
         color: Colors.grey.shade200,
         child: const Icon(Icons.error, color: Colors.grey, size: 20),
       );
+    }
+  }
+
+  // Establece el estado de carga y actualiza la UI
+  void setLoading(bool loading) {
+    if (mounted && _isLoading != loading) {
+      setState(() {
+        _isLoading = loading;
+      });
     }
   }
 }

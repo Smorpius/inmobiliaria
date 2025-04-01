@@ -1,16 +1,16 @@
+import 'providers_global.dart';
 import '../models/proveedor.dart';
-import 'dart:developer' as developer;
 import '../services/proveedores_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'providers_global.dart'; // Importar providers globales
+import '../utils/applogger.dart'; // Usar AppLogger en lugar de developer.log
 
-// Provider para el servicio de proveedores - CORREGIDO
+/// Provider para el servicio de proveedores
 final proveedoresServiceProvider = Provider<ProveedoresService>((ref) {
   final dbService = ref.watch(databaseServiceProvider);
   return ProveedoresService(dbService);
 });
 
-// Estados para la gestión de proveedores
+/// Estados para la gestión de proveedores
 class ProveedoresState {
   final List<Proveedor> proveedores;
   final bool isLoading;
@@ -19,7 +19,7 @@ class ProveedoresState {
   final String terminoBusqueda;
   final bool buscando;
 
-  ProveedoresState({
+  const ProveedoresState({
     required this.proveedores,
     required this.isLoading,
     this.errorMessage,
@@ -28,8 +28,8 @@ class ProveedoresState {
     required this.buscando,
   });
 
-  // Constructor para el estado inicial
-  factory ProveedoresState.initial() => ProveedoresState(
+  /// Constructor para el estado inicial
+  factory ProveedoresState.initial() => const ProveedoresState(
     proveedores: [],
     isLoading: false,
     errorMessage: null,
@@ -38,7 +38,7 @@ class ProveedoresState {
     buscando: false,
   );
 
-  // Método para crear un nuevo estado con algunos valores cambiados
+  /// Método para crear un nuevo estado con algunos valores cambiados
   ProveedoresState copyWith({
     List<Proveedor>? proveedores,
     bool? isLoading,
@@ -57,98 +57,93 @@ class ProveedoresState {
     );
   }
 
-  // Método para obtener proveedores filtrados
+  /// Método para obtener proveedores filtrados según estado
   List<Proveedor> get proveedoresFiltrados =>
       mostrarInactivos
           ? proveedores.where((p) => p.idEstado != 1).toList()
           : proveedores.where((p) => p.idEstado == 1).toList();
 }
 
-// Controlador de estado para proveedores
+/// Controlador de estado para proveedores
 class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
   final ProveedoresService _service;
   int? usuarioActualId = 1;
+
+  // Control para evitar procesamiento de errores duplicados
+  bool _procesandoError = false;
 
   ProveedoresNotifier(this._service) : super(ProveedoresState.initial()) {
     inicializar();
   }
 
-  // Inicializar el controlador
+  /// Inicializar el controlador con manejo de errores mejorado
   Future<void> inicializar() async {
     if (state.isLoading) return;
 
     try {
-      developer.log('[Riverpod] Inicializando controlador de proveedores');
       state = state.copyWith(isLoading: true, errorMessage: null);
+      AppLogger.info('Inicializando controlador de proveedores');
 
       await crearUsuarioAdministrador();
       await cargarProveedores();
 
-      developer.log(
-        '[Riverpod] Controlador de proveedores inicializado correctamente',
-      );
+      AppLogger.info('Controlador de proveedores inicializado correctamente');
     } catch (e) {
-      developer.log(
-        '[Riverpod] Error al inicializar el controlador de proveedores: $e',
-        error: e,
-      );
+      _manejarError('inicializar controlador', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
-  // Verificar y crear usuario administrador
+  /// Verifica y crea usuario administrador si no existe usando procedimiento almacenado
   Future<void> crearUsuarioAdministrador() async {
     try {
-      developer.log(
-        '[Riverpod] Verificando existencia del usuario administrador',
-      );
-      final conn = await _service.verificarConexion();
+      AppLogger.info('Verificando existencia del usuario administrador');
 
-      final verificacion = await conn.query(
-        'SELECT id_usuario FROM usuarios WHERE id_usuario = ?',
-        [1],
-      );
+      // Usar withConnection para gestionar la conexión correctamente
+      await _service.verificarConexion().then((conn) async {
+        // Usar procedimiento almacenado en lugar de consulta directa
+        await conn.query('CALL VerificarUsuarioExiste(?, @existe)', [1]);
+        final resultadoExiste = await conn.query('SELECT @existe as existe');
 
-      if (verificacion.isEmpty) {
-        developer.log(
-          '[Riverpod] Creando usuario administrador automáticamente',
-        );
+        final bool existe =
+            resultadoExiste.isNotEmpty &&
+            resultadoExiste.first.fields['existe'] == 1;
 
-        await conn.query('''
-          INSERT INTO usuarios (
-            id_usuario, 
-            nombre, 
-            apellido, 
-            nombre_usuario, 
-            contraseña_usuario, 
-            correo_cliente,
-            id_estado
-          ) 
-          VALUES (1, 'Admin', 'Sistema', 'admin', 'admin123', 'admin@sistema.com', 1)
-          ON DUPLICATE KEY UPDATE id_usuario = 1
-        ''');
+        if (!existe) {
+          AppLogger.info('Creando usuario administrador automáticamente');
 
-        developer.log('[Riverpod] Usuario administrador creado exitosamente');
-      }
+          // Usar procedimiento almacenado para crear admin
+          await conn.query(
+            'CALL CrearUsuarioAdministrador(?, ?, ?, ?, ?, @id_admin_out)',
+            [
+              'Administrador',
+              'Sistema',
+              'admin',
+              'admin123',
+              'admin@sistema.com',
+            ],
+          );
+
+          AppLogger.info('Usuario administrador creado exitosamente');
+        } else {
+          AppLogger.info('El usuario administrador ya existe');
+        }
+      });
     } catch (e) {
-      developer.log(
-        '[Riverpod] Error al verificar/crear usuario administrador: $e',
-        error: e,
-      );
+      _manejarError('verificar/crear usuario administrador', e);
       // No lanzamos excepción para permitir que la aplicación continúe
     }
   }
 
-  // Cargar la lista de proveedores
+  /// Cargar la lista de proveedores usando el procedimiento almacenado
   Future<void> cargarProveedores() async {
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log('[Riverpod] Cargando proveedores');
+      AppLogger.info('Cargando proveedores');
 
+      // Obtener proveedores usando el procedimiento almacenado a través del servicio
       final proveedoresCargados = await _service.obtenerProveedores();
-      developer.log(
-        '[Riverpod] Proveedores cargados: ${proveedoresCargados.length}',
-      );
+      AppLogger.info('Proveedores cargados: ${proveedoresCargados.length}');
 
       state = state.copyWith(
         proveedores: proveedoresCargados,
@@ -158,17 +153,17 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
         buscando: state.buscando,
       );
     } catch (e) {
-      developer.log('[Riverpod] Error al cargar proveedores: $e', error: e);
+      _manejarError('cargar proveedores', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
-  // Buscar proveedores
+  /// Buscar proveedores usando el procedimiento almacenado
   Future<void> buscarProveedores(String termino) async {
     if (state.isLoading) return;
 
     try {
-      developer.log('[Riverpod] Buscando proveedores con término: "$termino"');
+      AppLogger.info('Buscando proveedores con término: "$termino"');
       state = state.copyWith(
         isLoading: true,
         terminoBusqueda: termino,
@@ -179,48 +174,49 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       if (termino.isEmpty) {
         await cargarProveedores();
       } else {
+        // Usar el método del servicio que ya implementa el procedimiento almacenado
         final resultados = await _service.buscarProveedores(termino);
         state = state.copyWith(proveedores: resultados, isLoading: false);
       }
 
-      developer.log('[Riverpod] Búsqueda completada');
+      AppLogger.info('Búsqueda completada');
     } catch (e) {
-      developer.log('[Riverpod] Error en búsqueda: $e', error: e);
+      _manejarError('buscar proveedores', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
   }
 
-  // Cambiar filtro de inactivos
+  /// Cambiar filtro de inactivos
   void cambiarFiltroInactivos(bool mostrarInactivos) {
     if (state.mostrarInactivos != mostrarInactivos) {
-      developer.log(
-        '[Riverpod] Cambiando filtro de inactivos: $mostrarInactivos',
-      );
+      AppLogger.info('Cambiando filtro de inactivos: $mostrarInactivos');
       state = state.copyWith(mostrarInactivos: mostrarInactivos);
     }
   }
 
-  // Crear un nuevo proveedor
+  /// Crear un nuevo proveedor usando procedimiento almacenado
   Future<Proveedor?> crearProveedor(Proveedor proveedor) async {
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log('[Riverpod] Creando nuevo proveedor');
+      AppLogger.info('Creando nuevo proveedor');
 
+      // El servicio ya implementa el procedimiento almacenado CrearProveedor
       final nuevoProveedor = await _service.crearProveedor(
         proveedor,
         usuarioModificacion: usuarioActualId,
       );
 
+      // Actualizar la lista después de crear
       await cargarProveedores();
       return nuevoProveedor;
     } catch (e) {
-      developer.log('[Riverpod] Error al crear proveedor: $e', error: e);
+      _manejarError('crear proveedor', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return null;
     }
   }
 
-  // Actualizar un proveedor existente
+  /// Actualizar un proveedor existente usando procedimiento almacenado
   Future<bool> actualizarProveedor(Proveedor proveedor) async {
     try {
       if (proveedor.idProveedor == null) {
@@ -230,66 +226,83 @@ class ProveedoresNotifier extends StateNotifier<ProveedoresState> {
       }
 
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log(
-        '[Riverpod] Actualizando proveedor ID: ${proveedor.idProveedor}',
-      );
+      AppLogger.info('Actualizando proveedor ID: ${proveedor.idProveedor}');
 
+      // El servicio ya implementa el procedimiento almacenado ActualizarProveedor
       await _service.actualizarProveedor(
         proveedor,
         usuarioModificacion: usuarioActualId,
       );
 
+      // Actualizar la lista después de modificar
       await cargarProveedores();
       return true;
     } catch (e) {
-      developer.log('[Riverpod] Error al actualizar proveedor: $e', error: e);
+      _manejarError('actualizar proveedor', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return false;
     }
   }
 
-  // Inactivar un proveedor
+  /// Inactivar un proveedor usando procedimiento almacenado
   Future<bool> inactivarProveedor(int idProveedor) async {
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log('[Riverpod] Inactivando proveedor ID: $idProveedor');
+      AppLogger.info('Inactivando proveedor ID: $idProveedor');
 
+      // El servicio ya implementa el procedimiento almacenado InactivarProveedor
       await _service.inactivarProveedor(
         idProveedor,
         usuarioModificacion: usuarioActualId,
       );
 
+      // Actualizar la lista después de inactivar
       await cargarProveedores();
       return true;
     } catch (e) {
-      developer.log('[Riverpod] Error al inactivar proveedor: $e', error: e);
+      _manejarError('inactivar proveedor', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return false;
     }
   }
 
-  // Reactivar un proveedor
+  /// Reactivar un proveedor usando procedimiento almacenado
   Future<bool> reactivarProveedor(int idProveedor) async {
     try {
       state = state.copyWith(isLoading: true, errorMessage: null);
-      developer.log('[Riverpod] Reactivando proveedor ID: $idProveedor');
+      AppLogger.info('Reactivando proveedor ID: $idProveedor');
 
+      // El servicio ya implementa el procedimiento almacenado ReactivarProveedor
       await _service.reactivarProveedor(
         idProveedor,
         usuarioModificacion: usuarioActualId,
       );
 
+      // Actualizar la lista después de reactivar
       await cargarProveedores();
       return true;
     } catch (e) {
-      developer.log('[Riverpod] Error al reactivar proveedor: $e', error: e);
+      _manejarError('reactivar proveedor', e);
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
       return false;
     }
   }
+
+  /// Método para manejar errores evitando duplicados
+  void _manejarError(String operacion, dynamic error) {
+    if (!_procesandoError) {
+      _procesandoError = true;
+      AppLogger.error(
+        'Error en operación "$operacion"',
+        error,
+        StackTrace.current,
+      );
+      _procesandoError = false;
+    }
+  }
 }
 
-// Provider para el controlador de proveedores
+/// Provider para el controlador de proveedores
 final proveedoresProvider =
     StateNotifierProvider<ProveedoresNotifier, ProveedoresState>((ref) {
       final service = ref.watch(proveedoresServiceProvider);

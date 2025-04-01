@@ -1,24 +1,30 @@
 import 'dart:io';
+import 'dart:async';
+import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
+import '../services/mysql_helper.dart';
 import '../models/inmueble_imagen.dart';
 import '../providers/providers_global.dart';
-import '../models/inmueble_imagenes_state.dart';
 import 'package:image_picker/image_picker.dart';
+import '../models/inmueble_imagenes_state.dart';
 import '../widgets/inmueble_imagen_carousel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../vistas/inmuebles/galeria_pantalla_completa.dart';
-import '../services/mysql_helper.dart'; // Importación para el servicio de MySQL
 
-// Definición del proveedor de base de datos
+/// Provider para acceder al servicio de base de datos
 final dbServiceProvider = Provider<DatabaseService>((ref) {
   return DatabaseService();
 });
 
+/// Widget para mostrar y gestionar imágenes de un inmueble con manejo optimizado de errores
 class InmuebleImagenesSection extends ConsumerWidget {
   final int inmuebleId;
   final bool isInactivo;
-  // Propiedad para controlar reintentos
-  final int maxReintentos = 2;
+
+  // Constantes para evitar números mágicos
+  static const double _carouselHeight = 240.0;
+  static const Duration _reconexionDelay = Duration(seconds: 2);
+  static const Duration _imagenValidacionTimeout = Duration(seconds: 5);
 
   const InmuebleImagenesSection({
     super.key,
@@ -29,41 +35,52 @@ class InmuebleImagenesSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     try {
-      // Listener para reintentar automáticamente en caso de error de conexión
+      // Listener optimizado para reintentar automáticamente en caso de error de conexión
       ref.listen<InmuebleImagenesState>(
         inmuebleImagenesStateProvider(inmuebleId),
         (previous, next) {
-          if (next.errorMessage != null &&
-              (next.errorMessage!.contains('socket') ||
-                  next.errorMessage!.contains('MySQL') ||
-                  next.errorMessage!.contains('MySqlProtocol')) &&
-              context.mounted) {
-            // Reintento automático para errores de conexión y MySQL
-            Future.delayed(const Duration(seconds: 2), () {
-              if (context.mounted) {
-                // Para errores de MySQL, primero reiniciar la conexión
-                if (next.errorMessage!.contains('MySQL') ||
-                    next.errorMessage!.contains('MySqlProtocol')) {
-                  ref.read(dbServiceProvider).reiniciarConexion().then((_) {
-                    if (context.mounted) {
-                      ref
-                          .read(
-                            inmuebleImagenesStateProvider(inmuebleId).notifier,
-                          )
-                          .cargarImagenes();
-                    }
-                  });
-                } else {
-                  ref
-                      .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
-                      .cargarImagenes();
-                }
+          if (!context.mounted || next.errorMessage == null) return;
+
+          final esErrorConexion =
+              next.errorMessage!.contains('socket') ||
+              next.errorMessage!.contains('connection') ||
+              next.errorMessage!.contains('closed');
+
+          final esMySqlError =
+              next.errorMessage!.contains('MySQL') ||
+              next.errorMessage!.contains('MySqlProtocol');
+
+          if ((esErrorConexion || esMySqlError) && context.mounted) {
+            Future.delayed(_reconexionDelay, () {
+              if (!context.mounted) return;
+
+              if (esMySqlError) {
+                ref.read(dbServiceProvider).reiniciarConexion().then((_) {
+                  if (context.mounted) {
+                    AppLogger.info(
+                      'Reconexión MySQL completada, recargando imágenes',
+                    );
+                    ref
+                        .read(
+                          inmuebleImagenesStateProvider(inmuebleId).notifier,
+                        )
+                        .cargarImagenes();
+                  }
+                });
+              } else {
+                AppLogger.info(
+                  'Reintentando cargar imágenes tras error de conexión',
+                );
+                ref
+                    .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
+                    .cargarImagenes();
               }
             });
           }
         },
       );
 
+      // Observar el estado de las imágenes
       final state = ref.watch(inmuebleImagenesStateProvider(inmuebleId));
 
       return Column(
@@ -78,10 +95,10 @@ class InmuebleImagenesSection extends ConsumerWidget {
             ),
           ),
 
-          // Contenido principal con estado
+          // Contenido principal según el estado
           if (state.isLoading && state.imagenes.isEmpty)
             const SizedBox(
-              height: 240,
+              height: _carouselHeight,
               child: Center(child: CircularProgressIndicator()),
             )
           else if (state.errorMessage != null)
@@ -91,7 +108,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
           else
             _buildImagesCarousel(context, ref, state),
 
-          // Botón para limpiar imágenes dañadas - Nueva funcionalidad
+          // Botón para verificar y reparar imágenes dañadas
           if (state.imagenes.isNotEmpty)
             Align(
               alignment: Alignment.centerRight,
@@ -116,17 +133,23 @@ class InmuebleImagenesSection extends ConsumerWidget {
         ],
       );
     } catch (e) {
-      // Si el error parece relacionado con conexión o MySQL, mostrar mensaje específico
+      AppLogger.error(
+        'Error al renderizar InmuebleImagenesSection',
+        e,
+        StackTrace.current,
+      );
+
       final esErrorConexion =
           e.toString().contains('socket') ||
           e.toString().contains('connection') ||
           e.toString().contains('closed');
+
       final esMySqlError =
           e.toString().contains('MySQL') ||
           e.toString().contains('MySqlProtocol');
 
       return Container(
-        height: 200,
+        height: _carouselHeight,
         width: double.infinity,
         color: Colors.grey.shade200,
         child: Center(
@@ -151,7 +174,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
                     ? "Problema de conexión a la base de datos.\nIntente nuevamente más tarde."
                     : esMySqlError
                     ? "Error de comunicación con la base de datos.\nPor favor, reintente en unos momentos."
-                    : "Error al cargar la sección de imágenes: $e",
+                    : "Error al cargar la sección de imágenes: ${e.toString().split('\n').first}",
                 style: TextStyle(
                   color:
                       esErrorConexion || esMySqlError
@@ -164,20 +187,18 @@ class InmuebleImagenesSection extends ConsumerWidget {
               if (esErrorConexion || esMySqlError)
                 ElevatedButton.icon(
                   onPressed: () {
-                    if (context.mounted) {
-                      if (esMySqlError) {
-                        ref.read(dbServiceProvider).reiniciarConexion().then((
-                          _,
-                        ) {
+                    if (!context.mounted) return;
+
+                    if (esMySqlError) {
+                      ref.read(dbServiceProvider).reiniciarConexion().then((_) {
+                        if (context.mounted) {
                           ref.invalidate(
                             inmuebleImagenesStateProvider(inmuebleId),
                           );
-                        });
-                      } else {
-                        ref.invalidate(
-                          inmuebleImagenesStateProvider(inmuebleId),
-                        );
-                      }
+                        }
+                      });
+                    } else {
+                      ref.invalidate(inmuebleImagenesStateProvider(inmuebleId));
                     }
                   },
                   icon: const Icon(Icons.refresh),
@@ -190,12 +211,12 @@ class InmuebleImagenesSection extends ConsumerWidget {
     }
   }
 
+  /// Construye un mensaje de error contextual según el tipo de error
   Widget _buildErrorMessage(
     BuildContext context,
     WidgetRef ref,
     String errorMessage,
   ) {
-    // Determinar el tipo de error para mostrar mensajes más específicos
     final esMySqlError =
         errorMessage.contains('MySQL') ||
         errorMessage.contains('MySqlProtocol');
@@ -224,12 +245,13 @@ class InmuebleImagenesSection extends ConsumerWidget {
       colorError = Colors.red.shade300;
     } else {
       iconoError = Icons.error_outline;
-      mensajeError = 'Error al cargar imágenes: $errorMessage';
+      mensajeError =
+          'Error al cargar imágenes: ${errorMessage.split('\n').first}';
       colorError = Colors.red;
     }
 
     return SizedBox(
-      height: 240,
+      height: _carouselHeight,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -244,7 +266,6 @@ class InmuebleImagenesSection extends ConsumerWidget {
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
-                // Primero intentar reiniciar la conexión y luego recargar las imágenes
                 if (esMySqlError || esErrorConexion) {
                   ref.read(dbServiceProvider).reiniciarConexion().then((_) {
                     ref.invalidate(inmuebleImagenesStateProvider(inmuebleId));
@@ -264,9 +285,10 @@ class InmuebleImagenesSection extends ConsumerWidget {
     );
   }
 
+  /// Construye un mensaje para cuando no hay imágenes disponibles
   Widget _buildEmptyImagesMessage(BuildContext context, WidgetRef ref) {
     return Container(
-      height: 240,
+      height: _carouselHeight,
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
@@ -297,7 +319,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
     );
   }
 
-  // Método que construye el carrusel con manejo de errores
+  /// Construye el carrusel de imágenes con manejo optimizado de errores
   Widget _buildImagesCarousel(
     BuildContext context,
     WidgetRef ref,
@@ -326,8 +348,14 @@ class InmuebleImagenesSection extends ConsumerWidget {
                 error.toString().contains('codec') ||
                 error.toString().contains('PNG');
 
+            AppLogger.categoryWarning(
+              'image_error',
+              'Error al procesar imagen: ${error.toString().split('\n').first}',
+              expiration: const Duration(minutes: 5),
+            );
+
             return Container(
-              height: 240,
+              height: _carouselHeight,
               color: Colors.grey.shade200,
               child: Center(
                 child: Column(
@@ -392,6 +420,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
           },
         ),
 
+        // Indicador de carga superpuesto
         if (state.isLoading)
           Container(
             color: Colors.black26,
@@ -401,7 +430,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
     );
   }
 
-  // Método mejorado para agregar imágenes
+  /// Método optimizado para agregar imágenes con validaciones completas
   Future<void> _agregarImagen(
     BuildContext context,
     WidgetRef ref,
@@ -413,57 +442,40 @@ class InmuebleImagenesSection extends ConsumerWidget {
       final File? imagen = await imageService.pickImage(source);
       if (imagen == null) return;
 
-      // Verificación completa del archivo de imagen
-      if (!imagen.existsSync()) {
+      if (!await imagen.exists()) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo acceder al archivo de imagen'),
-            backgroundColor: Colors.red,
-          ),
+        _mostrarSnackbarError(
+          context,
+          'No se pudo acceder al archivo de imagen',
         );
         return;
       }
 
-      // Verificar tamaño mínimo
-      if (imagen.lengthSync() < 100) {
+      if (await imagen.length() < 100) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Archivo de imagen dañado o vacío'),
-            backgroundColor: Colors.orange,
-          ),
+        _mostrarSnackbarError(context, 'Archivo de imagen dañado o vacío');
+        return;
+      }
+
+      if (await imagen.length() > 10 * 1024 * 1024) {
+        if (!context.mounted) return;
+        _mostrarSnackbarError(
+          context,
+          'La imagen es demasiado grande (máximo 10MB)',
         );
         return;
       }
 
-      // Verificar tamaño máximo
-      if (imagen.lengthSync() > 10 * 1024 * 1024) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('La imagen es demasiado grande (máximo 10MB)'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        return;
-      }
-
-      // Intentar decodificar
       try {
         final bytes = await imagen.readAsBytes();
         await decodeImageFromList(
           bytes.sublist(0, bytes.length > 1024 ? 1024 : bytes.length),
-        );
+        ).timeout(_imagenValidacionTimeout);
       } catch (decodeError) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'El archivo no es una imagen válida: ${decodeError.toString().split("\n").first}',
-            ),
-            backgroundColor: Colors.red,
-          ),
+        _mostrarSnackbarError(
+          context,
+          'El archivo no es una imagen válida: ${decodeError.toString().split('\n').first}',
         );
         return;
       }
@@ -479,6 +491,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
           .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
           .agregarImagen(imagen, descripcion);
     } catch (e) {
+      AppLogger.error('Error al agregar imagen', e, StackTrace.current);
+
       if (!context.mounted) return;
 
       final esErrorConexion =
@@ -497,7 +511,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
                 ? 'Error al procesar la imagen. Intente con otra.'
                 : esErrorConexion || esMySqlError
                 ? 'Error de conexión con la base de datos.'
-                : 'Error al agregar imagen: ${e.toString().split("\n").first}',
+                : 'Error al agregar imagen: ${e.toString().split('\n').first}',
           ),
           backgroundColor:
               esErrorImagen
@@ -529,30 +543,35 @@ class InmuebleImagenesSection extends ConsumerWidget {
     }
   }
 
-  // Método para verificar si una imagen es válida
+  /// Verifica si una imagen es válida con timeout para prevenir bloqueos
   Future<bool> verificarImagenValida(File file) async {
     try {
-      if (!file.existsSync() || file.lengthSync() < 100) {
+      if (!file.existsSync() || await file.length() < 100) {
         return false;
       }
 
-      final bytes = await file.readAsBytes();
+      final bytes = await file.readAsBytes().timeout(
+        _imagenValidacionTimeout,
+        onTimeout:
+            () =>
+                throw TimeoutException(
+                  'Tiempo de espera agotado al leer imagen',
+                ),
+      );
+
       if (bytes.length < 8) return false;
 
-      // Verificar formatos comunes de imagen
       final isJpeg =
           bytes.length > 2 &&
           bytes[0] == 0xFF &&
           bytes[1] == 0xD8 &&
           bytes[2] == 0xFF;
-
       final isPng =
           bytes.length > 7 &&
           bytes[0] == 0x89 &&
           bytes[1] == 0x50 &&
           bytes[2] == 0x4E &&
           bytes[3] == 0x47;
-
       final isGif =
           bytes.length > 3 &&
           bytes[0] == 0x47 &&
@@ -563,19 +582,23 @@ class InmuebleImagenesSection extends ConsumerWidget {
         try {
           await decodeImageFromList(
             bytes.length > 1024 ? bytes.sublist(0, 1024) : bytes,
-          );
+          ).timeout(_imagenValidacionTimeout);
         } catch (e) {
+          AppLogger.warning('Formato de imagen no reconocido: ${file.path}');
           return false;
         }
       }
 
       return true;
     } catch (e) {
+      AppLogger.warning(
+        'Error al validar imagen: ${file.path} - ${e.toString().split('\n').first}',
+      );
       return false;
     }
   }
 
-  // Método para limpiar imágenes dañadas
+  /// Identifica y elimina imágenes dañadas con confirmación del usuario
   Future<void> limpiarImagenesDanadas(
     BuildContext context,
     WidgetRef ref,
@@ -583,15 +606,28 @@ class InmuebleImagenesSection extends ConsumerWidget {
   ) async {
     if (!context.mounted) return;
 
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Verificando imágenes...')));
+
     final List<InmuebleImagen> imagenesDanadas = [];
-
     for (final imagen in imagenes) {
-      final file = File(imagen.rutaImagen);
-      final esValida = await verificarImagenValida(file);
+      try {
+        final file = File(imagen.rutaImagen);
+        final esValida = await verificarImagenValida(file);
 
-      if (!esValida && imagen.id != null) {
-        imagenesDanadas.add(imagen);
+        if (!esValida && imagen.id != null) {
+          imagenesDanadas.add(imagen);
+        }
+      } catch (e) {
+        if (imagen.id != null) {
+          imagenesDanadas.add(imagen);
+        }
       }
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
     }
 
     if (imagenesDanadas.isEmpty) {
@@ -635,24 +671,37 @@ class InmuebleImagenesSection extends ConsumerWidget {
     final notifier = ref.read(
       inmuebleImagenesStateProvider(inmuebleId).notifier,
     );
+    int eliminadas = 0;
 
     for (final imagen in imagenesDanadas) {
       if (imagen.id != null) {
-        await notifier.eliminarImagen(imagen.id!);
+        try {
+          await notifier.eliminarImagen(imagen.id!);
+          eliminadas++;
+        } catch (e) {
+          AppLogger.error(
+            'Error al eliminar imagen dañada: ${imagen.id}',
+            e,
+            StackTrace.current,
+          );
+        }
       }
     }
 
     if (!context.mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Se eliminaron ${imagenesDanadas.length} imágenes dañadas',
+          'Se ${eliminadas > 0 ? "eliminaron $eliminadas" : "intentó eliminar"} '
+          '${imagenesDanadas.length} ${imagenesDanadas.length == 1 ? "imagen dañada" : "imágenes dañadas"}',
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: eliminadas > 0 ? Colors.green : Colors.orange,
       ),
     );
   }
 
+  /// Abre la galería en pantalla completa con manejo de errores
   void _abrirGaleriaPantallaCompleta(BuildContext context) {
     try {
       Navigator.push(
@@ -666,16 +715,23 @@ class InmuebleImagenesSection extends ConsumerWidget {
         ),
       );
     } catch (e) {
+      AppLogger.error('Error al abrir la galería', e, StackTrace.current);
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al abrir la galería: $e')),
+          SnackBar(
+            content: Text(
+              'Error al abrir la galería: ${e.toString().split('\n').first}',
+            ),
+          ),
         );
       }
     }
   }
 
+  /// Muestra opciones para agregar imágenes desde distintas fuentes
   void _mostrarOpcionesAgregarImagen(BuildContext context, WidgetRef ref) {
-    if (isInactivo) return; // No mostrar opciones si está inactivo
+    if (isInactivo) return;
 
     showModalBottomSheet(
       context: context,
@@ -706,7 +762,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
     );
   }
 
-  // Corregido para verificar context.mounted antes de mostrar el diálogo
+  /// Muestra un diálogo para ingresar la descripción de la imagen con validaciones
   Future<String?> _mostrarDialogoDescripcion(BuildContext context) async {
     if (!context.mounted) return null;
 
@@ -747,12 +803,13 @@ class InmuebleImagenesSection extends ConsumerWidget {
     );
   }
 
+  /// Muestra el menú de opciones para una imagen específica
   Future<void> _mostrarMenuOpciones(
     BuildContext context,
     WidgetRef ref,
     int index,
   ) async {
-    if (isInactivo) return; // No mostrar menú si está inactivo
+    if (isInactivo) return;
 
     try {
       final state = ref.read(inmuebleImagenesStateProvider(inmuebleId));
@@ -760,7 +817,6 @@ class InmuebleImagenesSection extends ConsumerWidget {
 
       final imagen = state.imagenes[index];
 
-      // Verificar que el contexto esté montado antes de mostrar el modal
       if (!context.mounted) return;
 
       await showModalBottomSheet(
@@ -809,15 +865,21 @@ class InmuebleImagenesSection extends ConsumerWidget {
             ),
       );
     } catch (e) {
-      // Manejar cualquier error inesperado
+      AppLogger.error('Error en el menú de opciones', e, StackTrace.current);
+
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error en el menú de opciones: $e')),
+        SnackBar(
+          content: Text(
+            'Error en el menú de opciones: ${e.toString().split('\n').first}',
+          ),
+        ),
       );
     }
   }
 
+  /// Permite editar la descripción de una imagen
   Future<void> _editarDescripcion(
     BuildContext context,
     WidgetRef ref,
@@ -861,14 +923,14 @@ class InmuebleImagenesSection extends ConsumerWidget {
             ),
       );
 
-      // Verificar que el contexto siga montado después de la operación asíncrona
       if (nuevaDescripcion != null && context.mounted) {
-        ref
+        await ref
             .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
             .actualizarDescripcion(imagen.id!, nuevaDescripcion);
       }
     } catch (e) {
-      // Verificar que el contexto esté montado antes de mostrar el snackbar
+      AppLogger.error('Error al editar descripción', e, StackTrace.current);
+
       if (!context.mounted) return;
 
       final esErrorConexion =
@@ -886,7 +948,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
                 ? 'Error de conexión. Intente más tarde.'
                 : esMySqlError
                 ? 'Error de comunicación con la base de datos. Intente nuevamente.'
-                : 'Error al editar descripción: $e',
+                : 'Error al editar descripción: ${e.toString().split('\n').first}',
           ),
           backgroundColor:
               esErrorConexion || esMySqlError ? Colors.orange : Colors.red,
@@ -903,10 +965,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
                             _editarDescripcion(context, ref, imagen);
                           }
                         });
-                      } else {
-                        if (context.mounted) {
-                          _editarDescripcion(context, ref, imagen);
-                        }
+                      } else if (context.mounted) {
+                        _editarDescripcion(context, ref, imagen);
                       }
                     },
                   )
@@ -921,14 +981,28 @@ class InmuebleImagenesSection extends ConsumerWidget {
     WidgetRef ref,
     InmuebleImagen imagen,
   ) async {
-    if (imagen.id == null || imagen.esPrincipal || !context.mounted) return;
+    if (imagen.id == null || !context.mounted) return;
 
     try {
-      ref
-          .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
-          .marcarComoPrincipal(imagen.id!);
+      // Obtener el notifier a través del provider
+      final notifier = ref.read(
+        inmuebleImagenesStateProvider(inmuebleId).notifier,
+      );
+
+      // Marcar como principal
+      await notifier.marcarComoPrincipal(imagen.id!);
+
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Imagen establecida como principal'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
-      // Verificar que el contexto esté montado antes de mostrar el snackbar
+      AppLogger.error('Error al marcar como principal', e, StackTrace.current);
+
       if (!context.mounted) return;
 
       final esErrorConexion =
@@ -946,7 +1020,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
                 ? 'Error de conexión. Intente más tarde.'
                 : esMySqlError
                 ? 'Error de comunicación con la base de datos. Intente nuevamente.'
-                : 'Error al marcar como principal: $e',
+                : 'Error al marcar como principal: ${e.toString().split('\n').first}',
           ),
           backgroundColor:
               esErrorConexion || esMySqlError ? Colors.orange : Colors.red,
@@ -956,17 +1030,16 @@ class InmuebleImagenesSection extends ConsumerWidget {
                     label: 'Reintentar',
                     onPressed: () {
                       if (esMySqlError) {
-                        ref.read(dbServiceProvider).reiniciarConexion().then((
-                          _,
-                        ) {
-                          if (context.mounted) {
-                            _marcarComoPrincipal(context, ref, imagen);
-                          }
-                        });
-                      } else {
-                        if (context.mounted) {
-                          _marcarComoPrincipal(context, ref, imagen);
-                        }
+                        ref
+                            .read(databaseServiceProvider)
+                            .reiniciarConexion()
+                            .then((_) {
+                              if (context.mounted) {
+                                _marcarComoPrincipal(context, ref, imagen);
+                              }
+                            });
+                      } else if (context.mounted) {
+                        _marcarComoPrincipal(context, ref, imagen);
                       }
                     },
                   )
@@ -976,6 +1049,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
     }
   }
 
+  /// Elimina una imagen con confirmación previa
   Future<void> _eliminarImagen(
     BuildContext context,
     WidgetRef ref,
@@ -984,7 +1058,6 @@ class InmuebleImagenesSection extends ConsumerWidget {
     if (imagen.id == null || !context.mounted) return;
 
     try {
-      // Confirmar eliminación
       final confirmado = await showDialog<bool>(
         context: context,
         builder:
@@ -1007,14 +1080,23 @@ class InmuebleImagenesSection extends ConsumerWidget {
             ),
       );
 
-      // Verificar que el contexto siga montado después de la operación asíncrona
       if (confirmado == true && context.mounted) {
-        ref
+        await ref
             .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
             .eliminarImagen(imagen.id!);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Imagen eliminada correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
-      // Verificar que el contexto esté montado antes de mostrar el snackbar
+      AppLogger.error('Error al eliminar imagen', e, StackTrace.current);
+
       if (!context.mounted) return;
 
       final esErrorConexion =
@@ -1032,7 +1114,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
                 ? 'Error de conexión. Intente más tarde.'
                 : esMySqlError
                 ? 'Error de comunicación con la base de datos. Intente nuevamente.'
-                : 'Error al eliminar imagen: $e',
+                : 'Error al eliminar imagen: ${e.toString().split('\n').first}',
           ),
           backgroundColor:
               esErrorConexion || esMySqlError ? Colors.orange : Colors.red,
@@ -1049,10 +1131,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
                             _eliminarImagen(context, ref, imagen);
                           }
                         });
-                      } else {
-                        if (context.mounted) {
-                          _eliminarImagen(context, ref, imagen);
-                        }
+                      } else if (context.mounted) {
+                        _eliminarImagen(context, ref, imagen);
                       }
                     },
                   )
@@ -1060,5 +1140,19 @@ class InmuebleImagenesSection extends ConsumerWidget {
         ),
       );
     }
+  }
+
+  /// Muestra un snackbar de error con formato consistente
+  void _mostrarSnackbarError(BuildContext context, String mensaje) {
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(8),
+      ),
+    );
   }
 }

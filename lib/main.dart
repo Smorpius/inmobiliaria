@@ -1,5 +1,4 @@
 import 'vistas/vista_menu.dart';
-import 'dart:developer' as developer;
 import 'vistas/inmuebles/index.dart';
 import 'package:flutter/material.dart';
 import 'vistas/usuario/vista_user.dart';
@@ -7,19 +6,27 @@ import 'providers/providers_global.dart';
 import 'vistas/clientes/vista_clientes.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'utils/applogger.dart'; // Importación del AppLogger
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
 import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
 
-// Nueva importación
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Inicializar AppLogger con nivel WARNING para reducir la cantidad de logs
+  AppLogger.init(level: LogLevel.warning);
+
+  // Opcional: personaliza cómo se muestran los logs
+  // AppLogger.logOutput = (message) {
+  //   final timestamp = DateTime.now().toString().split('.').first;
+  //   print('[$timestamp] $message');
+  // };
+
   // Inicializar datos de fecha para español
   await initializeDateFormatting('es_ES', null);
-  developer.log('Inicialización de formato de fecha completada');
+  AppLogger.info('Inicialización de formato de fecha completada');
 
   // Ejecutar la aplicación con ProviderScope sin overrides
   runApp(const ProviderScope(child: MyApp()));
@@ -105,32 +112,37 @@ class MyApp extends ConsumerWidget {
                 ),
               ),
             ),
-        error:
-            (error, stack) => Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 48, color: Colors.red),
-                    SizedBox(height: 16),
-                    Text(
-                      'Error al inicializar la aplicación',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(error.toString()),
-                    SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.refresh(appInitializationProvider),
-                      child: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
+        error: (error, stack) {
+          // Registrar el error mediante AppLogger
+          AppLogger.error(
+            'Error de inicialización de la aplicación',
+            error,
+            stack,
+          );
+
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'Error al inicializar la aplicación',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(error.toString()),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => ref.refresh(appInitializationProvider),
+                    child: const Text('Reintentar'),
+                  ),
+                ],
               ),
             ),
+          );
+        },
       ),
       // Rutas de la aplicación
       routes: {
@@ -140,8 +152,7 @@ class MyApp extends ConsumerWidget {
         '/empleados': (context) => const EmpleadosScreenWrapper(),
         '/proveedores': (context) => const ListaProveedoresScreen(),
         '/ventas': (context) => const ListaVentasScreen(),
-        '/ventas/reportes':
-            (context) => const ReportesVentasScreen(), // Agregada ruta
+        '/ventas/reportes': (context) => const ReportesVentasScreen(),
       },
     );
   }
@@ -164,7 +175,6 @@ class EmpleadosScreenWrapper extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Ya no necesitamos pasar el controller explícitamente
     return const ListaEmpleadosScreen();
   }
 }

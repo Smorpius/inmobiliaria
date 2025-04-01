@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'components/detail_row.dart';
 import 'package:flutter/material.dart';
-import 'components/inmueble_header.dart';
 import 'package:flutter/foundation.dart';
+import 'components/inmueble_header.dart';
 import 'components/inmueble_basic_info.dart';
 import 'components/inmueble_price_info.dart';
 import 'components/inmueble_address_info.dart';
 import 'components/cliente_asociado_info.dart';
 import 'components/inmueble_action_buttons.dart';
+import 'package:inmobiliaria/utils/applogger.dart';
 import 'components/inmueble_detalle_notifier.dart';
 import 'components/inmueble_operation_buttons.dart';
 import 'components/inmueble_proveedores_section.dart';
@@ -16,11 +17,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/models/inmueble_model.dart';
 import 'package:inmobiliaria/widgets/async_value_widget.dart';
 import 'package:inmobiliaria/providers/cliente_providers.dart';
+import 'package:inmobiliaria/models/inmueble_imagenes_state.dart';
 import 'package:inmobiliaria/widgets/inmueble_financiero_info.dart';
-import 'package:inmobiliaria/models/clientes_interesados_state.dart';
 import 'package:inmobiliaria/widgets/inmueble_imagenes_section.dart';
-import 'package:inmobiliaria/vistas/ventas/registrar_venta_screen.dart';
-import 'package:inmobiliaria/models/inmueble_imagenes_state.dart'; // Corrección: importación adecuada
+import 'package:inmobiliaria/models/clientes_interesados_state.dart';
+import 'package:inmobiliaria/vistas/ventas/registrar_operacion_screen.dart';
+import 'package:inmobiliaria/vistas/inmuebles/components/registro_movimientos_renta_screen.dart';
 
 class InmuebleDetailScreen extends ConsumerStatefulWidget {
   // Constantes para los estados del inmueble usando lowerCamelCase
@@ -89,10 +91,8 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
 
   // Método para precargar datos en segundo plano
   Future<void> _precargarDatos() async {
-    // Programar la carga para después de que la UI esté completamente construida
     Future.microtask(() {
       try {
-        // Precargar clientes para mejorar la respuesta del diálogo
         if (_cachedClientes.isEmpty && !_clientesLoading) {
           setState(() {
             _clientesLoading = true;
@@ -106,8 +106,8 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
             });
           }
         }
-      } catch (e) {
-        debugPrint('Error en precarga: $e');
+      } catch (e, stackTrace) {
+        AppLogger.error('Error en precarga de datos', e, stackTrace);
       }
     });
   }
@@ -205,7 +205,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
         widget.botonEstadoColor ??
         (currentIsInactivo ? Colors.green : Colors.red);
 
-    // Usar RepaintBoundary para evitar repintados innecesarios del contenido
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.all(16.0),
@@ -215,14 +214,12 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // Usar SliverToBoxAdapter para cada sección ayuda al rendimiento
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Encabezado con nombre del inmueble
                     InmuebleHeader(
                       key: ValueKey('header_${inmueble.id ?? "nuevo"}'),
                       inmueble: inmueble,
@@ -232,8 +229,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
-
-            // Sección de imágenes optimizada
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -243,36 +238,29 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
-
             SliverToBoxAdapter(
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
                 child: Divider(height: 16),
               ),
             ),
-
-            // Información principal
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Secciones de información básica
                     InmuebleBasicInfo(
                       key: ValueKey('basic_${inmueble.id ?? "nuevo"}'),
                       inmueble: inmueble,
                       isInactivo: currentIsInactivo,
                     ),
-
                     const SizedBox(height: 16),
-
                     InmueblePriceInfo(
                       key: ValueKey('price_${inmueble.id ?? "nuevo"}'),
                       inmueble: inmueble,
                       isInactivo: currentIsInactivo,
                     ),
-
                     if (inmueble.costoCliente > 0 ||
                         inmueble.costoServicios > 0)
                       Padding(
@@ -287,8 +275,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
-
-            // Sección de proveedores
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
@@ -301,15 +287,12 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
-
             SliverToBoxAdapter(
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
                 child: Divider(height: 16),
               ),
             ),
-
-            // Información de dirección y características
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -321,7 +304,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                       inmueble: inmueble,
                       isInactivo: currentIsInactivo,
                     ),
-
                     if (inmueble.caracteristicas != null &&
                         inmueble.caracteristicas!.isNotEmpty)
                       Padding(
@@ -337,15 +319,12 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
-
             SliverToBoxAdapter(
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
                 child: Divider(height: 16),
               ),
             ),
-
-            // Información de cliente, empleado e interesados
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -365,7 +344,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                           }
                         },
                       ),
-
                     if (inmueble.idEmpleado != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 16.0),
@@ -376,7 +354,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                           isInactivo: currentIsInactivo,
                         ),
                       ),
-
                     if (inmueble.id != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 16.0),
@@ -390,8 +367,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
-
-            // Botones de operación
             if (inmueble.id != null && !currentIsInactivo)
               SliverToBoxAdapter(
                 child: Padding(
@@ -422,7 +397,36 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
 
-            // Botones de acción
+            // AÑADIR ESTE NUEVO SliverToBoxAdapter AQUÍ
+            if (inmueble.idEstado == InmuebleDetailScreen.estadoRentado)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: 16.0,
+                    left: 24.0,
+                    right: 24.0,
+                  ),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.account_balance_wallet),
+                    label: const Text('Registro de Renta'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => RegistroMovimientosRentaScreen(
+                                  inmueble: inmueble,
+                                ),
+                          ),
+                        ),
+                  ),
+                ),
+              ),
+
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -453,9 +457,8 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     );
   }
 
-  // Método optimizado para la sección de imágenes - CORREGIDO para manejar nulos
+  // Método optimizado para la sección de imágenes
   Widget _buildOptimizedImageSection(int? inmuebleId, bool isInactivo) {
-    // Corrección: Verificar si el ID es nulo antes de continuar
     if (inmuebleId == null) {
       return Container(
         height: 200,
@@ -479,7 +482,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     }
 
     return FutureBuilder<void>(
-      // Usar delay mínimo para permitir que la UI se construya primero
       future: Future.delayed(const Duration(milliseconds: 5)),
       builder: (context, snapshot) {
         try {
@@ -488,7 +490,12 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
             inmuebleId: inmuebleId,
             isInactivo: isInactivo,
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            'Error al construir la sección de imágenes',
+            e,
+            stackTrace,
+          );
           return Container(
             height: 200,
             width: double.infinity,
@@ -511,7 +518,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: () {
-                      // Corregido: Usar el provider correcto
                       ref.invalidate(inmuebleImagenesStateProvider(inmuebleId));
                     },
                     icon: const Icon(Icons.refresh),
@@ -526,9 +532,8 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     );
   }
 
-  // Método optimizado para la sección de proveedores - CORREGIDO para manejar nulos
+  // Método optimizado para la sección de proveedores
   Widget _buildOptimizedProveedoresSection(int? inmuebleId, bool isInactivo) {
-    // Corrección: Verificar si el ID es nulo antes de continuar
     if (inmuebleId == null) {
       return Container(
         padding: const EdgeInsets.all(16),
@@ -548,7 +553,12 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
             idInmueble: inmuebleId,
             isInactivo: isInactivo,
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            'Error al construir la sección de proveedores',
+            e,
+            stackTrace,
+          );
           return Container(
             padding: const EdgeInsets.all(16),
             child: Text(
@@ -572,10 +582,15 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     });
 
     try {
-      await operacion();
-    } catch (e) {
+      await operacion().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('La operación tardó demasiado tiempo');
+        },
+      );
+    } catch (e, stackTrace) {
       if (mounted) {
-        // Cambiado de context.mounted a mounted
+        AppLogger.error('Error en operación segura', e, stackTrace);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString().split('\n').first}'),
@@ -626,7 +641,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
   ) async {
     List<dynamic> clientes = _cachedClientes;
 
-    // Si no tenemos clientes en caché, los cargamos
     if (clientes.isEmpty) {
       final clientesAsyncValue = ref.read(clientesProvider);
 
@@ -656,7 +670,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
 
       clientes = clientesAsyncValue.value ?? [];
 
-      // Guardar en caché para futuros usos
       if (mounted && clientes.isNotEmpty) {
         setState(() {
           _cachedClientes = clientes;
@@ -682,10 +695,9 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
 
     if (!context.mounted) return;
 
-    // Usar compute para procesar la lista de clientes en otro hilo
     final dropdownItems = await compute(_buildDropdownItems, clientes);
 
-    if (!context.mounted) return; // Verificación adicional
+    if (!context.mounted) return;
 
     final resultado = await showDialog<bool>(
       context: context,
@@ -762,7 +774,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
       if (!context.mounted) return;
 
       try {
-        // Mostrar indicador de carga
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Registrando cliente interesado...'),
@@ -774,13 +785,19 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
           clientesInteresadosStateProvider(idInmueble).notifier,
         );
 
-        // Ya verificamos que clienteSeleccionado no es null arriba
-        final success = await notifier.registrarClienteInteresado(
-          clienteSeleccionado!,
-          comentariosController.text.isEmpty
-              ? null
-              : comentariosController.text,
-        );
+        final success = await notifier
+            .registrarClienteInteresado(
+              clienteSeleccionado!,
+              comentariosController.text.isEmpty
+                  ? null
+                  : comentariosController.text,
+            )
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                throw TimeoutException('La operación tardó demasiado tiempo');
+              },
+            );
 
         if (!context.mounted) return;
 
@@ -799,8 +816,10 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
             ),
           );
         }
-      } catch (e) {
+      } catch (e, stackTrace) {
         if (!context.mounted) return;
+
+        AppLogger.error('Error al agregar cliente interesado', e, stackTrace);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -816,7 +835,7 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     comentariosController.dispose();
   }
 
-  // Método para iniciar operación (venta, renta, servicio) - CORREGIDO para manejar nulos
+  // Método para iniciar operación (venta, renta, servicio)
   Future<void> _iniciarOperacion(
     BuildContext context,
     Inmueble inmueble,
@@ -917,10 +936,8 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     if (confirmar != true || !context.mounted) return;
 
     try {
-      // Corregido: Ya verificamos que inmueble.id no es nulo al principio de la función
       final idInmueble = inmueble.id!;
 
-      // Mostrar indicador de progreso
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -938,9 +955,15 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
         ),
       );
 
-      // Corregido: Usar notifier de forma segura
       final notifier = ref.read(inmuebleDetalleProvider(idInmueble).notifier);
-      await notifier.actualizarEstado(InmuebleDetailScreen.estadoEnNegociacion);
+      await notifier
+          .actualizarEstado(InmuebleDetailScreen.estadoEnNegociacion)
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('La operación tardó demasiado tiempo');
+            },
+          );
 
       if (!context.mounted) return;
 
@@ -959,7 +982,7 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RegistrarVentaScreen(inmueble: inmueble),
+            builder: (context) => RegistrarOperacionScreen(inmueble: inmueble),
           ),
         );
 
@@ -967,13 +990,19 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
           ref.invalidate(inmuebleDetalleProvider(idInmueble));
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (!context.mounted) return;
+
+      AppLogger.error(
+        'Error al iniciar operación $operationType',
+        e,
+        stackTrace,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Error al cambiar estado de ${inmueble.nombre} a $operationType: ${e.toString().split('\n').first}',
+            'Error al iniciar operación $operationType: ${e.toString().split('\n').first}',
           ),
           backgroundColor: Colors.red,
         ),
@@ -981,7 +1010,7 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     }
   }
 
-  // Método para finalizar proceso - CORREGIDO para manejar nulos
+  // Método para finalizar proceso
   Future<void> _finalizarProceso(
     BuildContext context,
     Inmueble inmueble,
@@ -1102,10 +1131,8 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
     }
 
     try {
-      // Corregido: Ya verificamos que inmueble.id no es nulo al principio de la función
       final idInmueble = inmueble.id!;
 
-      // Mostrar indicador de progreso
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -1123,9 +1150,15 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
         ),
       );
 
-      // Corregido: Usar notifier de forma segura
       final notifier = ref.read(inmuebleDetalleProvider(idInmueble).notifier);
-      await notifier.actualizarEstado(estadoFinal);
+      await notifier
+          .actualizarEstado(estadoFinal)
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw TimeoutException('La operación tardó demasiado tiempo');
+            },
+          );
 
       if (!context.mounted) return;
 
@@ -1151,8 +1184,10 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
               InmuebleDetailScreen.coloresEstados[estadoFinal] ?? Colors.blue,
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (!context.mounted) return;
+
+      AppLogger.error('Error al finalizar proceso', e, stackTrace);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

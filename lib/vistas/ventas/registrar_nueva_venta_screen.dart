@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
-import 'registrar_venta_screen.dart';
 import 'package:flutter/material.dart';
+import 'registrar_operacion_screen.dart';
 import '../../models/inmueble_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/providers/inmuebles_disponibles_provider.dart';
@@ -37,14 +37,17 @@ class _RegistrarNuevaVentaScreenState
       _inmuebleDetalle = inmueble;
 
       // Establecer precio inicial según el tipo de operación y precio final calculado
-      if (inmueble.precioVentaFinal != null) {
-        _ingresoController.text = inmueble.precioVentaFinal!.toString();
-      } else if (inmueble.tipoOperacion == 'venta' &&
-          inmueble.precioVenta != null) {
-        _ingresoController.text = inmueble.precioVenta!.toString();
-      } else if (inmueble.tipoOperacion == 'renta' &&
-          inmueble.precioRenta != null) {
-        _ingresoController.text = inmueble.precioRenta!.toString();
+      if (inmueble.tipoOperacion == 'venta' ||
+          inmueble.tipoOperacion == 'ambos') {
+        if (inmueble.precioVentaFinal != null) {
+          _ingresoController.text = inmueble.precioVentaFinal!.toString();
+        } else if (inmueble.precioVenta != null) {
+          _ingresoController.text = inmueble.precioVenta!.toString();
+        }
+      } else if (inmueble.tipoOperacion == 'renta') {
+        if (inmueble.precioRenta != null) {
+          _ingresoController.text = inmueble.precioRenta!.toString();
+        }
       }
     });
   }
@@ -66,7 +69,7 @@ class _RegistrarNuevaVentaScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Solo pueden registrarse ventas de inmuebles en estado disponible',
+            'Solo pueden registrarse operaciones de inmuebles en estado disponible',
           ),
           backgroundColor: Colors.orange,
         ),
@@ -74,14 +77,15 @@ class _RegistrarNuevaVentaScreenState
       return;
     }
 
+    // Navegar a la pantalla universal de registro de operación
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RegistrarVentaScreen(inmueble: _inmuebleDetalle!),
+        builder:
+            (context) => RegistrarOperacionScreen(inmueble: _inmuebleDetalle!),
       ),
     ).then((result) {
       if (result == true && mounted) {
-        // Verificar que el widget esté montado antes de usar el contexto
         Navigator.of(context).pop(true);
       }
     });
@@ -91,22 +95,17 @@ class _RegistrarNuevaVentaScreenState
     final isSelected = _filtroTipo == label;
 
     return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
       child: FilterChip(
         label: Text(label),
         selected: isSelected,
-        onSelected: (selected) {
+        onSelected: (bool selected) {
           setState(() {
             _filtroTipo = selected ? label : 'Todos';
           });
         },
         backgroundColor: Colors.grey.shade200,
-        selectedColor: Colors.teal.shade100,
-        checkmarkColor: Colors.teal,
-        labelStyle: TextStyle(
-          color: isSelected ? Colors.teal.shade700 : Colors.black87,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        selectedColor: Colors.teal.shade300,
       ),
     );
   }
@@ -116,9 +115,9 @@ class _RegistrarNuevaVentaScreenState
       case 3:
         return 'Disponible';
       case 6:
-        return 'En negociación';
+        return 'En Negociación';
       default:
-        return 'Otro';
+        return 'Desconocido';
     }
   }
 
@@ -138,26 +137,24 @@ class _RegistrarNuevaVentaScreenState
     final inmueblesAsyncValue = ref.watch(inmueblesDisponiblesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Seleccionar Inmueble')),
+      appBar: AppBar(title: const Text('Registrar Nueva Venta')),
       body: Column(
         children: [
-          // Sección de búsqueda y filtros
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Barra de búsqueda
                 TextField(
                   decoration: InputDecoration(
-                    labelText: 'Buscar inmuebles',
+                    hintText: 'Buscar inmueble...',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 16,
-                    ),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
                   ),
                   onChanged: (value) {
                     setState(() {
@@ -165,7 +162,6 @@ class _RegistrarNuevaVentaScreenState
                     });
                   },
                 ),
-
                 const SizedBox(height: 12),
 
                 // Filtros de tipo de inmueble
@@ -246,7 +242,8 @@ class _RegistrarNuevaVentaScreenState
                       locale: 'es_MX',
                     );
                     final precioFormateado =
-                        inmueble.tipoOperacion == 'venta'
+                        inmueble.tipoOperacion == 'venta' ||
+                                inmueble.tipoOperacion == 'ambos'
                             ? formatCurrency.format(inmueble.precioVenta)
                             : "${formatCurrency.format(inmueble.precioRenta)}/mes";
 
@@ -270,42 +267,39 @@ class _RegistrarNuevaVentaScreenState
                         ),
                       ),
                       child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
                         title: Text(
                           inmueble.nombre,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SizedBox(height: 8),
                             Row(
                               children: [
-                                Text(
-                                  'Tipo: ${inmueble.tipoInmueble ?? 'No especificado'}',
+                                Icon(
+                                  Icons.circle,
+                                  size: 12,
+                                  color: _getEstadoColor(inmueble.idEstado!),
                                 ),
-                                const SizedBox(width: 10),
-                                Chip(
-                                  label: Text(
-                                    _getEstadoText(inmueble.idEstado ?? 0),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _getEstadoText(inmueble.idEstado!),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _getEstadoColor(inmueble.idEstado!),
                                   ),
-                                  backgroundColor: _getEstadoColor(
-                                    inmueble.idEstado ?? 0,
-                                  ),
-                                  labelStyle: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
-                                  materialTapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                  padding: EdgeInsets.zero,
                                 ),
                               ],
                             ),
-                            Text('Operación: ${inmueble.tipoOperacion}'),
+                            Row(
+                              children: [
+                                _buildTipoOperacionIndicator(
+                                  inmueble.tipoOperacion,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(inmueble.tipoOperacion),
+                              ],
+                            ),
                             Text('Precio anunciado: $precioFormateado'),
                             Text('Precio final: $precioFinalFormateado'),
                             if (inmueble.margenUtilidad != null)
@@ -361,14 +355,47 @@ class _RegistrarNuevaVentaScreenState
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'CONTINUAR AL REGISTRO DE VENTA',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                child: Text(
+                  _inmuebleDetalle?.tipoOperacion == 'renta'
+                      ? 'CONTINUAR AL REGISTRO DE RENTA'
+                      : _inmuebleDetalle?.tipoOperacion == 'venta'
+                      ? 'CONTINUAR AL REGISTRO DE VENTA'
+                      : 'CONTINUAR AL REGISTRO DE OPERACIÓN',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
         ],
       ),
     );
+  }
+
+  // Indicador visual para el tipo de operación
+  Widget _buildTipoOperacionIndicator(String tipoOperacion) {
+    IconData icon;
+    Color color;
+
+    switch (tipoOperacion) {
+      case 'venta':
+        icon = Icons.sell;
+        color = Colors.green;
+        break;
+      case 'renta':
+        icon = Icons.home;
+        color = Colors.blue;
+        break;
+      case 'ambos':
+        icon = Icons.compare_arrows;
+        color = Colors.purple;
+        break;
+      default:
+        icon = Icons.error;
+        color = Colors.red;
+    }
+
+    return Icon(icon, color: color, size: 16);
   }
 }
