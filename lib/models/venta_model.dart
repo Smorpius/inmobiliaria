@@ -49,7 +49,53 @@ class Venta {
        utilidadBruta = utilidadBruta ?? (ingreso - comisionProveedores),
        // Si se proporciona utilidadNeta, usarla, sino usar utilidadBruta
        utilidadNeta =
-           utilidadNeta ?? (utilidadBruta ?? (ingreso - comisionProveedores));
+           utilidadNeta ?? (utilidadBruta ?? (ingreso - comisionProveedores)) {
+    // Invariantes básicos que deben cumplirse
+    if (idCliente <= 0) {
+      _logger.severe(
+        'Se creó una Venta con ID de cliente inválido: $idCliente',
+      );
+    }
+
+    if (idInmueble <= 0) {
+      _logger.severe(
+        'Se creó una Venta con ID de inmueble inválido: $idInmueble',
+      );
+    }
+
+    if (ingreso <= 0) {
+      _logger.warning('Se creó una Venta con ingreso no positivo: $ingreso');
+    }
+
+    if (comisionProveedores < 0) {
+      _logger.warning(
+        'Se creó una Venta con comisión negativa: $comisionProveedores',
+      );
+    }
+
+    final utilidadBrutaCalculada = ingreso - comisionProveedores;
+    if (this.utilidadBruta != utilidadBrutaCalculada) {
+      _logger.warning(
+        'Inconsistencia en utilidad bruta: esperado $utilidadBrutaCalculada, '
+        'encontrado ${this.utilidadBruta}',
+      );
+    }
+
+    if (this.utilidadNeta > this.utilidadBruta) {
+      _logger.warning(
+        'La utilidad neta (${this.utilidadNeta}) es mayor que la bruta '
+        '(${this.utilidadBruta}), lo que indica un posible error',
+      );
+    }
+
+    if (fechaVenta.isAfter(DateTime.now())) {
+      _logger.warning('Se creó una Venta con fecha futura: $fechaVenta');
+    }
+
+    if (![7, 8, 9].contains(idEstado)) {
+      _logger.warning('Se creó una Venta con estado inválido: $idEstado');
+    }
+  }
 
   /// Crea una instancia de Venta a partir de un mapa de datos con manejo robusto de errores
   factory Venta.fromMap(Map<String, dynamic> map) {
@@ -68,32 +114,67 @@ class Venta {
         throw Exception('El campo ingreso es obligatorio');
       }
 
+      // Convertir valores con manejo seguro de errores
+      final int idCliente = int.parse(map['id_cliente'].toString());
+      final int idInmueble = int.parse(map['id_inmueble'].toString());
+      final double ingreso = double.parse(map['ingreso'].toString());
+
       // Calcular comisión de proveedores si no está presente
-      final comisionProveedores =
+      final double comisionProveedores =
           map['comision_proveedores'] != null
               ? double.parse(map['comision_proveedores'].toString())
               : 0.0;
 
+      // Calcular o recuperar utilidad bruta
+      final double? utilidadBruta =
+          map['utilidad_bruta'] != null
+              ? double.parse(map['utilidad_bruta'].toString())
+              : null; // Será calculado en el constructor
+
+      // Determinar utilidad neta
+      double? utilidadNeta;
+      if (map['utilidad_neta'] != null) {
+        utilidadNeta = double.parse(map['utilidad_neta'].toString());
+      } else if (utilidadBruta != null) {
+        // Si no hay utilidad neta pero sí bruta, inicialmente iguales
+        utilidadNeta = utilidadBruta;
+      }
+
+      // Garantizar que el estado sea válido
+      int idEstado = 7; // Valor predeterminado
+      if (map['id_estado'] != null) {
+        idEstado = int.parse(map['id_estado'].toString());
+        if (![7, 8, 9].contains(idEstado)) {
+          _logger.warning(
+            'Estado de venta inválido: $idEstado, usando 7 (en proceso)',
+          );
+          idEstado = 7;
+        }
+      }
+
+      // Convertir fecha con manejo de errores
+      DateTime fechaVenta;
+      try {
+        fechaVenta =
+            map['fecha_venta'] is DateTime
+                ? map['fecha_venta']
+                : DateTime.parse(map['fecha_venta'].toString());
+      } catch (e) {
+        _logger.warning('Error al parsear fecha de venta: $e');
+        fechaVenta = DateTime.now(); // Usar fecha actual como fallback
+      }
+
       // Crear instancia
       return Venta(
         id: map['id_venta'],
-        idCliente: map['id_cliente'],
-        idInmueble: map['id_inmueble'],
-        fechaVenta:
-            map['fecha_venta'] is DateTime
-                ? map['fecha_venta']
-                : DateTime.parse(map['fecha_venta'].toString()),
-        ingreso: double.parse(map['ingreso'].toString()),
+        idCliente: idCliente,
+        idInmueble: idInmueble,
+        fechaVenta: fechaVenta,
+        ingreso: ingreso,
         comisionProveedores: comisionProveedores,
-        utilidadBruta:
-            map['utilidad_bruta'] != null
-                ? double.parse(map['utilidad_bruta'].toString())
-                : null, // Permitir cálculo automático
-        utilidadNeta:
-            map['utilidad_neta'] != null
-                ? double.parse(map['utilidad_neta'].toString())
-                : null, // Permitir cálculo automático
-        idEstado: map['id_estado'] ?? 7,
+        utilidadBruta: utilidadBruta,
+        utilidadNeta: utilidadNeta,
+        idEstado: idEstado,
         nombreCliente: map['nombre_cliente'],
         apellidoCliente: map['apellido_cliente'],
         nombreInmueble: map['nombre_inmueble'],
@@ -133,10 +214,13 @@ class Venta {
 
   /// Actualiza la utilidad neta sin modificar otras propiedades
   Venta actualizarUtilidadNeta(double nuevaUtilidadNeta) {
+    // Validación de invariantes
     if (nuevaUtilidadNeta > utilidadBruta) {
       _logger.warning(
-        'La utilidad neta no debería ser mayor que la utilidad bruta',
+        'La utilidad neta ($nuevaUtilidadNeta) no debería ser mayor que la utilidad bruta ($utilidadBruta)',
       );
+      // Limitar la utilidad neta a la bruta para mantener la consistencia
+      nuevaUtilidadNeta = utilidadBruta;
     }
 
     return Venta(
@@ -164,7 +248,11 @@ class Venta {
   /// Crea una nueva instancia con un estado diferente
   Venta conNuevoEstado(int nuevoEstado) {
     if (![7, 8, 9].contains(nuevoEstado)) {
-      _logger.warning('Estado no válido: $nuevoEstado');
+      _logger.warning(
+        'Estado no válido: $nuevoEstado. Debe ser 7 (en proceso), 8 (completada) o 9 (cancelada)',
+      );
+      // Mantener el estado actual en vez de permitir uno inválido
+      nuevoEstado = idEstado;
     }
 
     return Venta(
@@ -191,6 +279,13 @@ class Venta {
 
   /// Calcula los gastos adicionales como la diferencia entre utilidad bruta y neta
   double get gastosAdicionales => utilidadBruta - utilidadNeta;
+
+  /// Determina si la venta es rentable (utilidad neta positiva)
+  bool get esRentable => utilidadNeta > 0;
+
+  /// Calcula el porcentaje de rentabilidad sobre el ingreso total
+  double get porcentajeRentabilidad =>
+      ingreso > 0 ? (utilidadNeta / ingreso) * 100 : 0;
 
   /// Genera una representación en cadena para depuración
   @override

@@ -129,9 +129,12 @@ class _MovimientosRentaScreenState
   }
 
   Future<void> _confirmarEliminarMovimiento(int idMovimiento) async {
+    // Capturar el contexto actual antes de operaciones asíncronas
+    final navigatorContext = context;
+
     return showDialog(
-      context: context,
-      builder: (BuildContext context) {
+      context: navigatorContext,
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Confirmar eliminación'),
           content: const Text(
@@ -139,40 +142,17 @@ class _MovimientosRentaScreenState
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('CANCELAR'),
             ),
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               onPressed: () async {
-                Navigator.of(context).pop();
-                try {
-                  final success = await ref
-                      .read(
-                        movimientosRentaStateProvider(
-                          widget.idInmueble,
-                        ).notifier,
-                      )
-                      .eliminarMovimiento(idMovimiento, widget.idInmueble);
+                // Usamos dialogContext para cerrar el diálogo
+                Navigator.of(dialogContext).pop();
 
-                  if (success && mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Movimiento eliminado correctamente'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error al eliminar movimiento: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
+                // Para la operación asíncrona, creamos una función que será ejecutada
+                _procesarEliminacion(idMovimiento);
               },
               child: const Text('ELIMINAR'),
             ),
@@ -180,6 +160,38 @@ class _MovimientosRentaScreenState
         );
       },
     );
+  }
+
+  // Separar la operación asíncrona a un método distinto
+  Future<void> _procesarEliminacion(int idMovimiento) async {
+    try {
+      // Eliminando la variable 'success' no utilizada - directamente llamamos al método
+      await ref
+          .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
+          .eliminarMovimiento(idMovimiento, widget.idInmueble);
+
+      // Verificar que el widget esté montado antes de usar el contexto
+      if (!mounted) return;
+
+      // Ahora es seguro usar ScaffoldMessenger con el contexto actual
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Movimiento eliminado correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      // Verificar que el widget esté montado antes de usar el contexto
+      if (!mounted) return;
+
+      // Ahora es seguro usar ScaffoldMessenger con el contexto actual
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al eliminar movimiento: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -486,8 +498,8 @@ class _MovimientosRentaScreenState
             leading: CircleAvatar(
               backgroundColor:
                   movimiento.esIngreso
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.red.withOpacity(0.1),
+                      ? Colors.green.withAlpha(26) // 0.1 * 255 ≈ 26
+                      : Colors.red.withAlpha(26), // 0.1 * 255 ≈ 26
               child: Icon(
                 movimiento.esIngreso
                     ? Icons.arrow_downward

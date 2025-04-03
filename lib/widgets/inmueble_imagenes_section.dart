@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import '../services/mysql_helper.dart';
@@ -10,6 +11,7 @@ import '../models/inmueble_imagenes_state.dart';
 import '../widgets/inmueble_imagen_carousel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../vistas/inmuebles/galeria_pantalla_completa.dart';
+import 'dart:math' as math; // Adding proper import for math functions
 
 /// Provider para acceder al servicio de base de datos
 final dbServiceProvider = Provider<DatabaseService>((ref) {
@@ -97,9 +99,21 @@ class InmuebleImagenesSection extends ConsumerWidget {
 
           // Contenido principal según el estado
           if (state.isLoading && state.imagenes.isEmpty)
-            const SizedBox(
+            SizedBox(
               height: _carouselHeight,
-              child: Center(child: CircularProgressIndicator()),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      "Cargando imágenes...",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
             )
           else if (state.errorMessage != null)
             _buildErrorMessage(context, ref, state.errorMessage!)
@@ -108,26 +122,38 @@ class InmuebleImagenesSection extends ConsumerWidget {
           else
             _buildImagesCarousel(context, ref, state),
 
-          // Botón para verificar y reparar imágenes dañadas
-          if (state.imagenes.isNotEmpty)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                icon: const Icon(Icons.healing),
-                label: const Text('Verificar y reparar imágenes'),
-                onPressed:
-                    () => limpiarImagenesDanadas(context, ref, state.imagenes),
-              ),
-            ),
+          // Información de cómo actualizar las imágenes
+          if (!isInactivo && state.imagenes.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Botón para verificar y reparar imágenes dañadas
+                  TextButton.icon(
+                    icon: const Icon(Icons.healing, size: 16),
+                    label: const Text(
+                      'Reparar imágenes',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    onPressed:
+                        () => limpiarImagenesDanadas(
+                          context,
+                          ref,
+                          state.imagenes,
+                        ),
+                  ),
 
-          // Botón para ver galería completa
-          if (state.imagenes.isNotEmpty)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                icon: const Icon(Icons.photo_library),
-                label: const Text('Ver todas'),
-                onPressed: () => _abrirGaleriaPantallaCompleta(context),
+                  // Botón para ver galería completa
+                  TextButton.icon(
+                    icon: const Icon(Icons.photo_library, size: 16),
+                    label: const Text(
+                      'Ver galería',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    onPressed: () => _abrirGaleriaPantallaCompleta(context),
+                  ),
+                ],
               ),
             ),
         ],
@@ -151,7 +177,10 @@ class InmuebleImagenesSection extends ConsumerWidget {
       return Container(
         height: _carouselHeight,
         width: double.infinity,
-        color: Colors.grey.shade200,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -226,43 +255,77 @@ class InmuebleImagenesSection extends ConsumerWidget {
         errorMessage.contains('closed');
     final esErrorFormato =
         errorMessage.contains('format') || errorMessage.contains('RangeError');
+    final esErrorPermiso =
+        errorMessage.contains('permission') ||
+        errorMessage.contains('denied') ||
+        errorMessage.contains('access');
 
     IconData iconoError;
     String mensajeError;
     Color colorError;
+    String mensajeAyuda = '';
 
     if (esMySqlError) {
       iconoError = Icons.storage_outlined;
       mensajeError = 'Error de comunicación con la base de datos';
       colorError = Colors.orange;
+      mensajeAyuda = 'Verifique la conexión a la base de datos y reintente';
     } else if (esErrorConexion) {
       iconoError = Icons.wifi_off;
       mensajeError = 'Problema de conexión a la base de datos';
       colorError = Colors.orange.shade700;
+      mensajeAyuda = 'Compruebe su conexión a internet y reintente';
     } else if (esErrorFormato) {
       iconoError = Icons.file_copy_outlined;
       mensajeError = 'Error en el formato de los datos de imagen';
       colorError = Colors.red.shade300;
+      mensajeAyuda =
+          'Las imágenes pueden estar dañadas o en formato no compatible';
+    } else if (esErrorPermiso) {
+      iconoError = Icons.no_encryption_gmailerrorred;
+      mensajeError = 'Sin permiso para acceder a las imágenes';
+      colorError = Colors.red.shade700;
+      mensajeAyuda =
+          'Verifique los permisos de acceso a las carpetas de imágenes';
     } else {
       iconoError = Icons.error_outline;
-      mensajeError =
-          'Error al cargar imágenes: ${errorMessage.split('\n').first}';
+      mensajeError = 'Error al cargar imágenes';
       colorError = Colors.red;
+      mensajeAyuda = errorMessage.split('\n').first;
     }
 
-    return SizedBox(
+    return Container(
       height: _carouselHeight,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(iconoError, size: 40, color: colorError),
+            Icon(iconoError, size: 48, color: colorError),
             const SizedBox(height: 16),
             Text(
               mensajeError,
-              style: TextStyle(color: colorError),
+              style: TextStyle(
+                color: colorError,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 4),
+            if (mensajeAyuda.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Text(
+                  mensajeAyuda,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
@@ -279,6 +342,11 @@ class InmuebleImagenesSection extends ConsumerWidget {
               icon: const Icon(Icons.refresh),
               label: const Text('Reintentar'),
             ),
+            if (!isInactivo)
+              TextButton(
+                onPressed: () => _mostrarOpcionesAgregarImagen(context, ref),
+                child: const Text('Agregar nueva imagen'),
+              ),
           ],
         ),
       ),
@@ -291,7 +359,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
       height: _carouselHeight,
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.grey.shade50,
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -312,6 +381,10 @@ class InmuebleImagenesSection extends ConsumerWidget {
               onPressed: () => _mostrarOpcionesAgregarImagen(context, ref),
               icon: const Icon(Icons.add_a_photo),
               label: const Text('Agregar imagen'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ],
@@ -325,6 +398,54 @@ class InmuebleImagenesSection extends ConsumerWidget {
     WidgetRef ref,
     InmuebleImagenesState state,
   ) {
+    // Verificar si hay al menos una imagen con ruta accesible
+    bool hayImagenesValidas = false;
+    for (var imagen in state.imagenes) {
+      if (imagen.rutaImagen.isNotEmpty &&
+          File(imagen.rutaImagen).existsSync()) {
+        hayImagenesValidas = true;
+        break;
+      }
+    }
+
+    if (!hayImagenesValidas) {
+      return Container(
+        height: _carouselHeight,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image, size: 48, color: Colors.orange),
+              const SizedBox(height: 16),
+              const Text(
+                'Las imágenes están registradas pero no se pueden acceder a los archivos',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.orange),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Prueba agregar nuevas imágenes o reparar las existentes',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed:
+                    () => limpiarImagenesDanadas(context, ref, state.imagenes),
+                icon: const Icon(Icons.healing),
+                label: const Text('Reparar imágenes'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Stack(
       children: [
         InmuebleImagenCarousel(
@@ -423,6 +544,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
         // Indicador de carga superpuesto
         if (state.isLoading)
           Container(
+            height: _carouselHeight,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
             color: Colors.black26,
             child: const Center(child: CircularProgressIndicator()),
           ),
@@ -430,169 +553,106 @@ class InmuebleImagenesSection extends ConsumerWidget {
     );
   }
 
-  /// Método optimizado para agregar imágenes con validaciones completas
-  Future<void> _agregarImagen(
-    BuildContext context,
-    WidgetRef ref,
-    ImageSource source,
-  ) async {
-    try {
-      final imageService = ref.read(imageServiceProvider);
-
-      final File? imagen = await imageService.pickImage(source);
-      if (imagen == null) return;
-
-      if (!await imagen.exists()) {
-        if (!context.mounted) return;
-        _mostrarSnackbarError(
-          context,
-          'No se pudo acceder al archivo de imagen',
-        );
-        return;
-      }
-
-      if (await imagen.length() < 100) {
-        if (!context.mounted) return;
-        _mostrarSnackbarError(context, 'Archivo de imagen dañado o vacío');
-        return;
-      }
-
-      if (await imagen.length() > 10 * 1024 * 1024) {
-        if (!context.mounted) return;
-        _mostrarSnackbarError(
-          context,
-          'La imagen es demasiado grande (máximo 10MB)',
-        );
-        return;
-      }
-
-      try {
-        final bytes = await imagen.readAsBytes();
-        await decodeImageFromList(
-          bytes.sublist(0, bytes.length > 1024 ? 1024 : bytes.length),
-        ).timeout(_imagenValidacionTimeout);
-      } catch (decodeError) {
-        if (!context.mounted) return;
-        _mostrarSnackbarError(
-          context,
-          'El archivo no es una imagen válida: ${decodeError.toString().split('\n').first}',
-        );
-        return;
-      }
-
-      if (!context.mounted) return;
-
-      final descripcion = await _mostrarDialogoDescripcion(context);
-      if (descripcion == null) return;
-
-      if (!context.mounted) return;
-
-      await ref
-          .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
-          .agregarImagen(imagen, descripcion);
-    } catch (e) {
-      AppLogger.error('Error al agregar imagen', e, StackTrace.current);
-
-      if (!context.mounted) return;
-
-      final esErrorConexion =
-          e.toString().contains('socket') ||
-          e.toString().contains('connection');
-      final esMySqlError =
-          e.toString().contains('MySQL') ||
-          e.toString().contains('MySqlProtocol');
-      final esErrorImagen =
-          e.toString().contains('ImagePicker') || e.toString().contains('file');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            esErrorImagen
-                ? 'Error al procesar la imagen. Intente con otra.'
-                : esErrorConexion || esMySqlError
-                ? 'Error de conexión con la base de datos.'
-                : 'Error al agregar imagen: ${e.toString().split('\n').first}',
-          ),
-          backgroundColor:
-              esErrorImagen
-                  ? Colors.amber
-                  : (esErrorConexion || esMySqlError)
-                  ? Colors.orange
-                  : Colors.red,
-          action:
-              (esErrorConexion || esMySqlError)
-                  ? SnackBarAction(
-                    label: 'Reintentar',
-                    onPressed: () {
-                      if (esMySqlError) {
-                        ref.read(dbServiceProvider).reiniciarConexion().then((
-                          _,
-                        ) {
-                          if (context.mounted) {
-                            _agregarImagen(context, ref, source);
-                          }
-                        });
-                      } else if (context.mounted) {
-                        _agregarImagen(context, ref, source);
-                      }
-                    },
-                  )
-                  : null,
-        ),
-      );
-    }
-  }
-
   /// Verifica si una imagen es válida con timeout para prevenir bloqueos
   Future<bool> verificarImagenValida(File file) async {
     try {
-      if (!file.existsSync() || await file.length() < 100) {
+      AppLogger.info('Verificando imagen: ${file.path}');
+
+      // Verificación inicial básica
+      if (!file.existsSync()) {
+        AppLogger.warning('Archivo de imagen no existe: ${file.path}');
         return false;
       }
 
-      final bytes = await file.readAsBytes().timeout(
-        _imagenValidacionTimeout,
-        onTimeout:
-            () =>
-                throw TimeoutException(
-                  'Tiempo de espera agotado al leer imagen',
-                ),
-      );
+      final fileSize = await file.length();
+      if (fileSize <= 0) {
+        AppLogger.warning('Archivo de imagen vacío (0 bytes): ${file.path}');
+        return false;
+      }
 
-      if (bytes.length < 8) return false;
+      // Usamos el mismo umbral que en InmuebleImagenCarousel (100 bytes)
+      if (fileSize < 100) {
+        AppLogger.warning(
+          'Archivo de imagen demasiado pequeño ($fileSize bytes): ${file.path}',
+        );
+        return false;
+      }
 
-      final isJpeg =
-          bytes.length > 2 &&
-          bytes[0] == 0xFF &&
-          bytes[1] == 0xD8 &&
-          bytes[2] == 0xFF;
-      final isPng =
-          bytes.length > 7 &&
-          bytes[0] == 0x89 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x4E &&
-          bytes[3] == 0x47;
-      final isGif =
-          bytes.length > 3 &&
-          bytes[0] == 0x47 &&
-          bytes[1] == 0x49 &&
-          bytes[2] == 0x46;
-
-      if (!(isJpeg || isPng || isGif)) {
+      // Para archivos grandes, solo verificamos la cabecera para evitar bloqueos
+      if (fileSize > 1024 * 1024) {
+        // > 1MB
         try {
-          await decodeImageFromList(
-            bytes.length > 1024 ? bytes.sublist(0, 1024) : bytes,
-          ).timeout(_imagenValidacionTimeout);
+          final bytes = await file.openRead(0, 16).first;
+          if (bytes.isEmpty) {
+            AppLogger.warning('Cabecera de imagen vacía: ${file.path}');
+            return false;
+          }
+
+          // Verificar formatos comunes por su cabecera
+          final isJpeg =
+              bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8;
+          final isPng =
+              bytes.length > 7 &&
+              bytes[0] == 0x89 &&
+              bytes[1] == 0x50 &&
+              bytes[2] == 0x4E;
+          final isGif =
+              bytes.length > 3 &&
+              bytes[0] == 0x47 &&
+              bytes[1] == 0x49 &&
+              bytes[2] == 0x46;
+          final isBmp =
+              bytes.length > 1 && bytes[0] == 0x42 && bytes[1] == 0x4D;
+          final isWebp =
+              bytes.length > 11 &&
+              bytes[0] == 0x52 &&
+              bytes[1] == 0x49 &&
+              bytes[2] == 0x46 &&
+              bytes[8] == 0x57 &&
+              bytes[9] == 0x45 &&
+              bytes[10] == 0x42;
+
+          if (isJpeg || isPng || isGif || isBmp || isWebp) {
+            // Si detectamos un formato válido por cabecera, lo consideramos válido
+            AppLogger.info('Imagen válida por cabecera: ${file.path}');
+            return true;
+          }
         } catch (e) {
-          AppLogger.warning('Formato de imagen no reconocido: ${file.path}');
-          return false;
+          AppLogger.warning(
+            'Error al leer cabecera de imagen: ${file.path} - $e',
+          );
         }
       }
 
-      return true;
+      // Para archivos pequeños o si no pudimos verificar por cabecera
+      // Intentamos abrir el archivo como imagen
+      try {
+        // Solo leemos los primeros bytes para minimizar uso de memoria
+        final bytesLength =
+            fileSize < 10240
+                ? fileSize.toInt()
+                : 10240; // Max 10KB para verificación
+        final bytes = await file.readAsBytes().timeout(
+          _imagenValidacionTimeout,
+        );
+        final chunk =
+            bytes.length > bytesLength ? bytes.sublist(0, bytesLength) : bytes;
+
+        // Usamos decodeImageFromList que es el método que usa Flutter para renderizar imágenes
+        await decodeImageFromList(chunk).timeout(_imagenValidacionTimeout);
+        AppLogger.info('Imagen válida por decodificación: ${file.path}');
+        return true;
+      } catch (decodeError) {
+        AppLogger.warning(
+          'Error al decodificar imagen ${file.path}: $decodeError',
+        );
+        return false;
+      }
     } catch (e) {
-      AppLogger.warning(
-        'Error al validar imagen: ${file.path} - ${e.toString().split('\n').first}',
+      AppLogger.error(
+        'Error general al validar imagen: ${file.path}',
+        e,
+        StackTrace.current,
       );
       return false;
     }
@@ -606,22 +666,62 @@ class InmuebleImagenesSection extends ConsumerWidget {
   ) async {
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Verificando imágenes...')));
+    // Mostrar estado de inicio
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 10),
+            Text('Verificando imágenes...'),
+          ],
+        ),
+        duration: Duration(seconds: 10),
+      ),
+    );
 
+    // Recopilar información de imágenes dañadas
     final List<InmuebleImagen> imagenesDanadas = [];
+    final List<String> razonesErrores = [];
+    final Set<String> rutasProcesadas = {}; // Para evitar duplicados por ruta
+
     for (final imagen in imagenes) {
       try {
+        // Verificar si ya procesamos una imagen con esta ruta
+        if (rutasProcesadas.contains(imagen.rutaImagen)) {
+          continue;
+        }
+
+        rutasProcesadas.add(imagen.rutaImagen);
         final file = File(imagen.rutaImagen);
+
+        // Verificar si el archivo existe
+        if (!file.existsSync()) {
+          if (imagen.id != null) {
+            imagenesDanadas.add(imagen);
+            razonesErrores.add("No se encuentra el archivo: ${file.path}");
+          }
+          continue;
+        }
+
+        // Verificar si es una imagen válida
         final esValida = await verificarImagenValida(file);
 
         if (!esValida && imagen.id != null) {
           imagenesDanadas.add(imagen);
+          razonesErrores.add("Imagen inválida o dañada: ${file.path}");
         }
       } catch (e) {
-        if (imagen.id != null) {
+        if (imagen.id != null && !rutasProcesadas.contains(imagen.rutaImagen)) {
           imagenesDanadas.add(imagen);
+          razonesErrores.add(
+            "Error en la verificación: ${e.toString().split('\n').first}",
+          );
+          rutasProcesadas.add(imagen.rutaImagen);
         }
       }
     }
@@ -643,14 +743,39 @@ class InmuebleImagenesSection extends ConsumerWidget {
 
     if (!context.mounted) return;
 
+    // Mostrar diálogo con lista de imágenes dañadas
     final confirmar = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
-            title: const Text('Imágenes dañadas detectadas'),
-            content: Text(
-              'Se encontraron ${imagenesDanadas.length} imágenes dañadas. '
-              '¿Desea eliminarlas para resolver el problema?',
+            title: Text(
+              'Se encontraron ${imagenesDanadas.length} imágenes dañadas',
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: math.min(imagenesDanadas.length, 10),
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.broken_image,
+                      color: Colors.orange,
+                    ),
+                    title: Text(
+                      'Imagen ${index + 1}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      index < razonesErrores.length
+                          ? razonesErrores[index]
+                          : 'Imagen dañada',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                },
+              ),
             ),
             actions: [
               TextButton(
@@ -660,7 +785,9 @@ class InmuebleImagenesSection extends ConsumerWidget {
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text('Eliminar imágenes dañadas'),
+                child: Text(
+                  'Eliminar ${imagenesDanadas.length} imágenes dañadas',
+                ),
               ),
             ],
           ),
@@ -668,15 +795,36 @@ class InmuebleImagenesSection extends ConsumerWidget {
 
     if (confirmar != true || !context.mounted) return;
 
+    // Mostrar indicador de progreso
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 10),
+            Text('Eliminando imágenes dañadas...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
+    );
+
+    // Eliminar las imágenes dañadas
     final notifier = ref.read(
       inmuebleImagenesStateProvider(inmuebleId).notifier,
     );
     int eliminadas = 0;
+    final Set<int> idsEliminados = {}; // Evitar eliminar duplicados por ID
 
     for (final imagen in imagenesDanadas) {
-      if (imagen.id != null) {
+      if (imagen.id != null && !idsEliminados.contains(imagen.id)) {
         try {
           await notifier.eliminarImagen(imagen.id!);
+          idsEliminados.add(imagen.id!);
           eliminadas++;
         } catch (e) {
           AppLogger.error(
@@ -689,19 +837,36 @@ class InmuebleImagenesSection extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
+    // Mostrar resultado final
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           'Se ${eliminadas > 0 ? "eliminaron $eliminadas" : "intentó eliminar"} '
-          '${imagenesDanadas.length} ${imagenesDanadas.length == 1 ? "imagen dañada" : "imágenes dañadas"}',
+          'de ${imagenesDanadas.length} ${imagenesDanadas.length == 1 ? "imagen dañada" : "imágenes dañadas"}',
         ),
         backgroundColor: eliminadas > 0 ? Colors.green : Colors.orange,
       ),
     );
+
+    // Si hubo errores al eliminar algunas imágenes, mostrar un mensaje adicional
+    if (eliminadas < imagenesDanadas.length && context.mounted) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Algunas imágenes no pudieron ser eliminadas. Inténtelo nuevamente más tarde.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      });
+    }
   }
 
-  /// Abre la galería en pantalla completa con manejo de errores
+  /// Abre la galería en pantalla completa
   void _abrirGaleriaPantallaCompleta(BuildContext context) {
     try {
       Navigator.push(
@@ -723,6 +888,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
             content: Text(
               'Error al abrir la galería: ${e.toString().split('\n').first}',
             ),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -758,47 +924,6 @@ class InmuebleImagenesSection extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
-    );
-  }
-
-  /// Muestra un diálogo para ingresar la descripción de la imagen con validaciones
-  Future<String?> _mostrarDialogoDescripcion(BuildContext context) async {
-    if (!context.mounted) return null;
-
-    final controllerDescripcion = TextEditingController();
-
-    return showDialog<String>(
-      context: context,
-      builder:
-          (dialogContext) => AlertDialog(
-            title: const Text('Descripción de la imagen'),
-            content: TextField(
-              controller: controllerDescripcion,
-              decoration: const InputDecoration(
-                labelText: 'Descripción',
-                hintText: 'Ingrese una descripción para la imagen',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-              maxLength: 255,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () {
-                  final texto =
-                      controllerDescripcion.text.isEmpty
-                          ? 'Imagen del inmueble'
-                          : controllerDescripcion.text;
-                  Navigator.of(dialogContext).pop(texto);
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
           ),
     );
   }
@@ -872,8 +997,196 @@ class InmuebleImagenesSection extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Error en el menú de opciones: ${e.toString().split('\n').first}',
+            'Error al mostrar opciones: ${e.toString().split('\n').first}',
           ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Método optimizado para agregar imágenes con validaciones completas
+  Future<void> _agregarImagen(
+    BuildContext context,
+    WidgetRef ref,
+    ImageSource source,
+  ) async {
+    try {
+      final imageService = ref.read(imageServiceProvider);
+
+      // Mostrar indicador de progreso
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Seleccionando imagen...'),
+            ],
+          ),
+          duration: Duration(seconds: 10),
+        ),
+      );
+
+      // Seleccionar imagen
+      final File? imagen = await imageService.pickImage(source);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      }
+
+      if (imagen == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Selección de imagen cancelada'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Validaciones de la imagen
+      if (!await imagen.exists()) {
+        if (!context.mounted) return;
+        _mostrarSnackbarError(
+          context,
+          'No se pudo acceder al archivo de imagen',
+        );
+        return;
+      }
+
+      final tamanoImagen = await imagen.length();
+
+      if (tamanoImagen < 100) {
+        if (!context.mounted) return;
+        _mostrarSnackbarError(context, 'Archivo de imagen dañado o vacío');
+        return;
+      }
+
+      if (tamanoImagen > 10 * 1024 * 1024) {
+        if (!context.mounted) return;
+        _mostrarSnackbarError(
+          context,
+          'La imagen es demasiado grande (máximo 10MB)',
+        );
+        return;
+      }
+
+      // Validar que es una imagen válida intentando decodificarla
+      try {
+        final bytes = await imagen.readAsBytes();
+        await decodeImageFromList(
+          bytes.sublist(0, bytes.length > 1024 ? 1024 : bytes.length),
+        ).timeout(_imagenValidacionTimeout);
+      } catch (decodeError) {
+        if (!context.mounted) return;
+        _mostrarSnackbarError(
+          context,
+          'El archivo no es una imagen válida: ${decodeError.toString().split('\n').first}',
+        );
+        return;
+      }
+
+      // Solicitar descripción de la imagen
+      if (!context.mounted) return;
+      final descripcion = await _mostrarDialogoDescripcion(context);
+      if (descripcion == null) return;
+
+      if (!context.mounted) return;
+
+      // Mostrar indicador de carga durante el proceso de subida
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Guardando imagen...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+        ),
+      );
+
+      // Subir la imagen
+      await ref
+          .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
+          .agregarImagen(imagen, descripcion);
+
+      // Actualizar las imágenes principales si es necesario
+      ref.invalidate(imagenesPrincipalesProvider);
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Imagen agregada correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e, stack) {
+      AppLogger.error('Error al agregar imagen', e, stack);
+
+      if (!context.mounted) return;
+
+      final esErrorConexion =
+          e.toString().contains('socket') ||
+          e.toString().contains('connection');
+      final esMySqlError =
+          e.toString().contains('MySQL') ||
+          e.toString().contains('MySqlProtocol');
+      final esErrorImagen =
+          e.toString().contains('ImagePicker') ||
+          e.toString().contains('file') ||
+          e.toString().contains('permission');
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            esErrorImagen
+                ? 'Error al procesar la imagen. Intente con otra.'
+                : esErrorConexion || esMySqlError
+                ? 'Error de conexión con la base de datos.'
+                : 'Error al agregar imagen: ${e.toString().split('\n').first}',
+          ),
+          backgroundColor:
+              esErrorImagen
+                  ? Colors.amber
+                  : (esErrorConexion || esMySqlError)
+                  ? Colors.orange
+                  : Colors.red,
+          action:
+              (esErrorConexion || esMySqlError)
+                  ? SnackBarAction(
+                    label: 'Reintentar',
+                    onPressed: () {
+                      if (esMySqlError) {
+                        ref.read(dbServiceProvider).reiniciarConexion().then((
+                          _,
+                        ) {
+                          if (context.mounted) {
+                            _agregarImagen(context, ref, source);
+                          }
+                        });
+                      } else if (context.mounted) {
+                        _agregarImagen(context, ref, source);
+                      }
+                    },
+                  )
+                  : null,
         ),
       );
     }
@@ -924,9 +1237,38 @@ class InmuebleImagenesSection extends ConsumerWidget {
       );
 
       if (nuevaDescripcion != null && context.mounted) {
+        // Mostrar indicador de progreso
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text('Actualizando descripción...'),
+              ],
+            ),
+            duration: Duration(seconds: 10),
+          ),
+        );
+
         await ref
             .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
             .actualizarDescripcion(imagen.id!, nuevaDescripcion);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Descripción actualizada correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       }
     } catch (e) {
       AppLogger.error('Error al editar descripción', e, StackTrace.current);
@@ -940,6 +1282,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
       final esMySqlError =
           e.toString().contains('MySQL') ||
           e.toString().contains('MySqlProtocol');
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -976,6 +1320,7 @@ class InmuebleImagenesSection extends ConsumerWidget {
     }
   }
 
+  /// Marca una imagen como principal
   Future<void> _marcarComoPrincipal(
     BuildContext context,
     WidgetRef ref,
@@ -984,6 +1329,24 @@ class InmuebleImagenesSection extends ConsumerWidget {
     if (imagen.id == null || !context.mounted) return;
 
     try {
+      // Mostrar indicador de progreso
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 12),
+              Text('Marcando como principal...'),
+            ],
+          ),
+          duration: Duration(seconds: 10),
+        ),
+      );
+
       // Obtener el notifier a través del provider
       final notifier = ref.read(
         inmuebleImagenesStateProvider(inmuebleId).notifier,
@@ -992,7 +1355,12 @@ class InmuebleImagenesSection extends ConsumerWidget {
       // Marcar como principal
       await notifier.marcarComoPrincipal(imagen.id!);
 
+      // Actualizar las imágenes principales
+      ref.invalidate(imagenesPrincipalesProvider);
+
       if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1013,6 +1381,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
           e.toString().contains('MySQL') ||
           e.toString().contains('MySqlProtocol');
 
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1030,14 +1400,13 @@ class InmuebleImagenesSection extends ConsumerWidget {
                     label: 'Reintentar',
                     onPressed: () {
                       if (esMySqlError) {
-                        ref
-                            .read(databaseServiceProvider)
-                            .reiniciarConexion()
-                            .then((_) {
-                              if (context.mounted) {
-                                _marcarComoPrincipal(context, ref, imagen);
-                              }
-                            });
+                        ref.read(dbServiceProvider).reiniciarConexion().then((
+                          _,
+                        ) {
+                          if (context.mounted) {
+                            _marcarComoPrincipal(context, ref, imagen);
+                          }
+                        });
                       } else if (context.mounted) {
                         _marcarComoPrincipal(context, ref, imagen);
                       }
@@ -1063,8 +1432,38 @@ class InmuebleImagenesSection extends ConsumerWidget {
         builder:
             (dialogContext) => AlertDialog(
               title: const Text('Eliminar imagen'),
-              content: const Text(
-                '¿Está seguro que desea eliminar esta imagen?',
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('¿Está seguro que desea eliminar esta imagen?'),
+                  if (imagen.esPrincipal)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(8.0),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(8.0),
+                          border: Border.all(color: Colors.amber.shade700),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.amber.shade800,
+                            ),
+                            const SizedBox(width: 8.0),
+                            const Expanded(
+                              child: Text(
+                                'Esta es la imagen principal. Si la elimina, deberá establecer otra imagen como principal.',
+                                style: TextStyle(color: Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
               actions: [
                 TextButton(
@@ -1081,18 +1480,45 @@ class InmuebleImagenesSection extends ConsumerWidget {
       );
 
       if (confirmado == true && context.mounted) {
+        // Mostrar indicador de progreso
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 12),
+                Text('Eliminando imagen...'),
+              ],
+            ),
+            duration: Duration(seconds: 15),
+          ),
+        );
+
+        final eraImagenPrincipal = imagen.esPrincipal;
+
         await ref
             .read(inmuebleImagenesStateProvider(inmuebleId).notifier)
             .eliminarImagen(imagen.id!);
 
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Imagen eliminada correctamente'),
-              backgroundColor: Colors.green,
-            ),
-          );
+        // Si era la imagen principal, actualizar la lista de imágenes principales
+        if (eraImagenPrincipal) {
+          ref.invalidate(imagenesPrincipalesProvider);
         }
+
+        if (!context.mounted) return;
+
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Imagen eliminada correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       AppLogger.error('Error al eliminar imagen', e, StackTrace.current);
@@ -1106,6 +1532,8 @@ class InmuebleImagenesSection extends ConsumerWidget {
       final esMySqlError =
           e.toString().contains('MySQL') ||
           e.toString().contains('MySqlProtocol');
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1140,6 +1568,48 @@ class InmuebleImagenesSection extends ConsumerWidget {
         ),
       );
     }
+  }
+
+  /// Muestra un diálogo para ingresar la descripción de la imagen con validaciones
+  Future<String?> _mostrarDialogoDescripcion(BuildContext context) async {
+    if (!context.mounted) return null;
+
+    final controllerDescripcion = TextEditingController();
+
+    return showDialog<String>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Descripción de la imagen'),
+            content: TextField(
+              controller: controllerDescripcion,
+              decoration: const InputDecoration(
+                labelText: 'Descripción',
+                hintText: 'Ingrese una descripción para la imagen',
+                border: OutlineInputBorder(),
+                helperText: 'Ejemplo: Vista frontal del inmueble',
+              ),
+              maxLines: 3,
+              maxLength: 255,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final texto =
+                      controllerDescripcion.text.isEmpty
+                          ? 'Imagen del inmueble'
+                          : controllerDescripcion.text;
+                  Navigator.of(dialogContext).pop(texto);
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+    );
   }
 
   /// Muestra un snackbar de error con formato consistente

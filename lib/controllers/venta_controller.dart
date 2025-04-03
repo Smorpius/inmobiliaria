@@ -5,10 +5,11 @@ import '../utils/circuit_breaker.dart';
 import '../services/ventas_service.dart';
 import '../models/venta_reporte_model.dart';
 import '../services/mysql_error_manager.dart';
+import 'dart:math' show min; // Importar min para usar en el backoff exponencial
 
 class VentaController {
   final VentasService _ventasService;
-  bool _procesandoError = false; // Control para evitar errores duplicados
+  bool _procesandoError = false;
 
   // Circuit breaker para operaciones de ventas
   final CircuitBreaker _circuitBreaker = CircuitBreaker(
@@ -25,6 +26,8 @@ class VentaController {
 
   // Mapa para reintentos con backoff exponencial
   final Map<String, DateTime> _ultimosReintentos = {};
+  // Mapa para contadores de reintentos por operación
+  final Map<String, int> _contadoresReintentos = {};
   static const Duration _intervaloMinimoReintento = Duration(seconds: 2);
 
   // Bloqueo para operaciones concurrentes
@@ -94,13 +97,17 @@ class VentaController {
       final ahora = DateTime.now();
       final ultimoReintento = _ultimosReintentos[operacion];
 
+      // Contador de reintentos para esta operación específica
+      final contadorReintentos =
+          _contadoresReintentos.putIfAbsent(operacion, () => 0) + 1;
+      _contadoresReintentos[operacion] = contadorReintentos;
+
       if (ultimoReintento != null) {
         final tiempoDesdeUltimoReintento = ahora.difference(ultimoReintento);
+        // Usar el contador específico de la operación para el backoff
         final tiempoDeEspera =
             _intervaloMinimoReintento *
-            (1 <<
-                (_ultimosReintentos.length %
-                    6)); // Exponential backoff limitado
+            (1 << (min(contadorReintentos, 6) - 1)); // Limitado a 6 pasos
 
         if (tiempoDesdeUltimoReintento < tiempoDeEspera) {
           AppLogger.info(
@@ -248,11 +255,28 @@ class VentaController {
     if (venta.comisionProveedores < 0) {
       throw Exception('La comisión no puede ser negativa');
     }
+
     // Validar que la utilidad bruta sea coherente
     final utilidadBrutaCalculada = venta.ingreso - venta.comisionProveedores;
     if (venta.utilidadBruta != utilidadBrutaCalculada) {
-      AppLogger.warning('Valor de utilidad bruta incorrecto, recalculando...');
-      // No lanzamos excepción, asumimos que el cálculo se puede hacer en la base de datos
+      AppLogger.warning(
+        'Valor de utilidad bruta inconsistente: esperado $utilidadBrutaCalculada, '
+        'encontrado ${venta.utilidadBruta}. Se usará el valor calculado.',
+      );
+    }
+
+    // Validar que la utilidad neta no sea mayor que la bruta
+    if (venta.utilidadNeta > utilidadBrutaCalculada) {
+      throw Exception(
+        'La utilidad neta no puede ser mayor que la utilidad bruta',
+      );
+    }
+
+    // Validar que el estado sea válido
+    if (![7, 8, 9].contains(venta.idEstado)) {
+      throw Exception(
+        'Estado no válido. Debe ser 7 (en proceso), 8 (completada) o 9 (cancelada)',
+      );
     }
   }
 
@@ -388,6 +412,8 @@ class VentaController {
   void dispose() {
     _procesandoError = false;
     _ultimosReintentos.clear();
+    _contadoresReintentos
+        .clear(); // Limpiar también los contadores de reintentos
     AppLogger.info('Recursos de VentaController liberados');
   }
 }

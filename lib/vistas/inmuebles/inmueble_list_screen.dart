@@ -134,9 +134,20 @@ class InmuebleListScreen extends ConsumerWidget {
       IconButton(
         icon: const Icon(Icons.refresh),
         tooltip: 'Actualizar',
-        onPressed: () => ref.invalidate(inmueblesProvider),
+        onPressed: () => _recargarDatosCompletos(ref),
       ),
     ];
+  }
+
+  // Nuevo método para recargar datos e imágenes completamente
+  void _recargarDatosCompletos(WidgetRef ref) {
+    AppLogger.info('Recargando datos completos de inmuebles');
+    // Invalidar primero las imágenes para que se recarguen
+    ref.invalidate(imagenesPrincipalesProvider);
+    ref.invalidate(rutasImagenesPrincipalesProvider);
+    // Luego invalidar los datos de inmuebles
+    ref.invalidate(inmueblesProvider);
+    ref.invalidate(inmueblesBusquedaStateProvider);
   }
 
   Widget _buildEstadoIndicator(bool mostrarInactivos) {
@@ -216,6 +227,12 @@ class InmuebleListScreen extends ConsumerWidget {
     final errorMessage = ref.watch(errorMessageProvider);
     final inmuebles = ref.watch(inmueblesBuscadosProvider);
 
+    // Cargar imágenes principales inmediatamente cuando tenemos inmuebles
+    if (!isLoading && inmuebles.isNotEmpty) {
+      // Uso un delay mínimo para asegurar que se ejecute después de que el frame actual esté listo
+      Future.microtask(() => _cargarImagenesPrincipales(ref, inmuebles));
+    }
+
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -228,7 +245,7 @@ class InmuebleListScreen extends ConsumerWidget {
       );
       return InmuebleErrorState(
         errorMessage: errorMessage,
-        onRetry: () => ref.invalidate(inmueblesBusquedaStateProvider),
+        onRetry: () => _recargarDatosCompletos(ref),
       );
     }
 
@@ -244,10 +261,6 @@ class InmuebleListScreen extends ConsumerWidget {
     final imagenesPrincipales = ref.watch(imagenesPrincipalesProvider);
     final rutasImagenes = ref.watch(rutasImagenesPrincipalesProvider);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _cargarImagenesPrincipales(ref, inmuebles);
-    });
-
     return InmuebleGridView(
       inmuebles: inmuebles,
       imagenesPrincipales: imagenesPrincipales,
@@ -262,19 +275,26 @@ class InmuebleListScreen extends ConsumerWidget {
     );
   }
 
-  void _cargarImagenesPrincipales(WidgetRef ref, List<Inmueble> inmuebles) {
+  Future<void> _cargarImagenesPrincipales(
+    WidgetRef ref,
+    List<Inmueble> inmuebles,
+  ) async {
     try {
-      // Forzar recarga explícita de imágenes para todos los inmuebles
-      ref.invalidate(imagenesPrincipalesProvider);
-      ref.invalidate(rutasImagenesPrincipalesProvider);
+      AppLogger.info(
+        'Cargando imágenes principales para ${inmuebles.length} inmuebles',
+      );
 
-      // Luego cargar las imágenes principales
-      ref
+      // Cargar las imágenes principales
+      await ref
           .read(imagenesPrincipalesProvider.notifier)
           .cargarImagenesPrincipales(inmuebles);
-      ref
+
+      // Cargar las rutas de las imágenes
+      await ref
           .read(rutasImagenesPrincipalesProvider.notifier)
           .cargarRutasImagenes(ref.read(imagenesPrincipalesProvider));
+
+      AppLogger.info('Imágenes principales cargadas exitosamente');
     } catch (e, stack) {
       AppLogger.error('Error al cargar imágenes principales', e, stack);
     }
@@ -310,8 +330,7 @@ class InmuebleListScreen extends ConsumerWidget {
       );
 
       if (result == true) {
-        ref.invalidate(inmueblesProvider);
-        ref.invalidate(inmueblesBusquedaStateProvider);
+        _recargarDatosCompletos(ref);
       }
     } catch (e, stack) {
       AppLogger.error(
@@ -344,8 +363,7 @@ class InmuebleListScreen extends ConsumerWidget {
       );
 
       if (result == true) {
-        ref.invalidate(inmueblesProvider);
-        ref.invalidate(inmueblesBusquedaStateProvider);
+        _recargarDatosCompletos(ref);
       }
     } catch (e, stack) {
       AppLogger.error('Error al navegar a detalles de inmueble', e, stack);
@@ -369,8 +387,7 @@ class InmuebleListScreen extends ConsumerWidget {
       );
 
       if (result == true && context.mounted) {
-        ref.invalidate(inmueblesProvider);
-        ref.invalidate(inmueblesBusquedaStateProvider);
+        _recargarDatosCompletos(ref);
       }
     } catch (e, stack) {
       AppLogger.error('Error al navegar a edición de inmueble', e, stack);
@@ -457,8 +474,7 @@ class InmuebleListScreen extends ConsumerWidget {
         );
       }
 
-      ref.invalidate(inmueblesProvider);
-      ref.invalidate(inmueblesBusquedaStateProvider);
+      _recargarDatosCompletos(ref);
     } catch (e, stack) {
       AppLogger.error('Error al cambiar estado del inmueble', e, stack);
       if (context.mounted) {

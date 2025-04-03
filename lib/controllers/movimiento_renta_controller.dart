@@ -48,12 +48,33 @@ class MovimientoRentaController {
     } catch (e, stackTrace) {
       if (!_procesandoError) {
         _procesandoError = true;
-        AppLogger.error('Error en operación "$descripcion"', e, stackTrace);
+
+        // Tratamiento especial para nuestras excepciones personalizadas
+        if (e is MovimientoRentaException) {
+          // Añadir información de la operación que se intentaba realizar
+          final mensajeDetallado =
+              'Error controlado en operación "$descripcion": ${e.mensaje}';
+          final detalleOperacion =
+              'Categoría: ${e.categoria}, Código: ${e.codigoError ?? "N/A"}';
+
+          AppLogger.error(
+            '$mensajeDetallado ($detalleOperacion)',
+            e,
+            stackTrace,
+          );
+        } else {
+          // Para otras excepciones, registrar normalmente
+          AppLogger.error('Error en operación "$descripcion"', e, stackTrace);
+        }
         _procesandoError = false;
       }
 
-      // Propagar el error con un mensaje amigable
-      throw Exception('Error en $descripcion: ${_obtenerMensajeAmigable(e)}');
+      // Propagar el error con un mensaje amigable, preservando el tipo para las excepciones personalizadas
+      if (e is MovimientoRentaException) {
+        rethrow; // Propagar directamente la excepción personalizada
+      } else {
+        throw Exception('Error en $descripcion: ${_obtenerMensajeAmigable(e)}');
+      }
     } finally {
       _operacionesEnProgreso[descripcion] = false;
     }
@@ -62,39 +83,7 @@ class MovimientoRentaController {
   /// Registra un nuevo movimiento de renta con validaciones completas
   Future<int> registrarMovimiento(MovimientoRenta movimiento) {
     return _ejecutarOperacion('registrar movimiento de renta', () async {
-      // Validaciones de datos
-      if (movimiento.idInmueble <= 0) {
-        throw Exception('El ID del inmueble es inválido');
-      }
-
-      if (movimiento.idCliente <= 0) {
-        throw Exception('El ID del cliente es inválido');
-      }
-
-      if (movimiento.tipoMovimiento != 'ingreso' &&
-          movimiento.tipoMovimiento != 'egreso') {
-        throw Exception(
-          'Tipo de movimiento inválido. Debe ser "ingreso" o "egreso"',
-        );
-      }
-
-      if (movimiento.monto <= 0) {
-        throw Exception('El monto debe ser mayor a cero');
-      }
-
-      if (movimiento.concepto.trim().isEmpty) {
-        throw Exception('El concepto no puede estar vacío');
-      }
-
-      if (movimiento.fechaMovimiento.isAfter(DateTime.now())) {
-        throw Exception('La fecha del movimiento no puede ser futura');
-      }
-
-      // Formato estándar YYYY-MM para el mes correspondiente
-      if (movimiento.mesCorrespondiente.isEmpty) {
-        throw Exception('El mes correspondiente no puede estar vacío');
-      }
-
+      // Las validaciones ahora se manejan en el servicio
       return await _service.registrarMovimiento(movimiento);
     });
   }
@@ -102,15 +91,7 @@ class MovimientoRentaController {
   /// Agrega un comprobante a un movimiento con validaciones
   Future<int> agregarComprobante(ComprobanteMovimiento comprobante) {
     return _ejecutarOperacion('agregar comprobante', () async {
-      // Validaciones
-      if (comprobante.idMovimiento <= 0) {
-        throw Exception('ID de movimiento inválido');
-      }
-
-      if (comprobante.rutaImagen.trim().isEmpty) {
-        throw Exception('La ruta del comprobante es obligatoria');
-      }
-
+      // Las validaciones ahora se manejan en el servicio
       return await _service.agregarComprobante(comprobante);
     });
   }
@@ -120,10 +101,6 @@ class MovimientoRentaController {
     return _ejecutarOperacion(
       'obtener movimientos',
       () async {
-        if (idInmueble <= 0) {
-          throw Exception('ID de inmueble inválido');
-        }
-
         return await _service.obtenerMovimientosPorInmueble(idInmueble);
       },
       permitirConcurrencia: true, // Permitir múltiples consultas de lectura
@@ -135,10 +112,6 @@ class MovimientoRentaController {
     return _ejecutarOperacion(
       'obtener comprobantes',
       () async {
-        if (idMovimiento <= 0) {
-          throw Exception('ID de movimiento inválido');
-        }
-
         return await _service.obtenerComprobantes(idMovimiento);
       },
       permitirConcurrencia: true, // Permitir múltiples consultas de lectura
@@ -154,19 +127,6 @@ class MovimientoRentaController {
     return _ejecutarOperacion(
       'obtener resumen de movimientos',
       () async {
-        // Validaciones
-        if (idInmueble <= 0) {
-          throw Exception('ID de inmueble inválido');
-        }
-
-        if (anio < 2000 || anio > 2100) {
-          throw Exception('Año fuera de rango válido');
-        }
-
-        if (mes < 1 || mes > 12) {
-          throw Exception('Mes inválido (debe estar entre 1 y 12)');
-        }
-
         return await _service.obtenerResumenMovimientos(idInmueble, anio, mes);
       },
       permitirConcurrencia: true, // Permitir múltiples consultas de lectura
@@ -176,13 +136,6 @@ class MovimientoRentaController {
   /// Genera un balance mensual para todos los inmuebles
   Future<Map<String, dynamic>> generarBalanceMensual(int anio, int mes) {
     return _ejecutarOperacion('generar balance mensual', () async {
-      if (mes < 1 || mes > 12) {
-        throw Exception('Mes fuera de rango. Debe estar entre 1 y 12');
-      }
-      if (anio < 2000 || anio > 2100) {
-        throw Exception('Año fuera de rango. Debe estar entre 2000 y 2100');
-      }
-
       // Obtener el periodo en formato YYYY-MM
       final periodoStr = '$anio-${mes.toString().padLeft(2, '0')}';
 
@@ -333,15 +286,6 @@ class MovimientoRentaController {
     int periodoMeses,
   ) {
     return _ejecutarOperacion('analizar rentabilidad histórica', () async {
-      // Validaciones
-      if (idInmueble <= 0) {
-        throw Exception('ID de inmueble inválido');
-      }
-
-      if (periodoMeses <= 0) {
-        throw Exception('El periodo debe ser mayor a cero');
-      }
-
       // Obtener fecha límite (hacia atrás)
       final ahora = DateTime.now();
       final fechaInicio = DateTime(ahora.year, ahora.month - periodoMeses, 1);
@@ -451,10 +395,6 @@ class MovimientoRentaController {
     int periodoMeses,
   ) {
     return _ejecutarOperacion('comparar rentabilidad', () async {
-      if (idsInmuebles.isEmpty) {
-        throw Exception('Debe proporcionar al menos un ID de inmueble');
-      }
-
       final resultados = <Map<String, dynamic>>[];
 
       for (final idInmueble in idsInmuebles) {
@@ -487,10 +427,6 @@ class MovimientoRentaController {
   /// Elimina un movimiento con confirmación
   Future<bool> eliminarMovimiento(int idMovimiento) {
     return _ejecutarOperacion('eliminar movimiento', () async {
-      if (idMovimiento <= 0) {
-        throw Exception('ID de movimiento inválido');
-      }
-
       return await _service.eliminarMovimiento(idMovimiento);
     });
   }
@@ -500,10 +436,6 @@ class MovimientoRentaController {
     List<MovimientoRenta> movimientos,
   ) {
     return _ejecutarOperacion('procesar movimientos en lote', () async {
-      if (movimientos.isEmpty) {
-        throw Exception('La lista de movimientos está vacía');
-      }
-
       final resultados = <String, dynamic>{
         'exitos': 0,
         'errores': 0,
@@ -521,10 +453,19 @@ class MovimientoRentaController {
           });
         } catch (e) {
           resultados['errores']++;
+
+          // Extraer mensaje amigable para el usuario
+          String mensajeError;
+          if (e is MovimientoRentaException) {
+            mensajeError = e.mensaje;
+          } else {
+            mensajeError = _obtenerMensajeAmigable(e);
+          }
+
           resultados['detalles'].add({
             'exitoso': false,
             'concepto': movimiento.concepto,
-            'error': e.toString(),
+            'error': mensajeError,
           });
         }
       }
@@ -534,20 +475,139 @@ class MovimientoRentaController {
   }
 
   /// Genera reporte mensual de rendimientos por propiedad
-  Future<Map<String, double>> generarReporteRendimientoPropiedades(
+  Future<Map<String, dynamic>> generarReporteRendimientoPropiedades(
     int anio,
     int mes,
   ) {
     return _ejecutarOperacion('generar reporte rendimiento', () async {
-      // Esta funcionalidad requeriría un método adicional en el servicio
-      // que consulte los datos agrupados por inmueble
-      throw UnimplementedError('Método pendiente de implementación');
+      // Obtener el periodo en formato YYYY-MM
+      final periodo = '$anio-${mes.toString().padLeft(2, '0')}';
+
+      // Obtener todos los movimientos del periodo
+      final movimientos = await _service.obtenerMovimientosPorPeriodo(periodo);
+
+      // Agrupar por inmueble para análisis de rendimiento
+      final Map<int, Map<String, dynamic>> rendimientoPorInmueble = {};
+
+      // Procesar movimientos por inmueble
+      for (final mov in movimientos) {
+        if (!rendimientoPorInmueble.containsKey(mov.idInmueble)) {
+          rendimientoPorInmueble[mov.idInmueble] = {
+            'id_inmueble': mov.idInmueble,
+            'nombre_inmueble': mov.nombreInmueble ?? 'Sin nombre',
+            'ingresos': 0.0,
+            'egresos': 0.0,
+            'balance': 0.0,
+            'roi': 0.0,
+            'detalle_ingresos': <String, double>{},
+            'detalle_egresos': <String, double>{},
+          };
+        }
+
+        // Acumular montos
+        if (mov.esIngreso) {
+          rendimientoPorInmueble[mov.idInmueble]!['ingresos'] += mov.monto;
+
+          // Agrupar ingresos por concepto
+          final concepto = _normalizarConcepto(mov.concepto);
+          rendimientoPorInmueble[mov
+                  .idInmueble]!['detalle_ingresos'][concepto] =
+              (rendimientoPorInmueble[mov
+                      .idInmueble]!['detalle_ingresos'][concepto] ??
+                  0.0) +
+              mov.monto;
+        } else {
+          rendimientoPorInmueble[mov.idInmueble]!['egresos'] += mov.monto;
+
+          // Agrupar egresos por concepto
+          final concepto = _normalizarConcepto(mov.concepto);
+          rendimientoPorInmueble[mov.idInmueble]!['detalle_egresos'][concepto] =
+              (rendimientoPorInmueble[mov
+                      .idInmueble]!['detalle_egresos'][concepto] ??
+                  0.0) +
+              mov.monto;
+        }
+      }
+
+      // Calcular balance y ROI para cada inmueble
+      for (final idInmueble in rendimientoPorInmueble.keys) {
+        final datos = rendimientoPorInmueble[idInmueble]!;
+
+        // Calcular balance (ingresos - egresos)
+        datos['balance'] = datos['ingresos'] - datos['egresos'];
+
+        // Calcular ROI (Return On Investment): balance / egresos
+        // Si no hay egresos, el ROI es 0 para evitar división por cero
+        if (datos['egresos'] > 0) {
+          datos['roi'] = datos['balance'] / datos['egresos'] * 100;
+        }
+      }
+
+      // Preparar resultado agrupando por inmueble con métricas agregadas
+      final resultado = {
+        'periodo': '$mes/$anio',
+        'fecha_reporte': DateTime.now().toIso8601String(),
+        'inmuebles': rendimientoPorInmueble.values.toList(),
+        'total_inmuebles': rendimientoPorInmueble.length,
+        'total_ingresos': rendimientoPorInmueble.values.fold(
+          0.0,
+          (sum, item) => sum + (item['ingresos'] as double),
+        ),
+        'total_egresos': rendimientoPorInmueble.values.fold(
+          0.0,
+          (sum, item) => sum + (item['egresos'] as double),
+        ),
+        'balance_global': rendimientoPorInmueble.values.fold(
+          0.0,
+          (sum, item) => sum + (item['balance'] as double),
+        ),
+        'roi_promedio':
+            rendimientoPorInmueble.isEmpty
+                ? 0.0
+                : rendimientoPorInmueble.values.fold(
+                      0.0,
+                      (sum, item) => sum + (item['roi'] as double),
+                    ) /
+                    rendimientoPorInmueble.length,
+      };
+
+      return resultado;
     }, permitirConcurrencia: true);
+  }
+
+  /// Normaliza un concepto para agrupación en reportes
+  String _normalizarConcepto(String concepto) {
+    final conceptoLower = concepto.toLowerCase();
+
+    if (conceptoLower.contains('renta') || conceptoLower.contains('alquiler')) {
+      return 'renta';
+    } else if (conceptoLower.contains('manten') ||
+        conceptoLower.contains('repar')) {
+      return 'mantenimiento';
+    } else if (conceptoLower.contains('servicio') ||
+        conceptoLower.contains('agua') ||
+        conceptoLower.contains('luz') ||
+        conceptoLower.contains('gas')) {
+      return 'servicios';
+    } else if (conceptoLower.contains('impuesto') ||
+        conceptoLower.contains('predial')) {
+      return 'impuestos';
+    } else if (conceptoLower.contains('depósito') ||
+        conceptoLower.contains('deposito')) {
+      return 'deposito';
+    } else {
+      return 'otros';
+    }
   }
 
   /// Obtiene un mensaje de error más amigable para el usuario
   String _obtenerMensajeAmigable(dynamic error) {
     final mensaje = error.toString();
+
+    // Si ya tenemos una excepción personalizada, usar su mensaje directamente
+    if (error is MovimientoRentaException) {
+      return error.mensaje;
+    }
 
     // Errores comunes de MySQL
     if (mensaje.contains('Duplicate entry')) {

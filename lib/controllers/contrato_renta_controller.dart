@@ -217,7 +217,7 @@ class ContratoRentaController {
   Future<List<ContratoRenta>> obtenerContratos() async {
     return _ejecutarOperacion('obtener todos los contratos', () async {
       return await dbHelper.withConnection((conn) async {
-        final results = await conn.query('CALL ObtenerContratosRenta()');
+        final results = await conn.query('CALL ObtenerContratos()');
 
         return results.map((row) {
           return ContratoRenta.fromMap(row.fields);

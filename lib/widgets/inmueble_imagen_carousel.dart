@@ -354,6 +354,11 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
       final cacheKey = 'exists_$rutaImagen';
       final sizeCacheKey = 'size_$rutaImagen';
 
+      // Validación previa más detallada
+      if (rutaImagen.isEmpty) {
+        return _buildImageErrorWidget('Ruta de imagen vacía');
+      }
+
       return FutureBuilder<bool>(
         future: _verificarImagenValida(rutaImagen, cacheKey, sizeCacheKey),
         builder: (context, snapshot) {
@@ -362,14 +367,24 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
           }
 
           if (snapshot.hasError || snapshot.data != true) {
-            return _buildImageErrorWidget(
-              snapshot.hasError
-                  ? 'Error: ${snapshot.error.toString().split('\n').first}'
-                  : 'Imagen no encontrada o inválida',
-            );
+            String mensaje = 'Imagen no encontrada o inválida';
+            if (snapshot.hasError) {
+              final error = snapshot.error.toString();
+              if (error.contains('Permission') || error.contains('permiso')) {
+                mensaje = 'Sin permiso para acceder a la imagen';
+              } else {
+                mensaje = 'Error: ${error.split('\n').first}';
+              }
+
+              // Registrar el error para diagnóstico
+              AppLogger.warning(
+                'Error al verificar imagen: $mensaje para $rutaImagen',
+              );
+            }
+            return _buildImageErrorWidget(mensaje);
           }
 
-          // La imagen es válida, mostrarla
+          // La imagen es válida, mostrarla con manejo de errores mejorado
           final file = File(rutaImagen);
           return Image.file(
             file,
@@ -381,23 +396,25 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                 stackTrace,
               );
 
+              String mensaje = 'Error al mostrar la imagen';
+              bool recoverable = false;
+
               if (error.toString().contains('byteOffset') ||
                   error.toString().contains('index') ||
                   error is RangeError) {
-                return _buildImageErrorWidget(
-                  'Datos de imagen dañados',
-                  showRecover: true,
-                );
+                mensaje = 'Datos de imagen dañados';
+                recoverable = true;
               } else if (error.toString().contains('decode') ||
                   error.toString().contains('PNG') ||
                   error.toString().contains('codec')) {
-                return _buildImageErrorWidget(
-                  'Formato de imagen incompatible',
-                  showRecover: true,
-                );
+                mensaje = 'Formato de imagen incompatible';
+                recoverable = true;
+              } else if (error.toString().contains('Permission') ||
+                  error.toString().contains('denied')) {
+                mensaje = 'Permiso denegado para acceder a la imagen';
               }
 
-              return _buildImageErrorWidget('Error al mostrar la imagen');
+              return _buildImageErrorWidget(mensaje, showRecover: recoverable);
             },
             gaplessPlayback: true,
             cacheWidth: 1000, // Optimización de memoria
@@ -434,6 +451,11 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
     String sizeCacheKey,
   ) async {
     try {
+      // Validar ruta básica
+      if (rutaImagen.trim().isEmpty) {
+        return false;
+      }
+
       // Usar caché para evitar verificaciones repetidas
       if (_fileExistsCache.containsKey(cacheKey)) {
         final exists = _fileExistsCache[cacheKey]!;
@@ -445,23 +467,68 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
 
       // No está en caché, verificar físicamente
       final file = File(rutaImagen);
+
+      // Verificar que la ruta es absoluta
+      if (!file.path.startsWith('/') &&
+          !RegExp(r'^[A-Za-z]:\\').hasMatch(file.path)) {
+        AppLogger.warning('Ruta de imagen no es absoluta: $rutaImagen');
+        _fileExistsCache[cacheKey] = false;
+        return false;
+      }
+
       final exists = await file.exists();
       _fileExistsCache[cacheKey] = exists;
 
-      if (!exists) return false;
+      if (!exists) {
+        AppLogger.warning('Archivo de imagen no existe: $rutaImagen');
+        return false;
+      }
 
       // Verificar tamaño mínimo para asegurar que es una imagen válida
       final size = await file.length();
       _fileSizeCache[sizeCacheKey] = size;
 
       if (size < 100) {
+        AppLogger.warning(
+          'Archivo de imagen demasiado pequeño ($size bytes): $rutaImagen',
+        );
         return false;
       }
 
       // Verificar datos mínimos para considerar como imagen válida
       try {
         final bytes = await file.openRead(0, 16).first;
-        return bytes.isNotEmpty;
+        if (bytes.isEmpty) {
+          AppLogger.warning('Cabecera de imagen vacía: $rutaImagen');
+          return false;
+        }
+
+        // Verificar tipos comunes de imágenes por sus cabeceras
+        final isJpeg =
+            bytes.length > 2 &&
+            bytes[0] == 0xFF &&
+            bytes[1] == 0xD8 &&
+            bytes[2] == 0xFF;
+        final isPng =
+            bytes.length > 7 &&
+            bytes[0] == 0x89 &&
+            bytes[1] == 0x50 &&
+            bytes[2] == 0x4E &&
+            bytes[3] == 0x47;
+        final isGif =
+            bytes.length > 3 &&
+            bytes[0] == 0x47 &&
+            bytes[1] == 0x49 &&
+            bytes[2] == 0x46;
+
+        if (!isJpeg && !isPng && !isGif) {
+          // Si no es un formato común, intentar decodificar
+          AppLogger.debug(
+            'Formato de imagen no identificado por cabecera para: $rutaImagen',
+          );
+        }
+
+        return true;
       } catch (headerError) {
         AppLogger.warning(
           'Error al verificar cabecera de imagen: $rutaImagen - $headerError',

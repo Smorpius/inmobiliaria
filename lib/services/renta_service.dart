@@ -87,100 +87,194 @@ class RentaService {
     double montoMensual,
     String? condicionesAdicionales,
   ) async {
-    return await _db.withConnection((conn) async {
-      await conn.query('START TRANSACTION');
-      try {
-        // Validaciones previas (mantener las existentes)
-        if (idInmueble <= 0) throw Exception('ID de inmueble inválido');
-        if (idCliente <= 0) throw Exception('ID de cliente inválido');
-        if (montoMensual <= 0) {
-          throw Exception('El monto mensual debe ser mayor a cero');
-        }
-        if (fechaInicio.isAfter(fechaFin)) {
-          throw Exception(
-            'La fecha de inicio no puede ser posterior a la fecha de fin',
-          );
-        }
+    int idContratoFinal = 0;
 
-        AppLogger.info(
-          'Registrando contrato de renta para inmueble ID: $idInmueble, '
-          'cliente ID: $idCliente, monto: $montoMensual',
-        );
+    return await _db
+        .withConnection((conn) async {
+          await conn.query('START TRANSACTION');
+          try {
+            // Validaciones previas
+            if (idInmueble <= 0) throw Exception('ID de inmueble inválido');
+            if (idCliente <= 0) throw Exception('ID de cliente inválido');
+            if (montoMensual <= 0) {
+              throw Exception('El monto mensual debe ser mayor a cero');
+            }
+            if (fechaInicio.isAfter(fechaFin)) {
+              throw Exception(
+                'La fecha de inicio no puede ser posterior a la fecha de fin',
+              );
+            }
 
-        final fechaInicioStr = fechaInicio.toIso8601String().split('T')[0];
-        final fechaFinStr = fechaFin.toIso8601String().split('T')[0];
+            AppLogger.info(
+              'Registrando contrato de renta para inmueble ID: $idInmueble, '
+              'cliente ID: $idCliente, monto: $montoMensual',
+            );
 
-        // Verificar si ya existe un contrato activo
-        final checkResult = await conn.query(
-          'SELECT COUNT(*) AS count FROM contratos_renta WHERE id_inmueble = ? AND id_estado = 1',
-          [idInmueble],
-        );
+            final fechaInicioStr = fechaInicio.toIso8601String().split('T')[0];
+            final fechaFinStr = fechaFin.toIso8601String().split('T')[0];
 
-        // Verificar que tengamos resultados antes de acceder a first
-        if (checkResult.isNotEmpty) {
-          final count = checkResult.first.fields['count'] as int? ?? 0;
-          if (count > 0) {
-            await conn.query('ROLLBACK');
-            throw Exception('Ya existe un contrato activo para este inmueble');
+            // Verificar si ya existe un contrato activo
+            final checkResult = await conn.query(
+              'SELECT COUNT(*) AS count FROM contratos_renta WHERE id_inmueble = ? AND id_estado = 1',
+              [idInmueble],
+            );
+
+            // Verificar que tengamos resultados antes de acceder a first
+            if (checkResult.isNotEmpty) {
+              final count = checkResult.first.fields['count'] as int? ?? 0;
+              if (count > 0) {
+                await conn.query('ROLLBACK');
+                throw Exception(
+                  'Ya existe un contrato activo para este inmueble',
+                );
+              }
+            }
+
+            // Verificar el estado del inmueble
+            final inmuebleResult = await conn.query(
+              'SELECT id_estado FROM inmuebles WHERE id_inmueble = ?',
+              [idInmueble],
+            );
+
+            if (inmuebleResult.isEmpty) {
+              await conn.query('ROLLBACK');
+              throw Exception('No se encontró el inmueble con ID: $idInmueble');
+            }
+
+            final idEstadoInmueble =
+                inmuebleResult.first.fields['id_estado'] as int? ?? 0;
+            if (idEstadoInmueble == 4) {
+              // Vendido
+              await conn.query('ROLLBACK');
+              throw Exception(
+                'No se puede rentar un inmueble que ya ha sido vendido',
+              );
+            } else if (idEstadoInmueble == 5) {
+              // Rentado
+              await conn.query('ROLLBACK');
+              throw Exception('El inmueble ya está rentado');
+            }
+
+            // Insertar el contrato con procedimiento almacenado más seguro
+            try {
+              // Reiniciar variable de salida para evitar problemas
+              await conn.query('SET @id_contrato_out = 0');
+
+              await conn.query(
+                'CALL RegistrarContratoRenta(?, ?, ?, ?, ?, ?, @id_contrato_out)',
+                [
+                  idInmueble,
+                  idCliente,
+                  fechaInicioStr,
+                  fechaFinStr,
+                  montoMensual,
+                  condicionesAdicionales ?? '',
+                ],
+              );
+
+              final outResult = await conn.query(
+                'SELECT @id_contrato_out AS id',
+              );
+
+              if (outResult.isEmpty || outResult.first['id'] == null) {
+                throw Exception(
+                  'No se pudo obtener el ID del contrato registrado',
+                );
+              }
+
+              idContratoFinal = outResult.first['id'] as int;
+            } catch (e) {
+              // Si falla el procedimiento almacenado, intentar inserción directa como respaldo
+              final insertResult = await conn.query(
+                'INSERT INTO contratos_renta (id_inmueble, id_cliente, fecha_inicio, fecha_fin, monto_mensual, condiciones_adicionales) '
+                'VALUES (?, ?, ?, ?, ?, ?)',
+                [
+                  idInmueble,
+                  idCliente,
+                  fechaInicioStr,
+                  fechaFinStr,
+                  montoMensual,
+                  condicionesAdicionales ?? '',
+                ],
+              );
+
+              final insertId = insertResult.insertId;
+              if (insertId != null) {
+                idContratoFinal = insertId;
+              } else {
+                throw Exception(
+                  'No se pudo obtener el ID del contrato insertado',
+                );
+              }
+            }
+
+            // Validación final del ID del contrato
+            if (idContratoFinal <= 0) {
+              await conn.query('ROLLBACK');
+              throw Exception(
+                'No se pudo obtener un ID válido para el contrato registrado',
+              );
+            }
+
+            // Actualizar el estado del inmueble a rentado (5)
+            await conn.query(
+              'UPDATE inmuebles SET id_estado = 5 WHERE id_inmueble = ?',
+              [idInmueble],
+            );
+
+            await conn.query('COMMIT');
+
+            AppLogger.info(
+              'Contrato de renta registrado con ID: $idContratoFinal para inmueble ID: $idInmueble',
+            );
+
+            return idContratoFinal;
+          } catch (e, stackTrace) {
+            try {
+              // Intentar hacer rollback
+              await conn.query('ROLLBACK');
+            } catch (rollbackError) {
+              // Si falla el rollback, solo registrar el error pero continuar el flujo
+              AppLogger.warning(
+                'Error al realizar ROLLBACK: ${rollbackError.toString()}',
+              );
+            }
+
+            _registrarError(
+              'Error al registrar contrato de renta',
+              e,
+              stackTrace,
+            );
+
+            // Proporcionar mensajes de error específicos
+            final mensajeOriginal = e.toString().toLowerCase();
+            if (mensajeOriginal.contains('ya existe un contrato activo')) {
+              throw Exception(
+                'Ya existe un contrato de renta activo para este inmueble',
+              );
+            } else if (mensajeOriginal.contains('foreign key')) {
+              throw Exception('El inmueble o cliente especificado no existe');
+            } else if (mensajeOriginal.contains('no element')) {
+              throw Exception(
+                'Error en la consulta de verificación de contratos',
+              );
+            }
+
+            throw Exception(
+              'Error al registrar contrato de renta: ${_formatearMensajeError(e)}',
+            );
           }
-        }
-
-        // Insertar el contrato directamente
-        final insertResult = await conn.query(
-          'INSERT INTO contratos_renta (id_inmueble, id_cliente, fecha_inicio, fecha_fin, monto_mensual, condiciones_adicionales) '
-          'VALUES (?, ?, ?, ?, ?, ?)',
-          [
-            idInmueble,
-            idCliente,
-            fechaInicioStr,
-            fechaFinStr,
-            montoMensual,
-            condicionesAdicionales ?? '',
-          ],
-        );
-
-        // Obtener el ID generado y asegurarnos de que no sea nulo
-        final idContrato = insertResult.insertId;
-
-        if (idContrato == null || idContrato <= 0) {
-          await conn.query('ROLLBACK');
-          throw Exception('No se pudo obtener el ID del contrato registrado');
-        }
-
-        // Actualizar el estado del inmueble a rentado (5)
-        await conn.query(
-          'UPDATE inmuebles SET id_estado = 5 WHERE id_inmueble = ?',
-          [idInmueble],
-        );
-
-        await conn.query('COMMIT');
-
-        AppLogger.info(
-          'Contrato de renta registrado con ID: $idContrato para inmueble ID: $idInmueble',
-        );
-
-        return idContrato;
-      } catch (e, stackTrace) {
-        await conn.query('ROLLBACK');
-        _registrarError('Error al registrar contrato de renta', e, stackTrace);
-
-        // Proporcionar mensajes de error específicos
-        final mensajeOriginal = e.toString().toLowerCase();
-        if (mensajeOriginal.contains('ya existe un contrato activo')) {
-          throw Exception(
-            'Ya existe un contrato de renta activo para este inmueble',
+        })
+        .catchError((e) {
+          // Capa final de seguridad para garantizar que nunca devolvamos un Future incompleto
+          AppLogger.error(
+            'Error capturado en nivel superior de registrarContratoRenta',
+            e,
           );
-        } else if (mensajeOriginal.contains('foreign key')) {
-          throw Exception('El inmueble o cliente especificado no existe');
-        } else if (mensajeOriginal.contains('no element')) {
-          throw Exception('Error en la consulta de verificación de contratos');
-        }
-
-        throw Exception(
-          'Error al registrar contrato de renta: ${_formatearMensajeError(e)}',
-        );
-      }
-    });
+          throw Exception(
+            'No se pudo completar el registro del contrato de renta: ${_formatearMensajeError(e)}',
+          );
+        });
   }
 
   /// Actualiza el estado de un contrato de renta

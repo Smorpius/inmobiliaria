@@ -55,20 +55,7 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
             _construirChipsFiltros(context, ref, ventasState),
 
           // Lista de ventas
-          Expanded(
-            child:
-                ventasState.isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ventasState.errorMessage != null
-                    ? Center(child: Text('Error: ${ventasState.errorMessage}'))
-                    : ventasState.ventasFiltradas.isEmpty
-                    ? const _EstadoVacio()
-                    : _construirListaVentas(
-                      context,
-                      ref,
-                      ventasState.ventasFiltradas,
-                    ),
-          ),
+          Expanded(child: _construirContenidoVentas(context, ref, ventasState)),
         ],
       ),
       bottomNavigationBar: SizedBox(
@@ -100,6 +87,27 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
         ),
       ),
     );
+  }
+
+  // Nuevo método para manejar los diferentes estados de la lista de ventas
+  Widget _construirContenidoVentas(
+    BuildContext context,
+    WidgetRef ref,
+    VentasState ventasState,
+  ) {
+    if (ventasState.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (ventasState.errorMessage != null) {
+      return Center(child: Text('Error: ${ventasState.errorMessage}'));
+    }
+
+    if (ventasState.ventasFiltradas.isEmpty) {
+      return const _EstadoVacio();
+    }
+
+    return _construirListaVentas(context, ref, ventasState.ventasFiltradas);
   }
 
   Widget _construirBarraBusqueda(

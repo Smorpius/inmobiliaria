@@ -360,7 +360,9 @@ class VentasNotifier extends StateNotifier<VentasState> {
           .timeout(
             const Duration(seconds: 10),
             onTimeout: () {
-              throw TimeoutException('Timeout al obtener detalles de la venta');
+              throw TimeoutException(
+                'Tiempo de espera agotado al obtener detalles de la venta',
+              );
             },
           );
 
@@ -368,18 +370,41 @@ class VentasNotifier extends StateNotifier<VentasState> {
         throw Exception('Venta no encontrada');
       }
 
+      // Validar que la utilidad neta no sea negativa
+      if (nuevaUtilidadNeta < 0) {
+        throw Exception('La utilidad neta no puede ser negativa');
+      }
+
+      // Validar que la utilidad neta no exceda la utilidad bruta
+      if (nuevaUtilidadNeta > ventaActual.utilidadBruta) {
+        AppLogger.warning(
+          'Intento de establecer utilidad neta ($nuevaUtilidadNeta) mayor que la utilidad bruta '
+          '(${ventaActual.utilidadBruta}). Ajustando al máximo permitido.',
+        );
+        nuevaUtilidadNeta = ventaActual.utilidadBruta;
+      }
+
       // Calcular los gastos adicionales como la diferencia entre utilidad bruta y neta
       final gastosAdicionales = ventaActual.utilidadBruta - nuevaUtilidadNeta;
 
-      // Validar que los gastos no sean negativos
-      if (gastosAdicionales < 0) {
-        throw Exception(
-          'La utilidad neta no puede ser mayor que la utilidad bruta',
-        );
-      }
+      // Log para depuración y auditoría
+      AppLogger.info(
+        'Actualizando utilidad neta de venta $idVenta: '
+        'Utilidad Bruta=${ventaActual.utilidadBruta}, '
+        'Nueva Utilidad Neta=$nuevaUtilidadNeta, '
+        'Gastos Adicionales=$gastosAdicionales',
+      );
 
       // Usar el método existente actualizarGastosVenta
-      return await actualizarGastosVenta(idVenta, gastosAdicionales);
+      final resultado = await actualizarGastosVenta(idVenta, gastosAdicionales);
+
+      // Si la operación fue exitosa, invalidar los proveedores relacionados para forzar recarga
+      if (resultado && mounted) {
+        // Refrescar proveedores relacionados
+        _ref.invalidate(ventaDetalleProvider(idVenta));
+      }
+
+      return resultado;
     } catch (e, stackTrace) {
       bool esErrorDeConexion =
           e.toString().toLowerCase().contains('socket') ||

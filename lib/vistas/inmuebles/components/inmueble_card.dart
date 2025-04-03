@@ -106,8 +106,8 @@ class InmuebleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         child: Column(
@@ -129,13 +129,13 @@ class InmuebleCard extends StatelessWidget {
                       right: 0,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          borderRadius: BorderRadius.only(
-                            bottomLeft: Radius.circular(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withAlpha(204),
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(12),
                           ),
                         ),
                         child: const Text(
@@ -143,7 +143,7 @@ class InmuebleCard extends StatelessWidget {
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 9,
+                            fontSize: 10,
                           ),
                         ),
                       ),
@@ -152,12 +152,12 @@ class InmuebleCard extends StatelessWidget {
               ),
             ),
 
-            // Información del inmueble - Optimizada para evitar rebuild innecesarios
+            // Información del inmueble
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                  horizontal: 12,
+                  vertical: 8,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,7 +166,7 @@ class InmuebleCard extends StatelessWidget {
                     Text(
                       inmueble.nombre,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         decoration:
                             isInactivo ? TextDecoration.lineThrough : null,
@@ -179,20 +179,20 @@ class InmuebleCard extends StatelessWidget {
                     // Ubicación
                     if (inmueble.ciudad != null && inmueble.ciudad!.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 1),
+                        padding: const EdgeInsets.only(top: 4),
                         child: Row(
                           children: [
                             Icon(
                               Icons.location_on,
-                              size: 10,
+                              size: 12,
                               color: Colors.grey.shade600,
                             ),
-                            const SizedBox(width: 1),
+                            const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 inmueble.ciudad!,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: 12,
                                   color: Colors.grey.shade600,
                                 ),
                                 maxLines: 1,
@@ -205,11 +205,11 @@ class InmuebleCard extends StatelessWidget {
 
                     // Precio
                     Padding(
-                      padding: const EdgeInsets.only(top: 3),
+                      padding: const EdgeInsets.only(top: 6),
                       child: Text(
                         precioFormateado,
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: isInactivo ? Colors.grey : Colors.teal,
                         ),
@@ -220,11 +220,11 @@ class InmuebleCard extends StatelessWidget {
 
                     // Tipo de inmueble y operación
                     Padding(
-                      padding: const EdgeInsets.only(top: 1),
+                      padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         '${_capitalizarPalabra(inmueble.tipoInmueble)} • ${_capitalizarPalabra(inmueble.tipoOperacion)}',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           color: Colors.grey.shade700,
                         ),
                         maxLines: 1,
@@ -244,7 +244,7 @@ class InmuebleCard extends StatelessWidget {
                         children: [
                           // Botón de editar
                           IconButton(
-                            icon: const Icon(Icons.edit, size: 16),
+                            icon: const Icon(Icons.edit, size: 18),
                             color: Colors.blue,
                             tooltip: 'Editar',
                             onPressed: onEdit,
@@ -252,7 +252,7 @@ class InmuebleCard extends StatelessWidget {
                             constraints: const BoxConstraints(),
                             visualDensity: VisualDensity.compact,
                           ),
-                          const SizedBox(width: 2),
+                          const SizedBox(width: 4),
 
                           // Botón de estado personalizado o predeterminado
                           customStateButton ??
@@ -261,18 +261,18 @@ class InmuebleCard extends StatelessWidget {
                                   isInactivo
                                       ? Icons.check_circle
                                       : Icons.cancel,
-                                  size: 12,
+                                  size: 14,
                                 ),
                                 label: Text(
                                   inactivateButtonText,
-                                  style: const TextStyle(fontSize: 10),
+                                  style: const TextStyle(fontSize: 12),
                                 ),
                                 style: TextButton.styleFrom(
                                   backgroundColor: inactivateButtonColor,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 0,
+                                    horizontal: 6,
+                                    vertical: 2,
                                   ),
                                   minimumSize: Size.zero,
                                   tapTargetSize:
