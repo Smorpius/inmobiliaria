@@ -171,7 +171,7 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
         children: [
           // Imagen
           Image.network(
-            comprobante.rutaImagen,
+            comprobante.rutaArchivo,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               return const Center(
@@ -233,6 +233,7 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
   }
 
   void _verComprobanteCompleto(ComprobanteMovimiento comprobante) {
+    final rutaArchivo = comprobante.rutaArchivo;
     showDialog(
       context: context,
       builder:
@@ -253,7 +254,7 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
                     minScale: 0.5,
                     maxScale: 4.0,
                     child: Image.network(
-                      comprobante.rutaImagen,
+                      rutaArchivo,
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
                         return const Center(

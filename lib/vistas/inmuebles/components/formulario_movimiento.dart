@@ -596,10 +596,12 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
           // Crear un modelo de comprobante
           final comprobante = ComprobanteMovimiento(
             idMovimiento: idMovimiento,
-            rutaImagen:
-                imagen['tempPath'], // En producción sería una ruta de servidor
+            rutaArchivo:
+                imagen['tempPath'], // Actualizado de rutaImagen a rutaArchivo
             descripcion: 'Comprobante de ${movimiento.concepto}',
             esPrincipal: esImagenPrincipal,
+            tipoComprobante:
+                'otro', // Agregando el tipo de comprobante requerido
           );
 
           // Registrar el comprobante

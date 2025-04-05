@@ -9,6 +9,7 @@ import '../../models/contrato_renta_model.dart';
 import '../../providers/cliente_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controllers/contrato_renta_controller.dart';
+import '../../providers/inmuebles_disponibles_provider.dart';
 
 class RegistrarOperacionScreen extends ConsumerStatefulWidget {
   final Inmueble inmueble;
@@ -122,10 +123,13 @@ class _RegistrarOperacionScreenState
       return;
     }
 
-    if (_clienteSeleccionado == null) {
+    // Validación más estricta del cliente seleccionado
+    if (_clienteSeleccionado == null || _clienteSeleccionado! <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor seleccione un cliente'),
+          content: Text(
+            'Debe seleccionar un cliente válido para registrar la operación',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -140,7 +144,12 @@ class _RegistrarOperacionScreenState
       bool resultado = false;
 
       if (_tipoOperacionSeleccionada == 'venta') {
-        // Crear objeto de venta
+        // Log para debugging
+        AppLogger.info(
+          'Registrando venta con clienteID: $_clienteSeleccionado',
+        );
+
+        // Crear objeto de venta con validación adicional
         final venta = Venta(
           idCliente: _clienteSeleccionado!,
           idInmueble: widget.inmueble.id!,
@@ -158,7 +167,12 @@ class _RegistrarOperacionScreenState
             .read(ventasStateProvider.notifier)
             .registrarVenta(venta);
       } else {
-        // Crear objeto de contrato de renta
+        // Log para debugging
+        AppLogger.info(
+          'Registrando contrato de renta con clienteID: $_clienteSeleccionado',
+        );
+
+        // Crear objeto de contrato de renta con validación adicional
         final contratoRenta = ContratoRenta(
           idInmueble: widget.inmueble.id!,
           idCliente: _clienteSeleccionado!,
@@ -195,6 +209,9 @@ class _RegistrarOperacionScreenState
           ),
         );
 
+        // Forzar actualización del provider de inmuebles disponibles
+        ref.invalidate(inmueblesDisponiblesProvider);
+
         // Regresar a la pantalla anterior con resultado positivo
         Navigator.pop(context, true);
       } else {
@@ -210,10 +227,34 @@ class _RegistrarOperacionScreenState
 
       if (!mounted) return;
 
+      // Mensaje de error más específico y descriptivo
+      final mensaje = e.toString().toLowerCase();
+      String errorMensaje;
+
+      if (mensaje.contains('id_cliente') || mensaje.contains('cliente')) {
+        errorMensaje =
+            'Error: Problema con la selección de cliente. Por favor, seleccione otro cliente e intente nuevamente.';
+      } else if (mensaje.contains('id_inmueble') ||
+          mensaje.contains('inmueble')) {
+        errorMensaje =
+            'Error: Problema con el inmueble seleccionado. Por favor, regrese y seleccione otro inmueble.';
+      } else if (mensaje.contains('fecha')) {
+        errorMensaje =
+            'Error: Problema con la fecha seleccionada. Por favor, verifique e intente nuevamente.';
+      } else if (mensaje.contains('monto') || mensaje.contains('ingreso')) {
+        errorMensaje =
+            'Error: Problema con el monto ingresado. Por favor, verifique e intente nuevamente.';
+      } else {
+        // Mensaje genérico pero más informativo
+        errorMensaje =
+            'Error al registrar la operación: ${e.toString().split('\n').first}';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: ${e.toString().split('\n').first}'),
+          content: Text(errorMensaje),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
         ),
       );
     } finally {

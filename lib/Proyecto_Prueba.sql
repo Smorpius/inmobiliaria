@@ -100,6 +100,29 @@ DROP PROCEDURE IF EXISTS ActualizarEstadoContratoRenta;
 DROP PROCEDURE IF EXISTS  ObtenerContratos;
 DROP PROCEDURE IF EXISTS  BuscarContratos;
 DROP PROCEDURE IF EXISTS  ObtenerEstadisticasRentas;
+DROP PROCEDURE IF EXISTS ActualizarComprobanteMovimiento;
+DROP PROCEDURE IF EXISTS ObtenerComprobantesDetallados;
+DROP PROCEDURE IF EXISTS BuscarComprobantes;
+DROP PROCEDURE IF EXISTS BuscarComprobantesPorTipo;
+DROP PROCEDURE IF EXISTS ObtenerResumenComprobantes;
+DROP PROCEDURE IF EXISTS ReporteComprobantesMovimientosPorPeriodo;
+DROP PROCEDURE IF EXISTS EliminarComprobanteMovimiento;
+DROP PROCEDURE IF EXISTS ClonarComprobante;
+DROP PROCEDURE IF EXISTS ValidarComprobanteFiscal;
+DROP PROCEDURE IF EXISTS ObtenerComprobantesVencidos;
+DROP PROCEDURE IF EXISTS ObtenerCumplimientoFiscal;
+DROP PROCEDURE IF EXISTS ObtenerDatosContratoRenta;
+DROP PROCEDURE IF EXISTS ObtenerDatosContratoVenta;
+DROP PROCEDURE IF EXISTS RegistrarContratoGenerado;
+DROP PROCEDURE IF EXISTS ActualizarComprobanteVenta;
+DROP PROCEDURE IF EXISTS EliminarComprobanteVenta;
+DROP PROCEDURE IF EXISTS ObtenerComprobantesPorVenta;
+DROP PROCEDURE IF EXISTS ObtenerContratosGeneradosPorReferencia;
+DROP PROCEDURE IF EXISTS EliminarContratoGenerado;
+DROP PROCEDURE IF EXISTS ObtenerContratosPorInmueble;
+DROP PROCEDURE IF EXISTS ObtenerMovimientosPorContrato;
+DROP PROCEDURE IF EXISTS ObtenerComprobantesVenta;
+DROP PROCEDURE IF EXISTS AgregarComprobanteVenta;
 DROP FUNCTION IF EXISTS EncriptarContraseña;
 
 -- Eliminar tablas que dependen de otras primero
@@ -114,18 +137,23 @@ DROP TABLE IF EXISTS comisiones_pagadas;                -- Depende de ventas y e
 DROP TABLE IF EXISTS inmuebles_imagenes;                -- Depende de inmuebles
 DROP TABLE IF EXISTS inmuebles_clientes_interesados;    -- Depende de inmuebles y clientes
 DROP TABLE IF EXISTS cliente_inmueble;                  -- Depende de inmuebles y clientes
+DROP TABLE IF EXISTS comprobantes_ventas;
 DROP TABLE IF EXISTS ventas;                            -- Depende de inmuebles y clientes
 DROP TABLE IF EXISTS inmueble_proveedor_servicio;       -- Depende de inmuebles y proveedores
+
+
 
 -- Ahora eliminar las tablas referenciadas
 DROP TABLE IF EXISTS inmuebles;                         -- Referenciada por varias tablas
 DROP TABLE IF EXISTS clientes;                          -- Referenciada por varias tablas
 DROP TABLE IF EXISTS empleados;                         -- Referenciada por inmuebles y comisiones_pagadas
 DROP TABLE IF EXISTS proveedores;                       -- Referenciada por historial_proveedores y inmueble_proveedor_servicio
+DROP TABLE IF EXISTS contratos_generados;
 DROP TABLE IF EXISTS usuarios;                          -- Referenciada por empleados y historial_usuarios
 DROP TABLE IF EXISTS administrador;                     -- Sin dependencias directas
 DROP TABLE IF EXISTS direcciones;                       -- Referenciada por clientes e inmuebles
 DROP TABLE IF EXISTS estados;                           -- Referenciada por casi todas las tablas
+
 
 -- Crear tabla de estados con IDs fijos
 CREATE TABLE estados (
@@ -428,10 +456,18 @@ CREATE TABLE movimientos_renta (
 CREATE TABLE comprobantes_movimientos (
     id_comprobante INT AUTO_INCREMENT PRIMARY KEY,
     id_movimiento INT NOT NULL,
-    ruta_imagen VARCHAR(255) NOT NULL,
+    ruta_archivo VARCHAR(255) NOT NULL,
+    tipo_archivo ENUM('imagen', 'pdf', 'documento') NOT NULL DEFAULT 'imagen',
     descripcion TEXT,
     es_principal TINYINT(1) NOT NULL DEFAULT 0,
     fecha_carga TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tipo_comprobante ENUM('factura', 'recibo', 'contrato', 'otro') NOT NULL,
+    numero_referencia VARCHAR(50),
+    emisor VARCHAR(100),
+    receptor VARCHAR(100),
+    metodo_pago ENUM('efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'),
+    fecha_emision DATE,
+    notas_adicionales TEXT,
     FOREIGN KEY (id_movimiento) REFERENCES movimientos_renta(id_movimiento) ON DELETE CASCADE,
     INDEX idx_comprobantes_movimiento (id_movimiento)
 );
@@ -452,6 +488,30 @@ CREATE TABLE contratos_renta (
     UNIQUE KEY (id_inmueble, id_estado, fecha_inicio),
     INDEX idx_contratos_inmueble (id_inmueble),
     INDEX idx_contratos_cliente (id_cliente)
+);
+
+CREATE TABLE comprobantes_ventas (
+    id_comprobante INT AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT NOT NULL,
+    ruta_archivo VARCHAR(255) NOT NULL,
+    tipo_archivo ENUM('imagen', 'pdf', 'documento') NOT NULL DEFAULT 'imagen',
+    descripcion TEXT,
+    es_principal TINYINT(1) NOT NULL DEFAULT 0,
+    fecha_carga TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_venta) REFERENCES ventas(id_venta) ON DELETE CASCADE,
+    INDEX idx_comprobantes_venta (id_venta)
+);
+
+CREATE TABLE contratos_generados (
+    id_contrato_generado INT AUTO_INCREMENT PRIMARY KEY,
+    tipo_contrato ENUM('venta', 'renta') NOT NULL,
+    id_referencia INT NOT NULL COMMENT 'ID de venta o contrato de renta',
+    ruta_archivo VARCHAR(255) NOT NULL,
+    fecha_generacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    version INT NOT NULL DEFAULT 1,
+    id_usuario INT,
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+    INDEX idx_contratos_tipo_ref (tipo_contrato, id_referencia)
 );
 
 -- Índices para mejorar el rendimiento
@@ -571,6 +631,20 @@ BEGIN
     CALL ActualizarCostoServiciosInmueble(OLD.id_inmueble);
 END //
 
+CREATE TRIGGER validar_comprobante_update
+BEFORE UPDATE ON comprobantes_movimientos
+FOR EACH ROW
+BEGIN
+    -- Validar que si es una factura, tenga número de referencia
+    IF NEW.tipo_comprobante = 'factura' AND (NEW.numero_referencia IS NULL OR NEW.numero_referencia = '') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Una factura debe tener un número de referencia';
+    END IF;
+    
+    -- Validar que la fecha de emisión no sea futura
+    IF NEW.fecha_emision > CURDATE() THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La fecha de emisión no puede ser futura';
+    END IF;
+END //
 DELIMITER ;
 
 -- Definir funciones y procedimientos almacenados
@@ -2998,18 +3072,108 @@ BEGIN
     ORDER BY mr.fecha_movimiento DESC;
 END //
 
+CREATE PROCEDURE ObtenerDatosContratoVenta(
+    IN p_id_venta INT
+)
+BEGIN
+    SELECT 
+        v.id_venta, v.fecha_venta, v.ingreso, v.comision_proveedores,
+        v.utilidad_bruta, v.utilidad_neta,
+        c.id_cliente, c.nombre AS nombre_cliente, c.apellido_paterno,
+        c.apellido_materno, c.rfc, c.curp, c.telefono_cliente, c.correo_cliente,
+        i.id_inmueble, i.nombre_inmueble, i.tipo_inmueble, i.tipo_operacion,
+        i.precio_venta, i.caracteristicas,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias
+    FROM ventas v
+    JOIN clientes c ON v.id_cliente = c.id_cliente
+    JOIN inmuebles i ON v.id_inmueble = i.id_inmueble
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    WHERE v.id_venta = p_id_venta;
+END //
+
+CREATE PROCEDURE ObtenerDatosContratoRenta(
+    IN p_id_contrato INT
+)
+BEGIN
+    SELECT 
+        cr.id_contrato, cr.fecha_inicio, cr.fecha_fin, cr.monto_mensual,
+        cr.condiciones_adicionales,
+        c.id_cliente, c.nombre AS nombre_cliente, c.apellido_paterno,
+        c.apellido_materno, c.rfc, c.curp, c.telefono_cliente, c.correo_cliente,
+        i.id_inmueble, i.nombre_inmueble, i.tipo_inmueble, i.caracteristicas,
+        d.calle, d.numero, d.colonia, d.ciudad, d.estado_geografico,
+        d.codigo_postal, d.referencias
+    FROM contratos_renta cr
+    JOIN clientes c ON cr.id_cliente = c.id_cliente
+    JOIN inmuebles i ON cr.id_inmueble = i.id_inmueble
+    LEFT JOIN direcciones d ON i.id_direccion = d.id_direccion
+    WHERE cr.id_contrato = p_id_contrato;
+END //
+
+CREATE PROCEDURE RegistrarContratoGenerado(
+    IN p_tipo_contrato ENUM('venta', 'renta'),
+    IN p_id_referencia INT,
+    IN p_ruta_archivo VARCHAR(255),
+    IN p_id_usuario INT,
+    OUT p_id_contrato_generado_out INT
+)
+BEGIN
+    DECLARE v_referencia_existe INT;
+    DECLARE v_version INT;
+    
+    -- Verificar que la referencia exista
+    IF p_tipo_contrato = 'venta' THEN
+        SELECT COUNT(*) INTO v_referencia_existe
+        FROM ventas 
+        WHERE id_venta = p_id_referencia;
+    ELSE
+        SELECT COUNT(*) INTO v_referencia_existe
+        FROM contratos_renta 
+        WHERE id_contrato = p_id_referencia;
+    END IF;
+    
+    IF v_referencia_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La referencia especificada no existe';
+    END IF;
+    
+    -- Determinar la versión
+    SELECT COALESCE(MAX(version), 0) + 1 INTO v_version
+    FROM contratos_generados
+    WHERE tipo_contrato = p_tipo_contrato AND id_referencia = p_id_referencia;
+    
+    START TRANSACTION;
+    
+    INSERT INTO contratos_generados (
+        tipo_contrato, id_referencia, ruta_archivo, version, id_usuario
+    ) VALUES (
+        p_tipo_contrato, p_id_referencia, p_ruta_archivo, v_version, p_id_usuario
+    );
+    
+    SET p_id_contrato_generado_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
 -- Procedimiento para agregar comprobante a un movimiento
 CREATE PROCEDURE AgregarComprobanteMovimiento(
     IN p_id_movimiento INT,
     IN p_ruta_imagen VARCHAR(255),
-    IN p_descripcion VARCHAR(100),
-    IN p_es_principal BOOLEAN,
+    IN p_tipo_archivo ENUM('imagen', 'pdf', 'documento'),
+    IN p_descripcion TEXT,
+    IN p_es_principal TINYINT(1),
+    IN p_tipo_comprobante ENUM('factura', 'recibo', 'contrato', 'otro'),
+    IN p_numero_referencia VARCHAR(50),
+    IN p_emisor VARCHAR(100),
+    IN p_receptor VARCHAR(100),
+    IN p_metodo_pago ENUM('efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'),
+    IN p_fecha_emision DATE,
+    IN p_notas_adicionales TEXT,
     OUT p_id_comprobante_out INT
 )
 BEGIN
     DECLARE v_movimiento_existe INT;
     
-    -- Verificar que el movimiento exista
     SELECT COUNT(*) INTO v_movimiento_existe
     FROM movimientos_renta 
     WHERE id_movimiento = p_id_movimiento;
@@ -3018,9 +3182,18 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El movimiento especificado no existe';
     END IF;
     
+    -- Validar que si es factura, tenga número de referencia
+    IF p_tipo_comprobante = 'factura' AND (p_numero_referencia IS NULL OR p_numero_referencia = '') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Una factura debe tener un número de referencia';
+    END IF;
+    
+    -- Validar que la fecha de emisión no sea futura
+    IF p_fecha_emision > CURDATE() THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La fecha de emisión no puede ser futura';
+    END IF;
+    
     START TRANSACTION;
     
-    -- Si es principal, actualizar los demás comprobantes
     IF p_es_principal = 1 THEN
         UPDATE comprobantes_movimientos
         SET es_principal = 0
@@ -3028,9 +3201,13 @@ BEGIN
     END IF;
     
     INSERT INTO comprobantes_movimientos (
-        id_movimiento, ruta_imagen, descripcion, es_principal
+        id_movimiento, ruta_imagen, tipo_archivo, descripcion, es_principal,
+        tipo_comprobante, numero_referencia, emisor, receptor, metodo_pago,
+        fecha_emision, notas_adicionales
     ) VALUES (
-        p_id_movimiento, p_ruta_imagen, p_descripcion, p_es_principal
+        p_id_movimiento, p_ruta_imagen, COALESCE(p_tipo_archivo, 'imagen'), p_descripcion, p_es_principal,
+        p_tipo_comprobante, p_numero_referencia, p_emisor, p_receptor, p_metodo_pago,
+        p_fecha_emision, p_notas_adicionales
     );
     
     SET p_id_comprobante_out = LAST_INSERT_ID();
@@ -3043,10 +3220,63 @@ CREATE PROCEDURE ObtenerComprobantesPorMovimiento(
     IN p_id_movimiento INT
 )
 BEGIN
-    SELECT *
+    SELECT 
+        id_comprobante,
+        id_movimiento,
+        ruta_imagen,
+        descripcion,
+        es_principal,
+        tipo_comprobante,
+        numero_referencia,
+        emisor,
+        receptor,
+        metodo_pago,
+        fecha_emision,
+        notas_adicionales,
+        fecha_carga
     FROM comprobantes_movimientos
     WHERE id_movimiento = p_id_movimiento
     ORDER BY es_principal DESC, fecha_carga DESC;
+END //
+
+CREATE PROCEDURE EliminarComprobanteMovimiento(
+    IN p_id_comprobante INT,
+    OUT p_afectados INT
+)
+BEGIN
+    DECLARE v_comprobante_existe INT;
+    DECLARE v_es_principal INT;
+    DECLARE v_id_movimiento INT;
+    
+    -- Verificar que el comprobante exista y obtener datos relevantes
+    SELECT COUNT(*), es_principal, id_movimiento 
+    INTO v_comprobante_existe, v_es_principal, v_id_movimiento
+    FROM comprobantes_movimientos 
+    WHERE id_comprobante = p_id_comprobante;
+    
+    IF v_comprobante_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El comprobante especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Eliminar el comprobante
+    DELETE FROM comprobantes_movimientos
+    WHERE id_comprobante = p_id_comprobante;
+    
+    SET p_afectados = ROW_COUNT();
+    
+    -- Si era el comprobante principal, establecer otro como principal
+    IF v_es_principal = 1 THEN
+        -- Buscar el comprobante más reciente y establecerlo como principal
+        UPDATE comprobantes_movimientos
+        SET es_principal = 1
+        WHERE id_movimiento = v_id_movimiento
+        ORDER BY fecha_carga DESC
+        LIMIT 1;
+    END IF;
+    
+    COMMIT;
 END //
 
 -- Procedimiento para obtener resumen de movimientos por mes
@@ -3090,6 +3320,560 @@ BEGIN
     ORDER BY mr.fecha_movimiento;
 END //
 
+CREATE PROCEDURE ActualizarComprobanteMovimiento(
+    IN p_id_comprobante INT,
+    IN p_descripcion TEXT,
+    IN p_es_principal TINYINT(1),
+    IN p_tipo_comprobante ENUM('factura', 'recibo', 'contrato', 'otro'),
+    IN p_numero_referencia VARCHAR(50),
+    IN p_emisor VARCHAR(100),
+    IN p_receptor VARCHAR(100),
+    IN p_metodo_pago ENUM('efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'),
+    IN p_fecha_emision DATE,
+    IN p_notas_adicionales TEXT
+)
+BEGIN
+    DECLARE v_id_movimiento INT;
+    DECLARE v_comprobante_existe INT;
+    
+    -- Verificar que el comprobante exista
+    SELECT COUNT(*), id_movimiento INTO v_comprobante_existe, v_id_movimiento
+    FROM comprobantes_movimientos 
+    WHERE id_comprobante = p_id_comprobante
+    GROUP BY id_movimiento;
+    
+    IF v_comprobante_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El comprobante especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Si se marca como principal, actualizar los demás comprobantes
+    IF p_es_principal = 1 THEN
+        UPDATE comprobantes_movimientos
+        SET es_principal = 0
+        WHERE id_movimiento = v_id_movimiento
+        AND id_comprobante != p_id_comprobante;
+    END IF;
+    
+    -- Actualizar el comprobante con todos los campos
+    UPDATE comprobantes_movimientos
+    SET 
+        descripcion = p_descripcion,
+        es_principal = p_es_principal,
+        tipo_comprobante = p_tipo_comprobante,
+        numero_referencia = p_numero_referencia,
+        emisor = p_emisor,
+        receptor = p_receptor,
+        metodo_pago = p_metodo_pago,
+        fecha_emision = p_fecha_emision,
+        notas_adicionales = p_notas_adicionales
+    WHERE id_comprobante = p_id_comprobante;
+    
+    COMMIT;
+END //
+
+CREATE PROCEDURE ObtenerComprobantesDetallados(
+    IN p_id_movimiento INT,
+    IN p_tipo_comprobante ENUM('factura', 'recibo', 'contrato', 'otro')
+)
+BEGIN
+    SELECT 
+        cm.id_comprobante,
+        cm.id_movimiento,
+        cm.ruta_imagen,
+        cm.descripcion,
+        cm.es_principal,
+        cm.tipo_comprobante,
+        cm.numero_referencia,
+        cm.emisor,
+        cm.receptor,
+        cm.metodo_pago,
+        cm.fecha_emision,
+        cm.notas_adicionales,
+        cm.fecha_carga,
+        mr.concepto AS concepto_movimiento,
+        mr.monto AS monto_movimiento,
+        mr.fecha_movimiento,
+        i.nombre_inmueble,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente
+    FROM comprobantes_movimientos cm
+    JOIN movimientos_renta mr ON cm.id_movimiento = mr.id_movimiento
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    WHERE cm.id_movimiento = p_id_movimiento
+    AND (p_tipo_comprobante IS NULL OR cm.tipo_comprobante = p_tipo_comprobante)
+    ORDER BY cm.es_principal DESC, cm.fecha_carga DESC;
+END //
+
+-- Procedimiento para actualizar un comprobante de venta
+CREATE PROCEDURE ActualizarComprobanteVenta(
+    IN p_id_comprobante INT,
+    IN p_descripcion TEXT,
+    IN p_es_principal TINYINT(1),
+    IN p_tipo_archivo ENUM('imagen', 'pdf', 'documento')
+)
+BEGIN
+    DECLARE v_id_venta INT;
+    DECLARE v_comprobante_existe INT;
+    
+    -- Verificar que el comprobante exista y obtener el id_venta
+    SELECT COUNT(*), id_venta INTO v_comprobante_existe, v_id_venta
+    FROM comprobantes_ventas 
+    WHERE id_comprobante = p_id_comprobante
+    GROUP BY id_venta;
+    
+    IF v_comprobante_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El comprobante especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Si se marca como principal, actualizar los demás comprobantes de la venta
+    IF p_es_principal = 1 THEN
+        UPDATE comprobantes_ventas
+        SET es_principal = 0
+        WHERE id_venta = v_id_venta
+        AND id_comprobante != p_id_comprobante;
+    END IF;
+    
+    -- Actualizar el comprobante
+    UPDATE comprobantes_ventas
+    SET 
+        descripcion = p_descripcion,
+        es_principal = p_es_principal,
+        tipo_archivo = COALESCE(p_tipo_archivo, tipo_archivo)
+    WHERE id_comprobante = p_id_comprobante;
+    
+    COMMIT;
+END //
+
+-- Procedimiento para eliminar un comprobante de venta
+CREATE PROCEDURE EliminarComprobanteVenta(
+    IN p_id_comprobante INT,
+    OUT p_afectados INT
+)
+BEGIN
+    DECLARE v_comprobante_existe INT;
+    DECLARE v_es_principal INT;
+    DECLARE v_id_venta INT;
+    
+    -- Verificar que el comprobante exista y obtener datos relevantes
+    SELECT COUNT(*), es_principal, id_venta 
+    INTO v_comprobante_existe, v_es_principal, v_id_venta
+    FROM comprobantes_ventas 
+    WHERE id_comprobante = p_id_comprobante;
+    
+    IF v_comprobante_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El comprobante especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Eliminar el comprobante
+    DELETE FROM comprobantes_ventas
+    WHERE id_comprobante = p_id_comprobante;
+    
+    SET p_afectados = ROW_COUNT();
+    
+    -- Si era el comprobante principal, establecer otro como principal
+    IF v_es_principal = 1 THEN
+        UPDATE comprobantes_ventas
+        SET es_principal = 1
+        WHERE id_venta = v_id_venta
+        ORDER BY fecha_carga DESC
+        LIMIT 1;
+    END IF;
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener comprobantes por venta
+CREATE PROCEDURE ObtenerComprobantesPorVenta(
+    IN p_id_venta INT
+)
+BEGIN
+    SELECT 
+        id_comprobante,
+        id_venta,
+        ruta_archivo,
+        tipo_archivo,
+        descripcion,
+        es_principal,
+        fecha_carga
+    FROM comprobantes_ventas
+    WHERE id_venta = p_id_venta
+    ORDER BY es_principal DESC, fecha_carga DESC;
+END //
+
+-- Procedimiento para obtener contratos generados por referencia
+CREATE PROCEDURE ObtenerContratosGeneradosPorReferencia(
+    IN p_tipo_contrato ENUM('venta', 'renta'),
+    IN p_id_referencia INT
+)
+BEGIN
+    SELECT 
+        id_contrato_generado,
+        tipo_contrato,
+        id_referencia,
+        ruta_archivo,
+        fecha_generacion,
+        version,
+        id_usuario
+    FROM contratos_generados
+    WHERE tipo_contrato = p_tipo_contrato AND id_referencia = p_id_referencia
+    ORDER BY version DESC;
+END //
+
+-- Procedimiento para eliminar un contrato generado
+CREATE PROCEDURE EliminarContratoGenerado(
+    IN p_id_contrato_generado INT,
+    OUT p_afectados INT
+)
+BEGIN
+    DECLARE v_contrato_existe INT;
+    
+    -- Verificar que el contrato generado exista
+    SELECT COUNT(*) INTO v_contrato_existe
+    FROM contratos_generados 
+    WHERE id_contrato_generado = p_id_contrato_generado;
+    
+    IF v_contrato_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El contrato generado especificado no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Eliminar el contrato generado
+    DELETE FROM contratos_generados
+    WHERE id_contrato_generado = p_id_contrato_generado;
+    
+    SET p_afectados = ROW_COUNT();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para obtener contratos por inmueble
+CREATE PROCEDURE ObtenerContratosPorInmueble(
+    IN p_id_inmueble INT
+)
+BEGIN
+    SELECT 
+        cr.id_contrato,
+        cr.fecha_inicio,
+        cr.fecha_fin,
+        cr.monto_mensual,
+        cr.condiciones_adicionales,
+        cr.id_estado,
+        cr.fecha_registro,
+        c.id_cliente,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno,
+        c.apellido_materno,
+        e.nombre_estado AS estado_contrato
+    FROM contratos_renta cr
+    JOIN clientes c ON cr.id_cliente = c.id_cliente
+    JOIN estados e ON cr.id_estado = e.id_estado
+    WHERE cr.id_inmueble = p_id_inmueble
+    ORDER BY cr.fecha_inicio DESC;
+END //
+
+-- Procedimiento para obtener movimientos por contrato
+CREATE PROCEDURE ObtenerMovimientosPorContrato(
+    IN p_id_contrato INT
+)
+BEGIN
+    DECLARE v_id_inmueble INT;
+    DECLARE v_id_cliente INT;
+    
+    -- Obtener id_inmueble y id_cliente del contrato
+    SELECT id_inmueble, id_cliente INTO v_id_inmueble, v_id_cliente
+    FROM contratos_renta
+    WHERE id_contrato = p_id_contrato;
+    
+    IF v_id_inmueble IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El contrato especificado no existe';
+    END IF;
+    
+    -- Obtener movimientos asociados al inmueble y cliente del contrato
+    SELECT 
+        mr.id_movimiento,
+        mr.tipo_movimiento,
+        mr.concepto,
+        mr.monto,
+        mr.fecha_movimiento,
+        mr.mes_correspondiente,
+        mr.comentarios,
+        mr.id_estado,
+        mr.fecha_registro
+    FROM movimientos_renta mr
+    WHERE mr.id_inmueble = v_id_inmueble AND mr.id_cliente = v_id_cliente
+    ORDER BY mr.fecha_movimiento DESC;
+END //
+
+CREATE PROCEDURE BuscarComprobantes(
+    IN p_numero_referencia VARCHAR(50),
+    IN p_tipo_comprobante ENUM('factura', 'recibo', 'contrato', 'otro'),
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE
+)
+BEGIN
+    SELECT 
+        cm.id_comprobante,
+        cm.id_movimiento,
+        cm.ruta_imagen,
+        cm.descripcion,
+        cm.es_principal,
+        cm.tipo_comprobante,
+        cm.numero_referencia,
+        cm.emisor,
+        cm.receptor,
+        cm.metodo_pago,
+        cm.fecha_emision,
+        cm.notas_adicionales,
+        cm.fecha_carga,
+        mr.concepto AS concepto_movimiento,
+        mr.monto AS monto_movimiento,
+        mr.fecha_movimiento,
+        i.nombre_inmueble,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente
+    FROM comprobantes_movimientos cm
+    JOIN movimientos_renta mr ON cm.id_movimiento = mr.id_movimiento
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    WHERE 1=1
+    AND (p_numero_referencia IS NULL OR p_numero_referencia = '' OR cm.numero_referencia LIKE CONCAT('%', p_numero_referencia, '%'))
+    AND (p_tipo_comprobante IS NULL OR cm.tipo_comprobante = p_tipo_comprobante)
+    AND (p_fecha_inicio IS NULL OR cm.fecha_emision >= p_fecha_inicio)
+    AND (p_fecha_fin IS NULL OR cm.fecha_emision <= p_fecha_fin)
+    ORDER BY cm.fecha_carga DESC;
+END //
+
+-- Procedimiento para validar comprobantes fiscales
+CREATE PROCEDURE ValidarComprobanteFiscal(
+    IN p_id_comprobante INT,
+    IN p_estado_validacion ENUM('pendiente', 'aprobado', 'rechazado'),
+    IN p_comentario_validacion TEXT,
+    IN p_usuario_validacion INT
+)
+BEGIN
+    DECLARE v_comprobante_existe INT;
+    DECLARE v_es_fiscal INT;
+    
+    -- Verificar que el comprobante exista
+    SELECT COUNT(*) INTO v_comprobante_existe
+    FROM comprobantes_movimientos 
+    WHERE id_comprobante = p_id_comprobante;
+    
+    IF v_comprobante_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El comprobante especificado no existe';
+    END IF;
+    
+    -- Verificar que sea un comprobante fiscal (factura o recibo)
+    SELECT COUNT(*) INTO v_es_fiscal
+    FROM comprobantes_movimientos 
+    WHERE id_comprobante = p_id_comprobante
+    AND tipo_comprobante IN ('factura', 'recibo');
+    
+    IF v_es_fiscal = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Solo se pueden validar comprobantes de tipo factura o recibo';
+    END IF;
+    
+    -- Actualizar el campo notas_adicionales para incluir la información de validación
+    START TRANSACTION;
+    
+    UPDATE comprobantes_movimientos
+    SET notas_adicionales = CONCAT(
+        COALESCE(notas_adicionales, ''),
+        '\n[VALIDACIÓN: ', p_estado_validacion, ' - ', 
+        DATE_FORMAT(NOW(), '%d/%m/%Y %H:%i:%s'), ' - Usuario ID: ', p_usuario_validacion, 
+        ']\n', p_comentario_validacion
+    )
+    WHERE id_comprobante = p_id_comprobante;
+    
+    COMMIT;
+    
+    SELECT 'Comprobante validado exitosamente' AS mensaje;
+END //
+
+CREATE PROCEDURE ObtenerComprobantesVenta(
+    IN p_id_venta INT
+)
+BEGIN
+    SELECT *
+    FROM comprobantes_ventas
+    WHERE id_venta = p_id_venta
+    ORDER BY es_principal DESC, fecha_carga DESC;
+END //
+
+CREATE PROCEDURE AgregarComprobanteVenta(
+    IN p_id_venta INT,
+    IN p_ruta_archivo VARCHAR(255),
+    IN p_tipo_archivo ENUM('imagen', 'pdf', 'documento'),
+    IN p_descripcion TEXT,
+    IN p_es_principal TINYINT(1),
+    OUT p_id_comprobante_out INT
+)
+BEGIN
+    DECLARE v_venta_existe INT;
+    
+    -- Verificar que la venta exista
+    SELECT COUNT(*) INTO v_venta_existe
+    FROM ventas 
+    WHERE id_venta = p_id_venta;
+    
+    IF v_venta_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La venta especificada no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Si es principal, actualizar los demás comprobantes
+    IF p_es_principal = 1 THEN
+        UPDATE comprobantes_ventas
+        SET es_principal = 0
+        WHERE id_venta = p_id_venta;
+    END IF;
+    
+    INSERT INTO comprobantes_ventas (
+        id_venta, ruta_archivo, tipo_archivo, descripcion, es_principal
+    ) VALUES (
+        p_id_venta, p_ruta_archivo, COALESCE(p_tipo_archivo, 'imagen'), p_descripcion, p_es_principal
+    );
+    
+    SET p_id_comprobante_out = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+-- Procedimiento para buscar comprobantes por tipo
+CREATE PROCEDURE BuscarComprobantesPorTipo(
+    IN p_tipo_comprobante ENUM('factura', 'recibo', 'contrato', 'otro')
+)
+BEGIN
+    SELECT 
+        cm.id_comprobante,
+        cm.id_movimiento,
+        cm.ruta_imagen,
+        cm.descripcion,
+        cm.es_principal,
+        cm.tipo_comprobante,
+        cm.numero_referencia,
+        cm.emisor,
+        cm.receptor,
+        cm.metodo_pago,
+        cm.fecha_emision,
+        cm.notas_adicionales,
+        cm.fecha_carga,
+        mr.concepto AS concepto_movimiento,
+        mr.fecha_movimiento,
+        mr.monto AS monto_movimiento,
+        i.nombre_inmueble,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente
+    FROM comprobantes_movimientos cm
+    JOIN movimientos_renta mr ON cm.id_movimiento = mr.id_movimiento
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    WHERE cm.tipo_comprobante = p_tipo_comprobante
+    ORDER BY cm.fecha_carga DESC;
+END //
+
+-- Procedimiento para obtener resumen de comprobantes fiscales
+CREATE PROCEDURE ObtenerResumenComprobantes(
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE
+)
+BEGIN
+    -- Establecer fechas por defecto si son nulas
+    SET p_fecha_inicio = COALESCE(p_fecha_inicio, DATE_SUB(CURDATE(), INTERVAL 1 YEAR));
+    SET p_fecha_fin = COALESCE(p_fecha_fin, CURDATE());
+    
+    -- Resumen por tipo de comprobante
+    SELECT 
+        tipo_comprobante, 
+        COUNT(*) as cantidad,
+        COUNT(DISTINCT id_movimiento) as movimientos_asociados
+    FROM comprobantes_movimientos
+    WHERE (p_fecha_inicio IS NULL OR fecha_emision >= p_fecha_inicio)
+    AND (p_fecha_fin IS NULL OR fecha_emision <= p_fecha_fin)
+    GROUP BY tipo_comprobante;
+    
+    -- Resumen por mes
+    SELECT 
+        YEAR(fecha_emision) as anio,
+        MONTH(fecha_emision) as mes,
+        COUNT(*) as cantidad,
+        COUNT(DISTINCT id_movimiento) as movimientos_asociados
+    FROM comprobantes_movimientos
+    WHERE (p_fecha_inicio IS NULL OR fecha_emision >= p_fecha_inicio)
+    AND (p_fecha_fin IS NULL OR fecha_emision <= p_fecha_fin)
+    GROUP BY YEAR(fecha_emision), MONTH(fecha_emision)
+    ORDER BY YEAR(fecha_emision), MONTH(fecha_emision);
+    
+    -- Resumen por método de pago
+    SELECT 
+        metodo_pago, 
+        COUNT(*) as cantidad
+    FROM comprobantes_movimientos
+    WHERE (p_fecha_inicio IS NULL OR fecha_emision >= p_fecha_inicio)
+    AND (p_fecha_fin IS NULL OR fecha_emision <= p_fecha_fin)
+    AND metodo_pago IS NOT NULL
+    GROUP BY metodo_pago;
+END //
+
+CREATE PROCEDURE ReporteComprobantesMovimientosPorPeriodo(
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE,
+    IN p_id_inmueble INT
+)
+BEGIN
+    -- Establecer valores por defecto para las fechas si son NULL
+    SET p_fecha_inicio = COALESCE(p_fecha_inicio, DATE_SUB(CURDATE(), INTERVAL 1 MONTH));
+    SET p_fecha_fin = COALESCE(p_fecha_fin, CURDATE());
+    
+    -- Reporte detallado de comprobantes por fecha
+    SELECT 
+        cm.id_comprobante,
+        cm.id_movimiento,
+        cm.tipo_comprobante,
+        cm.numero_referencia,
+        cm.emisor,
+        cm.receptor,
+        cm.metodo_pago,
+        cm.fecha_emision,
+        cm.descripcion,
+        mr.concepto,
+        mr.monto,
+        mr.tipo_movimiento,
+        i.nombre_inmueble,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente
+    FROM comprobantes_movimientos cm
+    JOIN movimientos_renta mr ON cm.id_movimiento = mr.id_movimiento
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    WHERE cm.fecha_emision BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND (p_id_inmueble IS NULL OR mr.id_inmueble = p_id_inmueble)
+    ORDER BY cm.fecha_emision DESC, i.nombre_inmueble;
+    
+    -- Resumen estadístico
+    SELECT 
+        COUNT(*) as total_comprobantes,
+        COUNT(DISTINCT cm.id_movimiento) as total_movimientos,
+        COUNT(DISTINCT mr.id_inmueble) as total_inmuebles,
+        SUM(CASE WHEN cm.tipo_comprobante = 'factura' THEN 1 ELSE 0 END) as total_facturas,
+        SUM(CASE WHEN cm.tipo_comprobante = 'recibo' THEN 1 ELSE 0 END) as total_recibos,
+        SUM(CASE WHEN cm.tipo_comprobante = 'contrato' THEN 1 ELSE 0 END) as total_contratos,
+        SUM(CASE WHEN cm.tipo_comprobante = 'otro' THEN 1 ELSE 0 END) as total_otros
+    FROM comprobantes_movimientos cm
+    JOIN movimientos_renta mr ON cm.id_movimiento = mr.id_movimiento
+    WHERE cm.fecha_emision BETWEEN p_fecha_inicio AND p_fecha_fin
+    AND (p_id_inmueble IS NULL OR mr.id_inmueble = p_id_inmueble);
+END //
+
 -- Procedimiento para eliminar un movimiento
 CREATE PROCEDURE EliminarMovimientoRenta(
     IN p_id_movimiento INT
@@ -3112,6 +3896,167 @@ BEGIN
     WHERE id_movimiento = p_id_movimiento;
     
     COMMIT;
+END //
+
+CREATE PROCEDURE ClonarComprobante(
+    IN p_id_comprobante INT,
+    IN p_id_movimiento_destino INT,
+    OUT p_nuevo_id_comprobante INT
+)
+BEGIN
+    DECLARE v_comprobante_existe INT;
+    DECLARE v_movimiento_destino_existe INT;
+    
+    -- Verificar que el comprobante origen exista
+    SELECT COUNT(*) INTO v_comprobante_existe
+    FROM comprobantes_movimientos 
+    WHERE id_comprobante = p_id_comprobante;
+    
+    IF v_comprobante_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El comprobante origen no existe';
+    END IF;
+    
+    -- Verificar que el movimiento destino exista
+    SELECT COUNT(*) INTO v_movimiento_destino_existe
+    FROM movimientos_renta 
+    WHERE id_movimiento = p_id_movimiento_destino;
+    
+    IF v_movimiento_destino_existe = 0 THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El movimiento destino no existe';
+    END IF;
+    
+    START TRANSACTION;
+    
+    -- Insertar una copia del comprobante con el nuevo id_movimiento
+    INSERT INTO comprobantes_movimientos (
+        id_movimiento,
+        ruta_imagen,
+        descripcion,
+        es_principal,
+        tipo_comprobante,
+        numero_referencia,
+        emisor,
+        receptor,
+        metodo_pago,
+        fecha_emision,
+        notas_adicionales
+    )
+    SELECT 
+        p_id_movimiento_destino,
+        ruta_imagen,
+        CONCAT(descripcion, ' (Copia)'),
+        0, -- No será principal por defecto
+        tipo_comprobante,
+        numero_referencia,
+        emisor,
+        receptor,
+        metodo_pago,
+        fecha_emision,
+        CONCAT(notas_adicionales, ' - Clonado de comprobante #', p_id_comprobante)
+    FROM comprobantes_movimientos
+    WHERE id_comprobante = p_id_comprobante;
+    
+    SET p_nuevo_id_comprobante = LAST_INSERT_ID();
+    
+    COMMIT;
+END //
+
+CREATE PROCEDURE ObtenerCumplimientoFiscal(
+    IN p_id_inmueble INT,
+    IN p_anio INT,
+    IN p_mes INT
+)
+BEGIN
+    DECLARE v_mes_inicio DATE;
+    DECLARE v_mes_fin DATE;
+    
+    -- Si no se especifica año o mes, usar el actual
+    SET p_anio = COALESCE(p_anio, YEAR(CURDATE()));
+    SET p_mes = COALESCE(p_mes, MONTH(CURDATE()));
+    
+    -- Calcular el inicio y fin del mes
+    SET v_mes_inicio = CONCAT(p_anio, '-', LPAD(p_mes, 2, '0'), '-01');
+    SET v_mes_fin = LAST_DAY(v_mes_inicio);
+    
+    -- Obtener todos los movimientos de renta del período
+    SELECT 
+        mr.id_movimiento,
+        mr.concepto,
+        mr.monto,
+        mr.fecha_movimiento,
+        mr.tipo_movimiento,
+        i.nombre_inmueble,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente,
+        CASE 
+            WHEN COUNT(cm.id_comprobante) = 0 THEN 'Sin comprobante'
+            WHEN COUNT(CASE WHEN cm.tipo_comprobante = 'factura' THEN 1 ELSE NULL END) > 0 THEN 'Con factura'
+            WHEN COUNT(CASE WHEN cm.tipo_comprobante = 'recibo' THEN 1 ELSE NULL END) > 0 THEN 'Con recibo'
+            ELSE 'Otro comprobante'
+        END AS estado_comprobante
+    FROM movimientos_renta mr
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    LEFT JOIN comprobantes_movimientos cm ON mr.id_movimiento = cm.id_movimiento
+    WHERE mr.fecha_movimiento BETWEEN v_mes_inicio AND v_mes_fin
+    AND (p_id_inmueble IS NULL OR mr.id_inmueble = p_id_inmueble)
+    GROUP BY mr.id_movimiento
+    ORDER BY mr.fecha_movimiento;
+    
+    -- Estadísticas de cumplimiento
+    SELECT 
+        COUNT(*) AS total_movimientos,
+        SUM(CASE WHEN cm.id_comprobante IS NOT NULL THEN 1 ELSE 0 END) AS con_comprobante,
+        SUM(CASE WHEN cm.id_comprobante IS NULL THEN 1 ELSE 0 END) AS sin_comprobante,
+        SUM(CASE WHEN cm.tipo_comprobante = 'factura' THEN 1 ELSE 0 END) AS con_factura,
+        SUM(CASE WHEN cm.tipo_comprobante = 'recibo' THEN 1 ELSE 0 END) AS con_recibo,
+        SUM(CASE WHEN cm.tipo_comprobante NOT IN ('factura', 'recibo') AND cm.id_comprobante IS NOT NULL THEN 1 ELSE 0 END) AS otro_comprobante,
+        ROUND((SUM(CASE WHEN cm.id_comprobante IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) AS porcentaje_cumplimiento,
+        ROUND((SUM(CASE WHEN cm.tipo_comprobante = 'factura' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 2) AS porcentaje_facturas
+    FROM movimientos_renta mr
+    LEFT JOIN comprobantes_movimientos cm ON mr.id_movimiento = cm.id_movimiento
+    WHERE mr.fecha_movimiento BETWEEN v_mes_inicio AND v_mes_fin
+    AND (p_id_inmueble IS NULL OR mr.id_inmueble = p_id_inmueble);
+END //
+
+CREATE PROCEDURE ObtenerComprobantesVencidos(
+    IN p_dias_antiguedad INT
+)
+BEGIN
+    DECLARE v_fecha_limite DATE;
+    
+    -- Si no se especifica cantidad de días, usar 30 por defecto
+    SET p_dias_antiguedad = COALESCE(p_dias_antiguedad, 30);
+    
+    -- Calcular la fecha límite
+    SET v_fecha_limite = DATE_SUB(CURDATE(), INTERVAL p_dias_antiguedad DAY);
+    
+    SELECT 
+        cm.id_comprobante,
+        cm.id_movimiento,
+        cm.ruta_imagen,
+        cm.descripcion,
+        cm.es_principal,
+        cm.tipo_comprobante,
+        cm.numero_referencia,
+        cm.emisor,
+        cm.receptor,
+        cm.metodo_pago,
+        cm.fecha_emision,
+        cm.notas_adicionales,
+        cm.fecha_carga,
+        DATEDIFF(CURDATE(), cm.fecha_emision) AS dias_antiguedad,
+        mr.concepto AS concepto_movimiento,
+        mr.monto AS monto_movimiento,
+        i.nombre_inmueble,
+        c.nombre AS nombre_cliente,
+        c.apellido_paterno AS apellido_cliente
+    FROM comprobantes_movimientos cm
+    JOIN movimientos_renta mr ON cm.id_movimiento = mr.id_movimiento
+    JOIN inmuebles i ON mr.id_inmueble = i.id_inmueble
+    JOIN clientes c ON mr.id_cliente = c.id_cliente
+    WHERE cm.fecha_emision <= v_fecha_limite
+    ORDER BY cm.fecha_emision;
 END //
 
 CREATE PROCEDURE ObtenerDetalleRenta(

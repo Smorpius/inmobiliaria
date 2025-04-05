@@ -179,7 +179,7 @@ class MovimientosRentaService {
           'CALL AgregarComprobanteMovimiento(?, ?, ?, ?, @id_comprobante_out)',
           [
             comprobante.idMovimiento,
-            comprobante.rutaImagen,
+            comprobante.rutaArchivo,
             comprobante.descripcion,
             comprobante.esPrincipal ? 1 : 0,
           ],
@@ -241,7 +241,7 @@ class MovimientosRentaService {
           'Error al registrar comprobante',
           errorContexto: {
             'idMovimiento': comprobante.idMovimiento,
-            'rutaImagen': comprobante.rutaImagen,
+            'rutaArchivo': comprobante.rutaArchivo,
           },
         );
 
@@ -675,15 +675,15 @@ class MovimientosRentaService {
   }
 
   /// Verifica si un archivo de imagen existe físicamente
-  Future<bool> verificarExistenciaComprobante(String rutaImagen) async {
+  Future<bool> verificarExistenciaComprobante(String rutaArchivo) async {
     try {
       final baseDir = await getApplicationDocumentsDirectory();
-      final imagePath = path.join(baseDir.path, rutaImagen);
+      final imagePath = path.join(baseDir.path, rutaArchivo);
       final file = File(imagePath);
 
       // Verificar si el archivo existe
       if (!await file.exists()) {
-        AppLogger.warning('El archivo de comprobante no existe: $rutaImagen');
+        AppLogger.warning('El archivo de comprobante no existe: $rutaArchivo');
         return false;
       }
 
@@ -692,7 +692,7 @@ class MovimientosRentaService {
       if (fileSize < 100) {
         // Menos de 100 bytes es probablemente un archivo vacío o corrupto
         AppLogger.warning(
-          'El archivo de comprobante parece estar vacío o corrupto: $rutaImagen',
+          'El archivo de comprobante parece estar vacío o corrupto: $rutaArchivo',
         );
         return false;
       }
@@ -700,7 +700,7 @@ class MovimientosRentaService {
       // Verificar que no exceda el tamaño máximo
       if (fileSize > _tamanoMaximoComprobante) {
         AppLogger.warning(
-          'El archivo de comprobante excede el tamaño máximo permitido: $rutaImagen',
+          'El archivo de comprobante excede el tamaño máximo permitido: $rutaArchivo',
         );
         return false;
       }
@@ -723,7 +723,7 @@ class MovimientosRentaService {
 
     // Luego verificar existencia física del archivo
     final existeFisicamente = await verificarExistenciaComprobante(
-      comprobante.rutaImagen,
+      comprobante.rutaArchivo,
     );
     if (!existeFisicamente) {
       throw MovimientoRentaException(
@@ -790,7 +790,7 @@ class MovimientosRentaService {
     final camposObligatorios = [
       'id_comprobante',
       'id_movimiento',
-      'ruta_imagen',
+      'ruta_archivo',
     ];
 
     for (var campo in camposObligatorios) {
@@ -891,7 +891,7 @@ class MovimientosRentaService {
       );
     }
 
-    if (comprobante.rutaImagen.trim().isEmpty) {
+    if (comprobante.rutaArchivo.trim().isEmpty) {
       throw MovimientoRentaException(
         'La ruta del comprobante es obligatoria',
         stackTrace: StackTrace.current,
@@ -900,7 +900,7 @@ class MovimientosRentaService {
     }
 
     // Validar que la imagen tenga una extensión válida
-    final extension = path.extension(comprobante.rutaImagen).toLowerCase();
+    final extension = path.extension(comprobante.rutaArchivo).toLowerCase();
     final tieneExtensionValida = _extensionesValidasComprobantes.contains(
       extension,
     );

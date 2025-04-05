@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:async';
-import 'dart:typed_data';
 import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import '../services/mysql_helper.dart';

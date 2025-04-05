@@ -23,6 +23,15 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
   static const Duration _intervaloMinimoErrores = Duration(minutes: 1);
 
   @override
+  void initState() {
+    super.initState();
+    // Cargar ventas al iniciar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(ventasStateProvider.notifier).cargarVentas();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ventasState = ref.watch(ventasStateProvider);
 
@@ -100,7 +109,27 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
     }
 
     if (ventasState.errorMessage != null) {
-      return Center(child: Text('Error: ${ventasState.errorMessage}'));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Error: ${ventasState.errorMessage}',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.red[700]),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed:
+                  () => ref.read(ventasStateProvider.notifier).cargarVentas(),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
     }
 
     if (ventasState.ventasFiltradas.isEmpty) {
@@ -279,38 +308,38 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
                       Navigator.pop(context);
                       final fechaActual = DateTime.now();
 
-                      // Usar el contexto dentro del mismo método async
-                      if (context.mounted) {
-                        final fechas = await showDateRangePicker(
-                          context: context,
-                          firstDate: DateTime(2020),
-                          lastDate: fechaActual,
-                          initialDateRange: DateTimeRange(
-                            start: fechaActual.subtract(
-                              const Duration(days: 30),
-                            ),
-                            end: fechaActual,
-                          ),
-                          builder: (context, child) {
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                colorScheme: ColorScheme.light(
-                                  primary: Colors.teal,
-                                  onPrimary: Colors.white,
-                                  surface: Colors.teal.shade50,
-                                  onSurface: Colors.black,
-                                ),
-                              ),
-                              child: child!,
-                            );
-                          },
-                        );
+                      // Guardar el contexto en una variable local o cerrar el diálogo antes
+                      // de iniciar una operación asíncrona
+                      if (!mounted) return; // Verificar mounted antes de async
 
-                        if (fechas != null && context.mounted) {
-                          ref
-                              .read(ventasStateProvider.notifier)
-                              .aplicarFiltroFechas(fechas);
-                        }
+                      final fechas = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2020),
+                        lastDate: fechaActual,
+                        initialDateRange: DateTimeRange(
+                          start: fechaActual.subtract(const Duration(days: 30)),
+                          end: fechaActual,
+                        ),
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: Colors.teal,
+                                onPrimary: Colors.white,
+                                surface: Colors.teal.shade50,
+                                onSurface: Colors.black,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+
+                      // Verificar que el widget siga montado después de la operación async
+                      if (fechas != null && mounted) {
+                        ref
+                            .read(ventasStateProvider.notifier)
+                            .aplicarFiltroFechas(fechas);
                       }
                     },
                   ),
@@ -337,10 +366,15 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
   }
 
   void _mostrarDialogoFiltroEstados(BuildContext context, WidgetRef ref) {
+    // Comprobar que el widget sigue montado antes de mostrar el diálogo
+    if (!mounted) return;
+
+    final contextLocal = context; // Guardar el contexto en una variable local
+
     showDialog(
-      context: context,
+      context: contextLocal,
       builder:
-          (context) => AlertDialog(
+          (dialogContext) => AlertDialog(
             title: const Text('Seleccionar estado'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -349,37 +383,46 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
                   leading: Icon(Icons.pending, color: Colors.orange),
                   title: const Text('En proceso'),
                   onTap: () {
-                    Navigator.pop(context);
-                    ref
-                        .read(ventasStateProvider.notifier)
-                        .aplicarFiltroEstado('7');
+                    Navigator.pop(dialogContext);
+                    // Usar el contexto del diálogo o verificar mounted
+                    if (mounted) {
+                      ref
+                          .read(ventasStateProvider.notifier)
+                          .aplicarFiltroEstado('7');
+                    }
                   },
                 ),
                 ListTile(
                   leading: Icon(Icons.check_circle, color: Colors.green),
                   title: const Text('Completada'),
                   onTap: () {
-                    Navigator.pop(context);
-                    ref
-                        .read(ventasStateProvider.notifier)
-                        .aplicarFiltroEstado('8');
+                    Navigator.pop(dialogContext);
+                    // Usar el contexto del diálogo o verificar mounted
+                    if (mounted) {
+                      ref
+                          .read(ventasStateProvider.notifier)
+                          .aplicarFiltroEstado('8');
+                    }
                   },
                 ),
                 ListTile(
                   leading: Icon(Icons.cancel, color: Colors.red),
                   title: const Text('Cancelada'),
                   onTap: () {
-                    Navigator.pop(context);
-                    ref
-                        .read(ventasStateProvider.notifier)
-                        .aplicarFiltroEstado('9');
+                    Navigator.pop(dialogContext);
+                    // Usar el contexto del diálogo o verificar mounted
+                    if (mounted) {
+                      ref
+                          .read(ventasStateProvider.notifier)
+                          .aplicarFiltroEstado('9');
+                    }
                   },
                 ),
               ],
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(dialogContext),
                 child: const Text('Cancelar'),
               ),
             ],
@@ -393,20 +436,55 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
       MaterialPageRoute(
         builder: (context) => DetallesVentaScreen(idVenta: idVenta),
       ),
-    );
+    ).then((value) {
+      // Verificar si el widget todavía está montado después de la operación asíncrona
+      if (mounted && value == true) {
+        // Si retornamos true, significa que hubo cambios en la venta
+        // Recargar las ventas para reflejar los cambios
+        ref.read(ventasStateProvider.notifier).cargarVentas();
+      }
+    });
   }
 
   void _navegarARegistrarVenta(BuildContext context, WidgetRef ref) {
+    // Creamos un método local que capture el BuildContext actual
+    void mostrarMensajeExito() {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Operación registrada exitosamente. Actualizando lista...',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => const RegistrarNuevaVentaScreen(),
       ),
     ).then((value) {
+      // Verificar que el widget siga montado después de la navegación
+      if (!mounted) return;
+
       // Si retornamos true, significa que se registró una venta correctamente
       if (value == true) {
-        // Usar el operador "discard" para indicar explícitamente que ignoramos el resultado
-        final _ = ref.refresh(ventasProvider);
+        // CORRECCIÓN: Refrescar completamente el provider de ventas
+        ref.invalidate(ventasProvider);
+
+        // Forzar la recarga de ventas con el notifier
+        ref.read(ventasStateProvider.notifier).cargarVentas();
+
+        // También refrescar estadísticas
+        // ignore: unused_result
+        ref.refresh(ventasEstadisticasGeneralProvider);
+
+        // Mostrar confirmación visual al usuario usando el método local
+        // que ya tiene la verificación de mounted incorporada
+        mostrarMensajeExito();
       }
     });
   }
@@ -580,16 +658,28 @@ class _VentaTarjeta extends StatelessWidget {
 
   Widget _buildTipoOperacionBadge(String tipo) {
     bool esVenta = tipo.toLowerCase() == 'venta';
+    bool esRenta = tipo.toLowerCase() == 'renta';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: esVenta ? Colors.blue[100] : Colors.amber[100],
+        color:
+            esVenta
+                ? Colors.blue[100]
+                : esRenta
+                ? Colors.amber[100]
+                : Colors.purple[100], // Por si hay algún otro tipo
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         tipo.toUpperCase(),
         style: TextStyle(
-          color: esVenta ? Colors.blue[800] : Colors.amber[800],
+          color:
+              esVenta
+                  ? Colors.blue[800]
+                  : esRenta
+                  ? Colors.amber[800]
+                  : Colors.purple[800],
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),

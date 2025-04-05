@@ -25,6 +25,15 @@ class _RegistrarNuevaVentaScreenState
   Inmueble? _inmuebleDetalle;
 
   @override
+  void initState() {
+    super.initState();
+    // Forzar actualización de inmuebles disponibles al iniciar
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(inmueblesDisponiblesProvider);
+    });
+  }
+
+  @override
   void dispose() {
     _ingresoController.dispose();
     _comisionProveedoresController.dispose();
@@ -137,7 +146,26 @@ class _RegistrarNuevaVentaScreenState
     final inmueblesAsyncValue = ref.watch(inmueblesDisponiblesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Registrar Nueva Venta')),
+      appBar: AppBar(
+        title: const Text('Registrar Nueva Venta'),
+        actions: [
+          // Botón de actualización para refrescar la lista de inmuebles
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualizar inmuebles',
+            onPressed: () {
+              // Invalidar el provider para forzar una recarga
+              ref.invalidate(inmueblesDisponiblesProvider);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Actualizando lista de inmuebles...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Padding(
