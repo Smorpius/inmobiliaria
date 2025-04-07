@@ -53,17 +53,62 @@ class _RegistrarContratoScreenState
   Future<void> _registrarContrato() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor complete todos los campos')),
+        const SnackBar(
+          content: Text('Por favor complete todos los campos'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
     if (_clienteSeleccionado == null || _inmuebleSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Seleccione un cliente y un inmueble')),
+        const SnackBar(
+          content: Text('Seleccione un cliente y un inmueble'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
+
+    // Validación de fechas
+    if (_fechaFin.isBefore(_fechaInicio)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'La fecha de fin debe ser posterior a la fecha de inicio',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Diálogo de confirmación
+    final confirmar =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Confirmar registro'),
+                content: const Text(
+                  '¿Está seguro de registrar este contrato de renta?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Confirmar'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+
+    if (!confirmar) return;
 
     setState(() {
       _isLoading = true;
@@ -84,14 +129,25 @@ class _RegistrarContratoScreenState
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Contrato registrado correctamente')),
+          const SnackBar(
+            content: Text('Contrato registrado correctamente'),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
+        String mensaje = 'Error al registrar contrato';
+
+        if (e.toString().contains('ya existe un contrato activo')) {
+          mensaje = 'Este inmueble ya tiene un contrato de renta activo';
+        } else if (e.toString().contains('fecha')) {
+          mensaje = 'Error con las fechas del contrato';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al registrar contrato: $e')),
+          SnackBar(content: Text(mensaje), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -224,8 +280,12 @@ class _RegistrarContratoScreenState
                   if (value == null || value.isEmpty) {
                     return 'Ingrese el monto mensual';
                   }
-                  if (double.tryParse(value) == null) {
+                  final monto = double.tryParse(value);
+                  if (monto == null) {
                     return 'Ingrese un monto válido';
+                  }
+                  if (monto <= 0) {
+                    return 'El monto debe ser mayor a cero';
                   }
                   return null;
                 },

@@ -11,7 +11,7 @@ class HistorialTransaccionService {
 
   /// Registra un cambio en el historial de transacciones
   Future<int> registrarCambio({
-    required String tipoEntidad,
+    required String tipoEntidadStr,
     required int idEntidad,
     required String campoModificado,
     String? valorAnterior,
@@ -19,6 +19,7 @@ class HistorialTransaccionService {
     int? idUsuario,
   }) async {
     try {
+      final tipoEntidad = TipoEntidad.fromString(tipoEntidadStr);
       final historial = HistorialTransaccion(
         tipoEntidad: tipoEntidad,
         idEntidad: idEntidad,
@@ -37,14 +38,14 @@ class HistorialTransaccionService {
 
   /// Obtiene el historial de una entidad específica con filtros opcionales de fecha
   Future<List<HistorialTransaccion>> obtenerHistorialDeEntidad({
-    required String tipoEntidad,
+    required String tipoEntidadStr,
     required int idEntidad,
     DateTime? fechaDesde,
     DateTime? fechaHasta,
   }) async {
     try {
       return await _controller.obtenerHistorialPorEntidad(
-        tipoEntidad: tipoEntidad,
+        tipoEntidad: tipoEntidadStr,
         idEntidad: idEntidad,
         fechaDesde: fechaDesde,
         fechaHasta: fechaHasta,
@@ -119,7 +120,7 @@ class HistorialTransaccionService {
 
   /// Registra cambio comparando valores y determinando si hubo cambio real
   Future<int?> registrarCambioSiDiferente({
-    required String tipoEntidad,
+    required String tipoEntidadStr,
     required int idEntidad,
     required String campoModificado,
     required dynamic valorAnterior,
@@ -136,6 +137,7 @@ class HistorialTransaccionService {
         return null;
       }
 
+      final tipoEntidad = TipoEntidad.fromString(tipoEntidadStr);
       // Crear y registrar el historial
       final historial = HistorialTransaccion(
         tipoEntidad: tipoEntidad,
@@ -217,7 +219,7 @@ class HistorialTransaccionService {
   }) async {
     try {
       final historial = HistorialTransaccion(
-        tipoEntidad: 'venta',
+        tipoEntidad: TipoEntidad.venta,
         idEntidad: idVenta,
         campoModificado: 'estado',
         valorAnterior: estadoAnterior,

@@ -8,6 +8,7 @@ import '../services/ventas_service.dart';
 import '../models/venta_reporte_model.dart';
 import '../controllers/venta_controller.dart';
 import 'package:inmobiliaria/models/usuario.dart';
+import '../controllers/contrato_renta_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/services/socket_error_handler.dart'
     as socket_handler;
@@ -89,450 +90,263 @@ final ventaDetalleProvider = FutureProvider.family<Venta?, int>((
   }
 });
 
-// Notifier para la gestión del estado de ventas
-class VentasNotifier extends StateNotifier<VentasState> {
-  final VentaController _controller;
+// Implementación del StateNotifier para el estado de ventas
+class VentasStateNotifier extends StateNotifier<VentasState> {
+  VentasStateNotifier(this._ref) : super(VentasState.initial()) {
+    service = _ref.read(ventasServiceProvider);
+  }
+
   final Ref _ref;
+  late final VentasService service;
 
-  // Control para evitar operaciones duplicadas
-  bool _procesandoOperacion = false;
-
-  // Control para evitar reconexiones simultáneas
-  bool _intentandoReconectar = false;
-
-  // Control de mounted para evitar actualizaciones después de dispose
-  bool _disposed = false;
-
-  VentasNotifier(this._controller, this._ref) : super(VentasState.initial()) {
-    cargarVentas();
-  }
-
-  @override
-  bool get mounted => !_disposed;
-
-  // Método para reconectar en caso de error de conexión
-  Future<bool> _reconectar() async {
-    if (_intentandoReconectar) return false;
-
-    try {
-      _intentandoReconectar = true;
-      AppLogger.info('Intentando reconectar desde VentasNotifier');
-
-      await _ref.read(databaseServiceProvider).reiniciarConexion();
-
-      AppLogger.info('Reconexión exitosa desde VentasNotifier');
-      return true;
-    } catch (e) {
-      AppLogger.error(
-        'Error al reconectar desde VentasNotifier',
-        e,
-        StackTrace.current,
-      );
-      return false;
-    } finally {
-      _intentandoReconectar = false;
-    }
-  }
-
+  /// Carga todas las ventas del backend
   Future<void> cargarVentas() async {
-    if (_procesandoOperacion || _disposed) return;
-
     try {
-      _procesandoOperacion = true;
-      if (!mounted) return;
-
       state = state.copyWith(isLoading: true, errorMessage: null);
 
-      final ventas = await _controller.obtenerVentas();
+      // Cargar ventas desde el servicio
+      final ventas = await service.obtenerVentas();
 
-      // Solo actualizar estado si el notifier sigue montado
-      if (mounted) {
-        state = state.copyWith(ventas: ventas, isLoading: false);
-      }
+      // Cargar inmuebles disponibles para tener acceso a sus nombres
+      final inmuebleController = _ref.read(inmuebleControllerProvider);
+      final inmuebles =
+          await inmuebleController
+              .buscarInmuebles(); // Obtener todos los inmuebles
 
-      AppLogger.info('Ventas cargadas: ${ventas.length}');
-    } catch (e, stackTrace) {
-      // Manejar errores de conexión con reconexión automática
-      bool esErrorDeConexion =
-          e.toString().toLowerCase().contains('socket') ||
-          e.toString().toLowerCase().contains('connection') ||
-          e.toString().toLowerCase().contains('closed');
+      // Mapa para búsqueda rápida de inmuebles por ID
+      final mapaInmuebles = {for (var i in inmuebles) i.id: i};
 
-      if (esErrorDeConexion) {
-        AppLogger.warning(
-          'Error de conexión al cargar ventas, intentando reconectar',
+      // Cargar contratos de renta para incluirlos como "ventas"
+      final contratoService = ContratoRentaController();
+      try {
+        final contratos = await contratoService.obtenerContratos();
+
+        // Convertir contratos de renta a formato Venta para mostrarlos en la misma lista
+        final ventasDeContratos =
+            contratos.map((contrato) {
+              // Crear un ID único para el contrato que no colisione con ventas
+              // Usamos un formato especial: -ID (negativo) para distinguirlos de ventas
+              final idContrato = -(contrato.id ?? 0);
+
+              // Buscar el nombre real del inmueble
+              String nombreInmueble = "Inmueble ${contrato.idInmueble}";
+              if (mapaInmuebles.containsKey(contrato.idInmueble)) {
+                final inmueble = mapaInmuebles[contrato.idInmueble]!;
+                nombreInmueble =
+                    inmueble.nombre.isNotEmpty
+                        ? inmueble.nombre
+                        : "Inmueble ${contrato.idInmueble}";
+              }
+
+              return Venta(
+                id: idContrato, // ID negativo para distinguir de ventas y evitar colisiones
+                idCliente: contrato.idCliente,
+                idInmueble: contrato.idInmueble,
+                fechaVenta: contrato.fechaInicio,
+                ingreso: contrato.montoMensual,
+                comisionProveedores: 0,
+                utilidadBruta: contrato.montoMensual,
+                utilidadNeta: contrato.montoMensual,
+                idEstado:
+                    contrato.idEstado == 1
+                        ? 7
+                        : 8, // Activo=7 (en proceso), Finalizado=8 (completada)
+                nombreCliente: contrato.nombreCliente,
+                apellidoCliente: contrato.apellidoCliente,
+                nombreInmueble:
+                    nombreInmueble, // Mostrar solo el nombre del inmueble sin prefijo
+                tipoOperacion: 'renta',
+                tipoInmueble: 'renta',
+                contratoRentaId:
+                    contrato.id, // Guardamos el ID original del contrato
+              );
+            }).toList();
+
+        // Combinar ventas y contratos en una sola lista
+        ventas.addAll(ventasDeContratos);
+      } catch (e) {
+        // Usar correctamente el método estático error de AppLogger
+        AppLogger.error(
+          'Error al cargar contratos de renta',
+          e,
+          StackTrace.current,
         );
-        bool reconectado = await _reconectar();
-
-        // Si se reconectó exitosamente, intentar cargar ventas nuevamente
-        if (reconectado && mounted) {
-          await Future.delayed(const Duration(milliseconds: 500));
-          _procesandoOperacion = false;
-          return cargarVentas();
-        }
+        // Continuamos con las ventas aunque no se hayan podido cargar los contratos
+      } finally {
+        contratoService.dispose();
       }
 
+      // Actualizar estado con todas las ventas+contratos ordenados por fecha (más recientes primero)
+      ventas.sort((a, b) => b.fechaVenta.compareTo(a.fechaVenta));
+      state = state.copyWith(ventas: ventas, isLoading: false);
+    } catch (e, stackTrace) {
+      // Usar correctamente el método estático error de AppLogger
       AppLogger.error('Error al cargar ventas', e, stackTrace);
-
-      // Solo actualizar estado si el notifier sigue montado
-      if (mounted) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: _formatearMensajeError(e),
-        );
-      }
-    } finally {
-      _procesandoOperacion = false;
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: 'Error al cargar ventas: $e',
+      );
     }
   }
 
-  // Formatea un mensaje de error para hacerlo más amigable
-  String _formatearMensajeError(dynamic error) {
-    final errorStr = error.toString().toLowerCase();
-
-    if (errorStr.contains('socket') ||
-        errorStr.contains('connection') ||
-        errorStr.contains('closed')) {
-      return 'Error de conexión a la base de datos. Verifique su conexión e intente nuevamente.';
-    } else if (errorStr.contains('timeout')) {
-      return 'La operación tardó demasiado tiempo. Intente nuevamente más tarde.';
-    } else if (errorStr.contains('mysql')) {
-      return 'Error en la comunicación con la base de datos. Intente nuevamente.';
-    }
-
-    // Limitar longitud del mensaje
-    final mensaje = error.toString().split('\n').first;
-    return mensaje.length > 100 ? '${mensaje.substring(0, 97)}...' : mensaje;
-  }
-
-  void actualizarBusqueda(String termino) {
-    if (_disposed || state.terminoBusqueda == termino) return;
-    state = state.copyWith(terminoBusqueda: termino);
-  }
-
-  void aplicarFiltroFechas(DateTimeRange? fechas) {
-    if (_disposed) return;
-    state = state.copyWith(filtroFechas: fechas);
-  }
-
-  void aplicarFiltroEstado(String? estado) {
-    if (_disposed) return;
-    state = state.copyWith(filtroEstado: estado);
-  }
-
-  void limpiarFiltros() {
-    if (_disposed) return;
-    state = state.copyWith(
-      filtroFechas: null,
-      filtroEstado: null,
-      terminoBusqueda: '',
-    );
-  }
-
-  void limpiarFiltroFechas() {
-    if (_disposed) return;
-    state = state.copyWith(filtroFechas: null);
-  }
-
-  void limpiarFiltroEstado() {
-    if (_disposed) return;
-    state = state.copyWith(filtroEstado: null);
-  }
-
-  Future<bool> registrarVenta(Venta venta) async {
-    if (_procesandoOperacion || _disposed) return false;
-
-    try {
-      _procesandoOperacion = true;
-      if (!mounted) return false;
-
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
-      // Usar el procedimiento almacenado a través del controlador con timeout
-      final idVenta = await _controller
-          .crearVenta(venta)
-          .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () {
-              throw TimeoutException('La operación tardó demasiado tiempo');
-            },
-          );
-
-      AppLogger.info('Venta registrada exitosamente con ID: $idVenta');
-
-      // Recargar ventas solo si todavía está montado
-      if (mounted) await cargarVentas();
-      return true;
-    } catch (e, stackTrace) {
-      bool esErrorDeConexion =
-          e.toString().toLowerCase().contains('socket') ||
-          e.toString().toLowerCase().contains('connection') ||
-          e.toString().toLowerCase().contains('closed');
-
-      if (esErrorDeConexion) {
-        await _reconectar();
-      }
-
-      AppLogger.error('Error al registrar venta', e, stackTrace);
-
-      // Solo actualizar estado si el notifier sigue montado
-      if (mounted) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: _formatearMensajeError(e),
-        );
-      }
-      return false;
-    } finally {
-      _procesandoOperacion = false;
-    }
-  }
-
-  Future<bool> actualizarGastosVenta(
-    int idVenta,
-    double gastosAdicionales,
-  ) async {
-    if (_procesandoOperacion || _disposed) return false;
-
-    try {
-      _procesandoOperacion = true;
-      if (!mounted) return false;
-
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
-      // Obtener el ID del usuario actual o usar valor por defecto
-      final usuarioActual = _ref.read(usuarioActualProvider)?.id ?? 1;
-
-      // Llamar al controlador que usa el procedimiento almacenado con timeout
-      await _controller
-          .actualizarGastosVenta(idVenta, gastosAdicionales, usuarioActual)
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw TimeoutException('La operación tardó demasiado tiempo');
-            },
-          );
-
-      AppLogger.info('Gastos de venta $idVenta actualizados con éxito');
-
-      // Recargar ventas solo si todavía está montado
-      if (mounted) await cargarVentas();
-      return true;
-    } catch (e, stackTrace) {
-      bool esErrorDeConexion =
-          e.toString().toLowerCase().contains('socket') ||
-          e.toString().toLowerCase().contains('connection') ||
-          e.toString().toLowerCase().contains('closed');
-
-      if (esErrorDeConexion) {
-        await _reconectar();
-      }
-
-      AppLogger.error('Error al actualizar gastos de venta', e, stackTrace);
-
-      if (mounted) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: _formatearMensajeError(e),
-        );
-      }
-      return false;
-    } finally {
-      _procesandoOperacion = false;
-    }
-  }
-
+  /// Actualiza la utilidad neta de una venta
   Future<bool> actualizarUtilidadNeta(
     int idVenta,
     double nuevaUtilidadNeta,
   ) async {
-    if (_procesandoOperacion || _disposed) return false;
-
     try {
-      _procesandoOperacion = true;
-      if (!mounted) return false;
+      // Primero buscamos la venta en nuestro estado actual
+      final ventas = List<Venta>.from(state.ventas);
+      final index = ventas.indexWhere((v) => v.id == idVenta);
 
-      state = state.copyWith(isLoading: true, errorMessage: null);
-
-      // Primero necesitamos obtener la venta actual para conocer su utilidad bruta
-      final ventaActual = await _controller
-          .obtenerVentaPorId(idVenta)
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw TimeoutException(
-                'Tiempo de espera agotado al obtener detalles de la venta',
-              );
-            },
-          );
-
-      if (ventaActual == null) {
-        throw Exception('Venta no encontrada');
+      if (index < 0) {
+        return false;
       }
 
-      // Validar que la utilidad neta no sea negativa
-      if (nuevaUtilidadNeta < 0) {
-        throw Exception('La utilidad neta no puede ser negativa');
-      }
+      // Calcular los gastos adicionales = utilidad bruta - utilidad neta nueva
+      final utilidadBruta = ventas[index].utilidadBruta;
+      final gastosAdicionales = utilidadBruta - nuevaUtilidadNeta;
 
-      // Validar que la utilidad neta no exceda la utilidad bruta
-      if (nuevaUtilidadNeta > ventaActual.utilidadBruta) {
-        AppLogger.warning(
-          'Intento de establecer utilidad neta ($nuevaUtilidadNeta) mayor que la utilidad bruta '
-          '(${ventaActual.utilidadBruta}). Ajustando al máximo permitido.',
-        );
-        nuevaUtilidadNeta = ventaActual.utilidadBruta;
-      }
-
-      // Calcular los gastos adicionales como la diferencia entre utilidad bruta y neta
-      final gastosAdicionales = ventaActual.utilidadBruta - nuevaUtilidadNeta;
-
-      // Log para depuración y auditoría
-      AppLogger.info(
-        'Actualizando utilidad neta de venta $idVenta: '
-        'Utilidad Bruta=${ventaActual.utilidadBruta}, '
-        'Nueva Utilidad Neta=$nuevaUtilidadNeta, '
-        'Gastos Adicionales=$gastosAdicionales',
+      // Actualizamos la utilidad neta en el servicio
+      // Usar el usuario por defecto 1 o mejor aún, obtenerlo del estado de la aplicación
+      final usuarioModificacion = 1; // Idealmente obtener del estado de la app
+      final result = await service.actualizarUtilidadVenta(
+        idVenta,
+        gastosAdicionales,
+        usuarioModificacion,
       );
 
-      // Usar el método existente actualizarGastosVenta
-      final resultado = await actualizarGastosVenta(idVenta, gastosAdicionales);
-
-      // Si la operación fue exitosa, invalidar los proveedores relacionados para forzar recarga
-      if (resultado && mounted) {
-        // Refrescar proveedores relacionados
-        _ref.invalidate(ventaDetalleProvider(idVenta));
-      }
-
-      return resultado;
-    } catch (e, stackTrace) {
-      bool esErrorDeConexion =
-          e.toString().toLowerCase().contains('socket') ||
-          e.toString().toLowerCase().contains('connection') ||
-          e.toString().toLowerCase().contains('closed');
-
-      if (esErrorDeConexion) {
-        await _reconectar();
-      }
-
-      AppLogger.error('Error al actualizar utilidad neta', e, stackTrace);
-
-      if (mounted) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: _formatearMensajeError(e),
+      if (result) {
+        // Actualizamos la venta en el estado local
+        // Creamos una nueva venta con la utilidad neta actualizada
+        final ventaActualizada = Venta(
+          id: ventas[index].id,
+          idCliente: ventas[index].idCliente,
+          idInmueble: ventas[index].idInmueble,
+          fechaVenta: ventas[index].fechaVenta,
+          ingreso: ventas[index].ingreso,
+          comisionProveedores: ventas[index].comisionProveedores,
+          utilidadBruta: ventas[index].utilidadBruta,
+          utilidadNeta: nuevaUtilidadNeta,
+          idEstado: ventas[index].idEstado,
+          nombreCliente: ventas[index].nombreCliente,
+          apellidoCliente: ventas[index].apellidoCliente,
+          nombreInmueble: ventas[index].nombreInmueble,
+          tipoOperacion: ventas[index].tipoOperacion,
+          precioOriginalInmueble: ventas[index].precioOriginalInmueble,
+          margenGanancia: ventas[index].margenGanancia,
+          tipoInmueble: ventas[index].tipoInmueble,
         );
+
+        ventas[index] = ventaActualizada;
+        state = state.copyWith(ventas: ventas);
       }
+      return result;
+    } catch (e, stackTrace) {
+      // Usar correctamente el método estático error de AppLogger
+      AppLogger.error('Error al actualizar utilidad neta', e, stackTrace);
       return false;
-    } finally {
-      _procesandoOperacion = false;
     }
   }
 
+  /// Cambiar el estado de una venta
   Future<bool> cambiarEstadoVenta(int idVenta, int nuevoEstado) async {
-    if (_procesandoOperacion || _disposed) return false;
-
     try {
-      _procesandoOperacion = true;
-      if (!mounted) return false;
+      // Usar el usuario por defecto 1 o mejor aún, obtenerlo del estado de la aplicación
+      final usuarioModificacion = 1; // Idealmente obtener del estado de la app
 
-      state = state.copyWith(isLoading: true, errorMessage: null);
+      // Actualizamos el estado en el servicio usando el método correcto
+      final result = await service.cambiarEstadoVenta(
+        idVenta,
+        nuevoEstado,
+        usuarioModificacion,
+      );
 
-      // Validar que el estado sea uno permitido
-      if (![7, 8, 9].contains(nuevoEstado)) {
-        throw Exception(
-          'Estado no válido. Debe ser 7 (en proceso), 8 (completada) o 9 (cancelada)',
-        );
-      }
+      if (result) {
+        // Actualizar la venta en el estado local
+        final ventas = List<Venta>.from(state.ventas);
+        final index = ventas.indexWhere((v) => v.id == idVenta);
 
-      // Llamada al controlador que usa el procedimiento almacenado CambiarEstadoVenta
-      await _controller
-          .cambiarEstadoVenta(idVenta, nuevoEstado)
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw TimeoutException('La operación tardó demasiado tiempo');
-            },
+        if (index >= 0) {
+          // Crear una nueva venta con el estado actualizado
+          final ventaActualizada = Venta(
+            id: ventas[index].id,
+            idCliente: ventas[index].idCliente,
+            idInmueble: ventas[index].idInmueble,
+            fechaVenta: ventas[index].fechaVenta,
+            ingreso: ventas[index].ingreso,
+            comisionProveedores: ventas[index].comisionProveedores,
+            utilidadBruta: ventas[index].utilidadBruta,
+            utilidadNeta: ventas[index].utilidadNeta,
+            idEstado: nuevoEstado,
+            nombreCliente: ventas[index].nombreCliente,
+            apellidoCliente: ventas[index].apellidoCliente,
+            nombreInmueble: ventas[index].nombreInmueble,
+            tipoOperacion: ventas[index].tipoOperacion,
+            precioOriginalInmueble: ventas[index].precioOriginalInmueble,
+            margenGanancia: ventas[index].margenGanancia,
+            tipoInmueble: ventas[index].tipoInmueble,
           );
 
-      AppLogger.info('Estado de venta $idVenta cambiado a $nuevoEstado');
-
-      // Recargar ventas solo si todavía está montado
-      if (mounted) await cargarVentas();
-      return true;
+          ventas[index] = ventaActualizada;
+          state = state.copyWith(ventas: ventas);
+        }
+      }
+      return result;
     } catch (e, stackTrace) {
-      bool esErrorDeConexion =
-          e.toString().toLowerCase().contains('socket') ||
-          e.toString().toLowerCase().contains('connection') ||
-          e.toString().toLowerCase().contains('closed');
-
-      if (esErrorDeConexion) {
-        await _reconectar();
-      }
-
+      // Usar correctamente el método estático error de AppLogger
       AppLogger.error('Error al cambiar estado de venta', e, stackTrace);
-
-      if (mounted) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage: _formatearMensajeError(e),
-        );
-      }
       return false;
-    } finally {
-      _procesandoOperacion = false;
     }
   }
 
-  // Método para forzar una reconexión manual (útil para botones "Reintentar")
-  Future<bool> forzarReconexion() async {
-    if (_intentandoReconectar || _disposed) return false;
-
+  /// Registrar una nueva venta
+  Future<bool> registrarVenta(Venta venta) async {
     try {
-      _intentandoReconectar = true;
-      if (!mounted) return false;
-
-      state = state.copyWith(isLoading: true);
-
-      // Reconectar y luego recargar datos
-      await _ref.read(databaseServiceProvider).reiniciarConexion();
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      if (mounted) {
-        await cargarVentas();
+      final idVenta = await service.crearVenta(venta);
+      if (idVenta > 0) {
+        // Actualizar el estado con la nueva venta
+        await cargarVentas(); // Recargar para obtener todos los datos actualizados
         return true;
       }
       return false;
-    } catch (e) {
-      AppLogger.error('Error al forzar reconexión', e, StackTrace.current);
-
-      if (mounted) {
-        state = state.copyWith(
-          isLoading: false,
-          errorMessage:
-              'No se pudo restablecer la conexión: ${_formatearMensajeError(e)}',
-        );
-      }
+    } catch (e, stackTrace) {
+      // Usar correctamente el método estático error de AppLogger
+      AppLogger.error('Error al registrar venta', e, stackTrace);
       return false;
-    } finally {
-      _intentandoReconectar = false;
     }
   }
 
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
+  /// Actualizar búsqueda
+  void actualizarBusqueda(String query) {
+    state = state.copyWith(terminoBusqueda: query);
+  }
+
+  /// Aplicar filtro de fechas
+  void aplicarFiltroFechas(DateTimeRange? fechas) {
+    state = state.copyWith(filtroFechas: fechas);
+  }
+
+  /// Aplicar filtro de estado
+  void aplicarFiltroEstado(String? estado) {
+    state = state.copyWith(filtroEstado: estado);
+  }
+
+  /// Limpiar todos los filtros aplicados
+  void limpiarFiltros() {
+    state = state.copyWith(
+      terminoBusqueda: '',
+      filtroFechas: null,
+      filtroEstado: null,
+    );
   }
 }
 
 // Provider para el estado de ventas
-final ventasStateProvider = StateNotifierProvider<VentasNotifier, VentasState>((
-  ref,
-) {
-  final controller = ref.watch(ventaControllerProvider);
-  return VentasNotifier(controller, ref);
-});
+final ventasStateProvider =
+    StateNotifierProvider<VentasStateNotifier, VentasState>((ref) {
+      return VentasStateNotifier(ref);
+    });
 
 // Provider para estadísticas de ventas con rango de fechas y manejo de errores mejorado
 final ventasEstadisticasProvider = FutureProvider.family<

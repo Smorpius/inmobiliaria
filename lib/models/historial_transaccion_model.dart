@@ -1,6 +1,37 @@
 import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
 
+/// Enumeración para los tipos de entidades en el historial
+enum TipoEntidad {
+  venta,
+  movimientoRenta,
+  contratoRenta;
+
+  String get valor {
+    switch (this) {
+      case TipoEntidad.venta:
+        return 'venta';
+      case TipoEntidad.movimientoRenta:
+        return 'movimiento_renta';
+      case TipoEntidad.contratoRenta:
+        return 'contrato_renta';
+    }
+  }
+
+  static TipoEntidad fromString(String valor) {
+    switch (valor) {
+      case 'venta':
+        return TipoEntidad.venta;
+      case 'movimiento_renta':
+        return TipoEntidad.movimientoRenta;
+      case 'contrato_renta':
+        return TipoEntidad.contratoRenta;
+      default:
+        throw ArgumentError('Tipo de entidad no válido: $valor');
+    }
+  }
+}
+
 /// Modelo que representa un registro de cambio en el historial de transacciones
 ///
 /// Este modelo se usa para implementar capacidades de auditoría en las transacciones
@@ -10,7 +41,7 @@ class HistorialTransaccion {
   static final Logger _logger = Logger('HistorialTransaccionModel');
 
   final int? id;
-  final String tipoEntidad; // 'venta', 'movimiento_renta', 'contrato_renta'
+  final TipoEntidad tipoEntidad; // Ahora usando enum en vez de String
   final int
   idEntidad; // ID de la entidad afectada (id_venta, id_movimiento, id_contrato)
   final String campoModificado;
@@ -35,15 +66,6 @@ class HistorialTransaccion {
     this.nombreUsuario,
     this.apellidoUsuario,
   }) : fechaModificacion = fechaModificacion ?? DateTime.now() {
-    // Validaciones básicas
-    if (![
-      'venta',
-      'movimiento_renta',
-      'contrato_renta',
-    ].contains(tipoEntidad)) {
-      _logger.warning('Tipo de entidad inválido: $tipoEntidad');
-    }
-
     if (campoModificado.isEmpty) {
       _logger.warning(
         'Se creó un registro de historial sin especificar el campo modificado',
@@ -54,9 +76,10 @@ class HistorialTransaccion {
   /// Crea un objeto HistorialTransaccion desde un mapa (para deserialización desde BD)
   factory HistorialTransaccion.fromMap(Map<String, dynamic> map) {
     try {
+      final tipoEntidadString = _determinarTipoEntidad(map);
       return HistorialTransaccion(
         id: map['id_historial'],
-        tipoEntidad: _determinarTipoEntidad(map),
+        tipoEntidad: TipoEntidad.fromString(tipoEntidadString),
         idEntidad: _obtenerIdEntidad(map),
         campoModificado: map['campo_modificado'] ?? '',
         valorAnterior: map['valor_anterior']?.toString(),
@@ -113,7 +136,7 @@ class HistorialTransaccion {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id_historial': id,
-      'tipo_entidad': tipoEntidad,
+      'tipo_entidad': tipoEntidad.valor,
       'id_entidad': idEntidad,
       'campo_modificado': campoModificado,
       'valor_anterior': valorAnterior,
@@ -166,18 +189,16 @@ class HistorialTransaccion {
   /// Obtiene el nombre legible de la entidad
   String get nombreEntidad {
     switch (tipoEntidad) {
-      case 'venta':
+      case TipoEntidad.venta:
         return 'Venta';
-      case 'movimiento_renta':
+      case TipoEntidad.movimientoRenta:
         return 'Movimiento de Renta';
-      case 'contrato_renta':
+      case TipoEntidad.contratoRenta:
         return 'Contrato de Renta';
-      default:
-        return 'Entidad desconocida';
     }
   }
 
   @override
   String toString() =>
-      'HistorialTransaccion{id: $id, entidad: $tipoEntidad #$idEntidad, campo: $campoModificado}';
+      'HistorialTransaccion{id: $id, entidad: ${tipoEntidad.valor} #$idEntidad, campo: $campoModificado}';
 }

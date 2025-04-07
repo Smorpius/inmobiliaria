@@ -147,6 +147,15 @@ class ProveedorController {
   /// Crea un nuevo proveedor
   Future<Proveedor> crearProveedor(Proveedor proveedor) async {
     return _ejecutarOperacion('crear proveedor', () async {
+      // Verificar la conexión a la base de datos antes de la operación
+      try {
+        await _service.verificarConexion();
+        AppLogger.info('Conexión a base de datos verificada correctamente');
+      } catch (e) {
+        AppLogger.warning('Problema con la conexión a la base de datos: $e');
+        // Intentaremos de todos modos, ya que el servicio tiene reintentos
+      }
+
       // Verificar si hay un ID de usuario válido
       if (usuarioActualId == null) {
         AppLogger.warning(
@@ -159,6 +168,7 @@ class ProveedorController {
       }
 
       // El método crearProveedor ya usa CALL CrearProveedor() internamente
+      // Ahora con reintentos automáticos implementados en el servicio
       final nuevoProveedor = await _service.crearProveedor(
         proveedor,
         usuarioModificacion: usuarioActualId,

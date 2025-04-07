@@ -52,7 +52,7 @@ final historialFiltradoProvider = FutureProvider.family<
 >((ref, params) async {
   final service = ref.watch(historialTransaccionServiceProvider);
   return service.obtenerHistorialDeEntidad(
-    tipoEntidad: params.tipoEntidad,
+    tipoEntidadStr: params.tipoEntidad,
     idEntidad: params.idEntidad,
     fechaDesde: params.fechaDesde,
     fechaHasta: params.fechaHasta,

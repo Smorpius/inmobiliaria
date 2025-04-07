@@ -90,7 +90,8 @@ class MovimientosRentaService {
             movimiento.concepto,
             movimiento.monto,
             movimiento.fechaMovimiento.toIso8601String().split('T')[0],
-            movimiento.comentarios,
+            movimiento.comentarios ??
+                '', // Convertir null a cadena vacía para evitar errores SQL
           ],
         );
 
@@ -175,13 +176,26 @@ class MovimientosRentaService {
         // Validaciones básicas
         _validarComprobante(comprobante);
 
+        // Utilizar versión completa con todos los parámetros necesarios
         await conn.query(
-          'CALL AgregarComprobanteMovimiento(?, ?, ?, ?, @id_comprobante_out)',
+          'CALL AgregarComprobanteMovimiento(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_comprobante_out)',
           [
             comprobante.idMovimiento,
             comprobante.rutaArchivo,
-            comprobante.descripcion,
+            comprobante.tipoArchivo ??
+                (comprobante.rutaArchivo.toLowerCase().endsWith('.pdf')
+                    ? 'pdf'
+                    : 'imagen'),
+            comprobante.descripcion ?? 'Comprobante',
             comprobante.esPrincipal ? 1 : 0,
+            comprobante.tipoComprobante ?? 'otro',
+            comprobante.numeroReferencia ?? '',
+            comprobante.emisor ?? '',
+            comprobante.receptor ?? '',
+            comprobante.metodoPago ?? 'efectivo',
+            comprobante.fechaEmision?.toIso8601String().split('T')[0] ??
+                DateTime.now().toIso8601String().split('T')[0],
+            comprobante.notasAdicionales ?? '',
           ],
         );
 
@@ -242,6 +256,8 @@ class MovimientosRentaService {
           errorContexto: {
             'idMovimiento': comprobante.idMovimiento,
             'rutaArchivo': comprobante.rutaArchivo,
+            'tipoArchivo': comprobante.tipoArchivo,
+            'tipoComprobante': comprobante.tipoComprobante,
           },
         );
 
@@ -677,38 +693,96 @@ class MovimientosRentaService {
   /// Verifica si un archivo de imagen existe físicamente
   Future<bool> verificarExistenciaComprobante(String rutaArchivo) async {
     try {
+      // Obtener directorio base de la aplicación
       final baseDir = await getApplicationDocumentsDirectory();
+
+      // Ruta completa principal (la esperada)
       final imagePath = path.join(baseDir.path, rutaArchivo);
       final file = File(imagePath);
 
-      // Verificar si el archivo existe
-      if (!await file.exists()) {
-        AppLogger.warning('El archivo de comprobante no existe: $rutaArchivo');
-        return false;
+      // Registrar la ruta completa para depuración
+      AppLogger.info('Verificando archivo en: $imagePath');
+
+      // Verificar si el archivo existe en la ruta principal
+      if (await file.exists()) {
+        // Verificar tamaño mínimo para asegurar que no está corrupto
+        final fileSize = await file.length();
+
+        if (fileSize < 100) {
+          // Menos de 100 bytes es probablemente un archivo vacío o corrupto
+          AppLogger.warning(
+            'El archivo de comprobante parece estar vacío o corrupto: $rutaArchivo',
+          );
+          return false;
+        }
+
+        // Verificar que no exceda el tamaño máximo
+        if (fileSize > _tamanoMaximoComprobante) {
+          AppLogger.warning(
+            'El archivo de comprobante excede el tamaño máximo permitido: $rutaArchivo',
+          );
+          return false;
+        }
+
+        return true;
       }
 
-      // Verificar tamaño mínimo para asegurar que no está corrupto
-      final fileSize = await file.length();
-      if (fileSize < 100) {
-        // Menos de 100 bytes es probablemente un archivo vacío o corrupto
-        AppLogger.warning(
-          'El archivo de comprobante parece estar vacío o corrupto: $rutaArchivo',
-        );
-        return false;
-      }
-
-      // Verificar que no exceda el tamaño máximo
-      if (fileSize > _tamanoMaximoComprobante) {
-        AppLogger.warning(
-          'El archivo de comprobante excede el tamaño máximo permitido: $rutaArchivo',
-        );
-        return false;
-      }
-
-      return true;
-    } catch (e) {
+      // Si no se encuentra en la ruta principal, intentar rutas alternativas
       AppLogger.warning(
-        'Error al verificar existencia física del comprobante: $e',
+        'Archivo no encontrado en: $imagePath. Buscando rutas alternativas...',
+      );
+
+      // Alternativa 1: Buscar solo por el nombre del archivo
+      final nombreArchivo = path.basename(rutaArchivo);
+      final alternativePath1 = path.join(baseDir.path, nombreArchivo);
+      final alternativeFile1 = File(alternativePath1);
+
+      if (await alternativeFile1.exists()) {
+        AppLogger.info(
+          'Archivo encontrado en ruta alternativa 1: $alternativePath1',
+        );
+        return true;
+      }
+
+      // Alternativa 2: Buscar en el directorio de comprobantes con el nombre del archivo
+      final alternativePath2 = path.join(
+        baseDir.path,
+        'comprobantes',
+        nombreArchivo,
+      );
+      final alternativeFile2 = File(alternativePath2);
+
+      if (await alternativeFile2.exists()) {
+        AppLogger.info(
+          'Archivo encontrado en ruta alternativa 2: $alternativePath2',
+        );
+        return true;
+      }
+
+      // Normalizar el path para manejar diferentes separadores (Windows vs Unix)
+      final normalizedPath = rutaArchivo.replaceAll('\\', '/');
+      if (normalizedPath != rutaArchivo) {
+        final normalizedFilePath = path.join(baseDir.path, normalizedPath);
+        final normalizedFile = File(normalizedFilePath);
+
+        if (await normalizedFile.exists()) {
+          AppLogger.info(
+            'Archivo encontrado usando ruta normalizada: $normalizedFilePath',
+          );
+          return true;
+        }
+      }
+
+      // Completar registro de advertencia si no se encontró el archivo
+      AppLogger.warning(
+        'No se pudo encontrar el archivo de comprobante en ninguna ubicación: $rutaArchivo',
+      );
+      return false;
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Error al verificar existencia física del comprobante: $rutaArchivo',
+        e,
+        stackTrace,
       );
       return false;
     }
@@ -932,6 +1006,107 @@ class MovimientosRentaService {
         stackTrace: StackTrace.current,
         categoria: ErrorCategoria.validacion,
       );
+    }
+
+    // Validaciones específicas para facturas
+    if (comprobante.tipoComprobante == 'factura') {
+      // Validación de número de referencia (obligatorio para facturas)
+      if (comprobante.numeroReferencia == null ||
+          comprobante.numeroReferencia!.trim().isEmpty) {
+        throw MovimientoRentaException(
+          'El número de referencia es obligatorio para facturas',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'FALTA_REFERENCIA_FACTURA',
+        );
+      }
+
+      // Validación del formato de referencia fiscal
+      final referenciaRegex = RegExp(r'^[A-Za-z0-9\-\/]{5,30}$');
+      if (!referenciaRegex.hasMatch(comprobante.numeroReferencia!)) {
+        throw MovimientoRentaException(
+          'El número de referencia tiene un formato inválido',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'FORMATO_REFERENCIA_INVALIDO',
+        );
+      }
+
+      // Validación del método de pago (obligatorio para facturas)
+      if (comprobante.metodoPago == null ||
+          comprobante.metodoPago!.trim().isEmpty) {
+        throw MovimientoRentaException(
+          'El método de pago es obligatorio para facturas',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'FALTA_METODO_PAGO',
+        );
+      }
+
+      // Lista de métodos de pago válidos según SAT
+      final metodosValidos = [
+        'efectivo',
+        'cheque',
+        'transferencia',
+        'tarjeta_credito',
+        'tarjeta_debito',
+        'monedero_electronico',
+        'vales',
+        'otros',
+      ];
+
+      if (!metodosValidos.contains(comprobante.metodoPago!.toLowerCase())) {
+        throw MovimientoRentaException(
+          'Método de pago no válido. Los valores permitidos son: ${metodosValidos.join(", ")}',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'METODO_PAGO_INVALIDO',
+        );
+      }
+
+      // Validación de emisor y receptor (obligatorios para facturas)
+      if (comprobante.emisor == null || comprobante.emisor!.trim().length < 3) {
+        throw MovimientoRentaException(
+          'El emisor es obligatorio para facturas y debe tener al menos 3 caracteres',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'EMISOR_INVALIDO',
+        );
+      }
+
+      if (comprobante.receptor == null ||
+          comprobante.receptor!.trim().length < 3) {
+        throw MovimientoRentaException(
+          'El receptor es obligatorio para facturas y debe tener al menos 3 caracteres',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'RECEPTOR_INVALIDO',
+        );
+      }
+
+      // Validar que la fecha de emisión no sea futura
+      if (comprobante.fechaEmision != null &&
+          comprobante.fechaEmision!.isAfter(DateTime.now())) {
+        throw MovimientoRentaException(
+          'La fecha de emisión no puede ser futura',
+          stackTrace: StackTrace.current,
+          categoria: ErrorCategoria.validacion,
+          codigoError: 'FECHA_EMISION_FUTURA',
+        );
+      }
+
+      // Validar que la fecha de emisión no sea demasiado antigua (máximo 1 año)
+      if (comprobante.fechaEmision != null) {
+        final unAnioAtras = DateTime.now().subtract(const Duration(days: 365));
+        if (comprobante.fechaEmision!.isBefore(unAnioAtras)) {
+          throw MovimientoRentaException(
+            'La fecha de emisión es demasiado antigua (máximo 1 año)',
+            stackTrace: StackTrace.current,
+            categoria: ErrorCategoria.validacion,
+            codigoError: 'FECHA_EMISION_MUY_ANTIGUA',
+          );
+        }
+      }
     }
   }
 

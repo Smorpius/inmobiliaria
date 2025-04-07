@@ -220,6 +220,47 @@ class MovimientosRentaNotifier extends StateNotifier<MovimientosRentaState> {
     }
   }
 
+  /// Agrega un comprobante a un movimiento y actualiza el estado.
+  Future<bool> agregarComprobante(ComprobanteMovimiento comprobante) async {
+    if (_disposed) return false;
+
+    state = state.copyWith(cargando: true, clearError: true);
+    try {
+      AppLogger.info(
+        'Agregando comprobante para movimiento: ${comprobante.idMovimiento}',
+      );
+      final idComprobante = await _controller.agregarComprobante(comprobante);
+
+      // Actualizar la lista de comprobantes invalidando el provider correspondiente
+      // para que la siguiente vez que se solicite, se recargue desde la base de datos
+      // (esto se hace a nivel de UI con ref.invalidate())
+
+      // También actualizamos la marca de tiempo para indicar que hubo una actualización
+      if (!_disposed) {
+        state = state.copyWith(
+          cargando: false,
+          ultimaActualizacion: DateTime.now(),
+          clearError: true,
+        );
+      }
+
+      AppLogger.info(
+        'Comprobante registrado correctamente con ID: $idComprobante',
+      );
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al agregar comprobante', e, stackTrace);
+
+      if (!_disposed) {
+        state = state.copyWith(
+          cargando: false,
+          error: 'Error al agregar comprobante: ${e.toString()}',
+        );
+      }
+      return false;
+    }
+  }
+
   /// Elimina un movimiento y recarga la lista.
   Future<bool> eliminarMovimiento(int idMovimiento, int idInmueble) async {
     if (_disposed) return false;

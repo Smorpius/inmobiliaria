@@ -1,144 +1,93 @@
 import '../utils/applogger.dart';
 import '../services/mysql_helper.dart';
+import '../utils/operation_handler.dart';
 import '../models/historial_transaccion_model.dart';
 
 /// Controlador para gestionar el historial de cambios en transacciones
 class HistorialTransaccionController {
   final DatabaseService dbHelper;
-  bool _procesandoError = false;
 
   HistorialTransaccionController({DatabaseService? dbService})
     : dbHelper = dbService ?? DatabaseService();
 
-  /// Método auxiliar para ejecutar operaciones con manejo de errores consistente
-  Future<T> _ejecutarOperacion<T>(
-    String descripcion,
-    Future<T> Function() operacion,
+  /// Método base para registrar cambios en el historial de transacciones
+  /// Este método unifica la lógica de registrarCambio y registrarCambiosMultiples
+  Future<List<int>> _registrarCambiosBase(
+    List<HistorialTransaccion> cambios,
   ) async {
-    try {
-      AppLogger.info('Iniciando operación: $descripcion');
-      final resultado = await operacion();
-      AppLogger.info('Operación completada: $descripcion');
-      return resultado;
-    } catch (e, stackTrace) {
-      if (!_procesandoError) {
-        _procesandoError = true;
-
-        // Categorizar el error para mejor manejo
-        final errorStr = e.toString().toLowerCase();
-        if (errorStr.contains('connection') ||
-            errorStr.contains('socket') ||
-            errorStr.contains('timeout') ||
-            errorStr.contains('closed')) {
-          AppLogger.error(
-            'Error de conexión en operación "$descripcion"',
-            e,
-            stackTrace,
-          );
-          _procesandoError = false;
-          throw Exception(
-            'Error de conexión con la base de datos. Intente nuevamente más tarde.',
-          );
+    return OperationHandler.execute(
+      operationName: 'registro_base_cambios_historial',
+      operation: () async {
+        if (cambios.isEmpty) {
+          throw Exception('La lista de cambios no puede estar vacía');
         }
 
-        if (errorStr.contains('denied') ||
-            errorStr.contains('access') ||
-            errorStr.contains('permission')) {
-          AppLogger.error(
-            'Error de permisos en operación "$descripcion"',
-            e,
-            stackTrace,
-          );
-          _procesandoError = false;
-          throw Exception('No tiene permisos para realizar esta operación.');
+        // Validar cada registro antes de intentar guardar
+        for (final historial in cambios) {
+          if (historial.idEntidad <= 0) {
+            throw Exception('ID de entidad inválido');
+          }
+
+          if (historial.campoModificado.isEmpty) {
+            throw Exception('El campo modificado no puede estar vacío');
+          }
         }
 
-        AppLogger.error('Error en operación "$descripcion"', e, stackTrace);
-        _procesandoError = false;
-      }
-      throw Exception('Error en $descripcion: $e');
-    }
-  }
+        return await dbHelper.withTransaction((conn) async {
+          final idsRegistrados = <int>[];
 
-  /// Ejecuta ROLLBACK de forma segura, capturando errores
-  Future<void> _ejecutarRollbackSeguro(dynamic conn) async {
-    try {
-      await conn.query('ROLLBACK');
-    } catch (rollbackError) {
-      AppLogger.warning('Error al ejecutar ROLLBACK: $rollbackError');
-    }
+          for (final historial in cambios) {
+            // Ejecutar el procedimiento para cada registro
+            await conn.query(
+              'CALL RegistrarHistorialTransaccion(?, ?, ?, ?, ?, ?, @id_historial_out)',
+              [
+                historial.tipoEntidad.valor, // Ahora usando el valor del enum
+                historial.idEntidad,
+                historial.campoModificado,
+                historial.valorAnterior as Object?,
+                historial.valorNuevo as Object?,
+                historial.idUsuarioModificacion as Object?,
+              ],
+            );
+
+            // Recuperar el ID generado y agregarlo a la lista
+            final result = await conn.query('SELECT @id_historial_out as id');
+            if (result.isEmpty ||
+                !result.first.fields.containsKey('id') ||
+                result.first.fields['id'] == null) {
+              throw Exception(
+                'No se pudo obtener el ID de uno de los registros de historial',
+              );
+            }
+
+            final idHistorial = result.first.fields['id'] as int;
+            if (idHistorial <= 0) {
+              throw Exception('ID de historial generado no es válido');
+            }
+
+            idsRegistrados.add(idHistorial);
+          }
+
+          AppLogger.info(
+            'Registrados ${idsRegistrados.length} cambios en historial: ${idsRegistrados.join(", ")}',
+          );
+          return idsRegistrados;
+        });
+      },
+    );
   }
 
   /// Registra un cambio en el historial de transacciones
   Future<int> registrarCambio(HistorialTransaccion historial) async {
-    return _ejecutarOperacion('registrar cambio en historial', () async {
-      if (historial.idEntidad <= 0) {
-        throw Exception('ID de entidad inválido');
-      }
+    final resultados = await _registrarCambiosBase([historial]);
+    return resultados.isNotEmpty ? resultados[0] : -1;
+  }
 
-      if (historial.campoModificado.isEmpty) {
-        throw Exception('El campo modificado no puede estar vacío');
-      }
-
-      final tipoEntidadValido = [
-        'venta',
-        'movimiento_renta',
-        'contrato_renta',
-      ].contains(historial.tipoEntidad.toLowerCase());
-      if (!tipoEntidadValido) {
-        throw Exception('Tipo de entidad inválido');
-      }
-
-      return await dbHelper.withConnection((conn) async {
-        await conn.query('START TRANSACTION');
-        try {
-          // El procedimiento devuelve el ID del registro en una variable OUT
-          await conn.query(
-            'CALL RegistrarHistorialTransaccion(?, ?, ?, ?, ?, ?, @id_historial_out)',
-            [
-              historial.tipoEntidad,
-              historial.idEntidad,
-              historial.campoModificado,
-              historial.valorAnterior as Object?, // Convertir String? a Object?
-              historial.valorNuevo as Object?, // Convertir String? a Object?
-              historial.idUsuarioModificacion
-                  as Object?, // Convertir int? a Object?
-            ],
-          );
-
-          // Recuperar el ID generado
-          final result = await conn.query('SELECT @id_historial_out as id');
-
-          // Validar que el resultado tenga datos y un ID válido
-          if (result.isEmpty ||
-              !result.first.fields.containsKey('id') ||
-              result.first.fields['id'] == null) {
-            await _ejecutarRollbackSeguro(conn);
-            throw Exception(
-              'No se pudo obtener el ID del historial registrado',
-            );
-          }
-
-          final idHistorial = result.first.fields['id'] as int;
-          if (idHistorial <= 0) {
-            await _ejecutarRollbackSeguro(conn);
-            throw Exception('El ID del historial generado no es válido');
-          }
-
-          await conn.query('COMMIT');
-          AppLogger.info('Cambio registrado en historial con ID: $idHistorial');
-          return idHistorial;
-        } catch (e) {
-          await _ejecutarRollbackSeguro(conn);
-          AppLogger.error(
-            'Error al registrar cambio en historial',
-            e,
-            StackTrace.current,
-          );
-          throw Exception('Error al registrar cambio en historial: $e');
-        }
-      });
-    });
+  /// Registra múltiples cambios en una sola transacción (útil para cambios relacionados)
+  Future<List<int>> registrarCambiosMultiples(
+    List<HistorialTransaccion> cambios,
+  ) async {
+    return await _registrarCambiosBase(cambios);
   }
 
   /// Obtiene el historial de cambios para una entidad específica
@@ -148,25 +97,26 @@ class HistorialTransaccionController {
     DateTime? fechaDesde,
     DateTime? fechaHasta,
   }) async {
-    return _ejecutarOperacion('obtener historial por entidad', () async {
-      if (idEntidad <= 0) {
-        throw Exception('ID de entidad inválido');
-      }
+    return OperationHandler.execute(
+      operationName: 'obtener_historial_por_entidad',
+      operation: () async {
+        if (idEntidad <= 0) {
+          throw Exception('ID de entidad inválido');
+        }
 
-      final tipoEntidadValido = [
-        'venta',
-        'movimiento_renta',
-        'contrato_renta',
-      ].contains(tipoEntidad.toLowerCase());
-      if (!tipoEntidadValido) {
-        throw Exception('Tipo de entidad inválido');
-      }
+        final tipoEntidadValido = [
+          'venta',
+          'movimiento_renta',
+          'contrato_renta',
+        ].contains(tipoEntidad.toLowerCase());
+        if (!tipoEntidadValido) {
+          throw Exception('Tipo de entidad inválido');
+        }
 
-      final fechaDesdeStr = fechaDesde?.toIso8601String().split('T')[0];
-      final fechaHastaStr = fechaHasta?.toIso8601String().split('T')[0];
+        final fechaDesdeStr = fechaDesde?.toIso8601String().split('T')[0];
+        final fechaHastaStr = fechaHasta?.toIso8601String().split('T')[0];
 
-      return await dbHelper.withConnection((conn) async {
-        try {
+        return await dbHelper.withConnection((conn) async {
           final results = await conn.query(
             'CALL ObtenerHistorialTransaccion(?, ?, ?, ?)',
             [
@@ -194,16 +144,9 @@ class HistorialTransaccionController {
           }
 
           return historial;
-        } catch (e) {
-          AppLogger.error(
-            'Error al consultar historial por entidad',
-            e,
-            StackTrace.current,
-          );
-          throw Exception('Error al obtener historial de transacción: $e');
-        }
-      });
-    });
+        });
+      },
+    );
   }
 
   /// Obtiene un resumen del historial de cambios para un período
@@ -212,12 +155,13 @@ class HistorialTransaccionController {
     DateTime? fechaHasta,
     int? idUsuario,
   }) async {
-    return _ejecutarOperacion('obtener resumen de historial', () async {
-      final fechaDesdeStr = fechaDesde?.toIso8601String().split('T')[0];
-      final fechaHastaStr = fechaHasta?.toIso8601String().split('T')[0];
+    return OperationHandler.execute(
+      operationName: 'obtener_resumen_historial',
+      operation: () async {
+        final fechaDesdeStr = fechaDesde?.toIso8601String().split('T')[0];
+        final fechaHastaStr = fechaHasta?.toIso8601String().split('T')[0];
 
-      return await dbHelper.withConnection((conn) async {
-        try {
+        return await dbHelper.withConnection((conn) async {
           // Crear una lista de listas para el parámetro (Iterable<List<Object?>>)
           final params = [
             [fechaDesdeStr, fechaHastaStr, idUsuario],
@@ -270,16 +214,9 @@ class HistorialTransaccionController {
               'id_usuario': idUsuario,
             },
           };
-        } catch (e) {
-          AppLogger.error(
-            'Error al obtener resumen de historial',
-            e,
-            StackTrace.current,
-          );
-          throw Exception('Error al obtener resumen de historial: $e');
-        }
-      });
-    });
+        });
+      },
+    );
   }
 
   /// Método auxiliar para procesar conjuntos de resultados de forma segura
@@ -336,20 +273,23 @@ class HistorialTransaccionController {
   Future<List<Map<String, dynamic>>> obtenerEstadisticasActividad({
     int? dias,
   }) async {
-    return _ejecutarOperacion('obtener estadísticas de actividad', () async {
-      return await dbHelper.withConnection((conn) async {
-        final results = await conn.query(
-          'CALL ObtenerEstadisticasActividad(?)',
-          [dias ?? 30], // Por defecto, últimos 30 días
-        );
+    return OperationHandler.execute(
+      operationName: 'obtener_estadisticas_actividad',
+      operation: () async {
+        return await dbHelper.withConnection((conn) async {
+          final results = await conn.query(
+            'CALL ObtenerEstadisticasActividad(?)',
+            [dias ?? 30], // Por defecto, últimos 30 días
+          );
 
-        if (results.isEmpty) {
-          return [];
-        }
+          if (results.isEmpty) {
+            return [];
+          }
 
-        return results.map((row) => row.fields).toList();
-      });
-    });
+          return results.map((row) => row.fields).toList();
+        });
+      },
+    );
   }
 
   /// Eliminar registros de historial antiguos para limpieza de datos
@@ -357,14 +297,14 @@ class HistorialTransaccionController {
     required int diasAntiguedad,
     String? tipoEntidad,
   }) async {
-    return _ejecutarOperacion('eliminar historial antiguo', () async {
-      if (diasAntiguedad <= 0) {
-        throw Exception('La antigüedad en días debe ser mayor a cero');
-      }
+    return OperationHandler.execute(
+      operationName: 'eliminar_historial_antiguo',
+      operation: () async {
+        if (diasAntiguedad <= 0) {
+          throw Exception('La antigüedad en días debe ser mayor a cero');
+        }
 
-      return await dbHelper.withConnection((conn) async {
-        await conn.query('START TRANSACTION');
-        try {
+        return await dbHelper.withTransaction((conn) async {
           // Ejecutar procedimiento de limpieza
           await conn.query(
             'CALL LimpiarHistorialTransacciones(?, ?, @registros_eliminados)',
@@ -376,105 +316,17 @@ class HistorialTransaccionController {
             'SELECT @registros_eliminados as cantidad',
           );
           if (result.isEmpty || !result.first.fields.containsKey('cantidad')) {
-            await _ejecutarRollbackSeguro(conn);
             throw Exception(
               'No se pudo obtener el número de registros eliminados',
             );
           }
 
           final eliminados = result.first.fields['cantidad'] as int;
-
-          await conn.query('COMMIT');
           AppLogger.info('Historial antiguo eliminado: $eliminados registros');
           return eliminados;
-        } catch (e) {
-          await _ejecutarRollbackSeguro(conn);
-          AppLogger.error(
-            'Error al eliminar historial antiguo',
-            e,
-            StackTrace.current,
-          );
-          throw Exception('Error al eliminar historial antiguo: $e');
-        }
-      });
-    });
-  }
-
-  /// Registra múltiples cambios en una sola transacción (útil para cambios relacionados)
-  Future<List<int>> registrarCambiosMultiples(
-    List<HistorialTransaccion> cambios,
-  ) async {
-    return _ejecutarOperacion('registrar múltiples cambios en historial', () async {
-      if (cambios.isEmpty) {
-        throw Exception('La lista de cambios no puede estar vacía');
-      }
-
-      return await dbHelper.withConnection((conn) async {
-        await conn.query('START TRANSACTION');
-        try {
-          final idsRegistrados = <int>[];
-
-          for (final historial in cambios) {
-            // Validar cada registro
-            if (historial.idEntidad <= 0) {
-              throw Exception('ID de entidad inválido');
-            }
-
-            if (historial.campoModificado.isEmpty) {
-              throw Exception('El campo modificado no puede estar vacío');
-            }
-
-            // Ejecutar el procedimiento para cada registro
-            await conn.query(
-              'CALL RegistrarHistorialTransaccion(?, ?, ?, ?, ?, ?, @id_historial_out)',
-              [
-                historial.tipoEntidad.toLowerCase(),
-                historial.idEntidad,
-                historial.campoModificado,
-                historial.valorAnterior as Object?,
-                historial.valorNuevo as Object?,
-                historial.idUsuarioModificacion as Object?,
-              ],
-            );
-
-            // Recuperar el ID generado y agregarlo a la lista
-            final result = await conn.query('SELECT @id_historial_out as id');
-            if (result.isEmpty ||
-                !result.first.fields.containsKey('id') ||
-                result.first.fields['id'] == null) {
-              await _ejecutarRollbackSeguro(conn);
-              throw Exception(
-                'No se pudo obtener el ID de uno de los registros de historial',
-              );
-            }
-
-            final idHistorial = result.first.fields['id'] as int;
-            if (idHistorial <= 0) {
-              await _ejecutarRollbackSeguro(conn);
-              throw Exception('ID de historial generado no es válido');
-            }
-
-            idsRegistrados.add(idHistorial);
-          }
-
-          await conn.query('COMMIT');
-          AppLogger.info(
-            'Registrados ${idsRegistrados.length} cambios en historial: ${idsRegistrados.join(", ")}',
-          );
-          return idsRegistrados;
-        } catch (e) {
-          await _ejecutarRollbackSeguro(conn);
-          AppLogger.error(
-            'Error al registrar múltiples cambios en historial',
-            e,
-            StackTrace.current,
-          );
-          throw Exception(
-            'Error al registrar múltiples cambios en historial: $e',
-          );
-        }
-      });
-    });
+        });
+      },
+    );
   }
 
   /// Libera recursos cuando el controlador ya no se necesita

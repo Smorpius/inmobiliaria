@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../models/inmueble_model.dart';
+import '../inmuebles/inmueble_detalle_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../vistas/inmuebles/inmueble_detail_screen.dart';
 import 'package:inmobiliaria/providers/providers_global.dart';
 import 'package:inmobiliaria/providers/cliente_detalle_provider.dart';
 

@@ -1,17 +1,12 @@
 import 'package:intl/intl.dart';
+import 'comprobante_base_model.dart';
 import 'package:logging/logging.dart';
 
 /// Modelo que representa un comprobante o documento adjunto a un movimiento de renta
-class ComprobanteMovimiento {
+class ComprobanteMovimiento extends ComprobanteBase {
   static final Logger _logger = Logger('ComprobanteMovimientoModel');
 
-  final int? id;
   final int idMovimiento;
-  final String
-  rutaArchivo; // Cambiado de rutaImagen para ser consistente con la BD
-  final String tipoArchivo; // 'imagen', 'pdf', 'documento'
-  final String? descripcion;
-  final bool esPrincipal;
   final String tipoComprobante; // 'factura', 'recibo', 'contrato', 'otro'
   final String? numeroReferencia;
   final String? emisor;
@@ -20,7 +15,6 @@ class ComprobanteMovimiento {
   metodoPago; // 'efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'
   final DateTime? fechaEmision;
   final String? notasAdicionales;
-  final DateTime fechaCarga;
 
   // Datos relacionados para UI
   final String? conceptoMovimiento;
@@ -30,12 +24,12 @@ class ComprobanteMovimiento {
   final String? nombreInmueble;
 
   ComprobanteMovimiento({
-    this.id,
+    super.id,
     required this.idMovimiento,
-    required this.rutaArchivo, // Cambiado de rutaImagen
-    this.tipoArchivo = 'imagen',
-    this.descripcion,
-    this.esPrincipal = false,
+    required super.rutaArchivo,
+    super.tipoArchivo = 'imagen',
+    super.descripcion,
+    super.esPrincipal = false,
     required this.tipoComprobante,
     this.numeroReferencia,
     this.emisor,
@@ -43,13 +37,13 @@ class ComprobanteMovimiento {
     this.metodoPago,
     this.fechaEmision,
     this.notasAdicionales,
-    DateTime? fechaCarga,
+    super.fechaCarga,
     this.conceptoMovimiento,
     this.montoMovimiento,
     this.nombreCliente,
     this.apellidoCliente,
     this.nombreInmueble,
-  }) : fechaCarga = fechaCarga ?? DateTime.now() {
+  }) {
     // Validación: Si es factura, debe tener número de referencia
     if (tipoComprobante == 'factura' &&
         (numeroReferencia == null || numeroReferencia!.isEmpty)) {
@@ -74,20 +68,65 @@ class ComprobanteMovimiento {
         try {
           return DateTime.parse(fecha.toString());
         } catch (e) {
+          _logger.warning('Error al parsear fecha: $e');
           return null;
         }
+      }
+
+      // Obtener la ruta del archivo con manejo de diferentes nombres de campo
+      String obtenerRutaArchivo() {
+        String rutaArchivo = '';
+
+        // Primero intentar con el campo esperado
+        if (map.containsKey('ruta_archivo') && map['ruta_archivo'] != null) {
+          rutaArchivo = map['ruta_archivo'].toString();
+        }
+        // Luego probar con campo alternativo usado en algunas versiones
+        else if (map.containsKey('ruta_imagen') && map['ruta_imagen'] != null) {
+          rutaArchivo = map['ruta_imagen'].toString();
+        }
+
+        // Normalizar la ruta para evitar problemas con separadores de directorios
+        rutaArchivo = rutaArchivo.replaceAll('\\', '/');
+
+        // Asegurar que la ruta inicia correctamente
+        if (!rutaArchivo.startsWith('/') &&
+            !rutaArchivo.startsWith('comprobantes/') &&
+            rutaArchivo.isNotEmpty) {
+          rutaArchivo = 'comprobantes/$rutaArchivo';
+        }
+
+        // Eliminamos cualquier duplicado de "comprobantes/comprobantes/"
+        rutaArchivo = rutaArchivo.replaceAll(
+          'comprobantes/comprobantes/',
+          'comprobantes/',
+        );
+
+        _logger.fine('Ruta de archivo procesada: $rutaArchivo');
+        return rutaArchivo;
+      }
+
+      // Obtener valor booleano manejo de diferentes formatos (0/1, true/false, "0"/"1")
+      bool obtenerBooleano(dynamic valor, {bool valorPorDefecto = false}) {
+        if (valor == null) return valorPorDefecto;
+        if (valor is bool) return valor;
+        if (valor is int) return valor == 1;
+        if (valor is String)
+          return valor == '1' || valor.toLowerCase() == 'true';
+        return valorPorDefecto;
       }
 
       return ComprobanteMovimiento(
         id: map['id_comprobante'],
         idMovimiento: map['id_movimiento'],
-        rutaArchivo:
-            map['ruta_archivo'] ??
-            map['ruta_imagen'] ??
-            '', // Manejo compatible con ambos nombres de campo
-        tipoArchivo: map['tipo_archivo'] ?? 'imagen',
+        rutaArchivo: obtenerRutaArchivo(),
+        tipoArchivo:
+            map['tipo_archivo'] ??
+            (obtenerRutaArchivo().toLowerCase().endsWith('.pdf')
+                ? 'pdf'
+                : 'imagen'),
         descripcion: map['descripcion'],
-        esPrincipal: map['es_principal'] == 1 || map['es_principal'] == true,
+        esPrincipal: obtenerBooleano(map['es_principal']),
         tipoComprobante: map['tipo_comprobante'] ?? 'otro',
         numeroReferencia: map['numero_referencia'],
         emisor: map['emisor'],
@@ -96,13 +135,15 @@ class ComprobanteMovimiento {
         fechaEmision: parseFecha(map['fecha_emision']),
         notasAdicionales: map['notas_adicionales'],
         fechaCarga: parseFecha(map['fecha_carga']) ?? DateTime.now(),
-        conceptoMovimiento: map['concepto_movimiento'],
+        conceptoMovimiento: map['concepto_movimiento'] ?? map['concepto'],
         montoMovimiento:
             map['monto_movimiento'] != null
                 ? double.tryParse(map['monto_movimiento'].toString())
+                : map['monto'] != null
+                ? double.tryParse(map['monto'].toString())
                 : null,
         nombreCliente: map['nombre_cliente'],
-        apellidoCliente: map['apellido_cliente'],
+        apellidoCliente: map['apellido_cliente'] ?? map['apellido_paterno'],
         nombreInmueble: map['nombre_inmueble'],
       );
     } catch (e, stackTrace) {
@@ -116,11 +157,12 @@ class ComprobanteMovimiento {
   }
 
   /// Convierte el objeto a un mapa para serialización
+  @override
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id_comprobante': id,
       'id_movimiento': idMovimiento,
-      'ruta_archivo': rutaArchivo, // Cambiado de rutaImagen
+      'ruta_archivo': rutaArchivo,
       'tipo_archivo': tipoArchivo,
       'descripcion': descripcion,
       'es_principal': esPrincipal ? 1 : 0,
@@ -139,7 +181,7 @@ class ComprobanteMovimiento {
   ComprobanteMovimiento copyWith({
     int? id,
     int? idMovimiento,
-    String? rutaArchivo, // Cambiado de rutaImagen
+    String? rutaArchivo,
     String? tipoArchivo,
     String? descripcion,
     bool? esPrincipal,
@@ -178,25 +220,6 @@ class ComprobanteMovimiento {
       apellidoCliente: apellidoCliente ?? this.apellidoCliente,
       nombreInmueble: nombreInmueble ?? this.nombreInmueble,
     );
-  }
-
-  /// Obtiene la extensión del archivo desde la ruta
-  String get extension {
-    final parts = rutaArchivo.split('.');
-    return parts.length > 1 ? parts.last.toLowerCase() : '';
-  }
-
-  /// Determina si el archivo es una imagen basado en su extensión o tipo
-  bool get esImagen {
-    if (tipoArchivo == 'imagen') return true;
-    final ext = extension;
-    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
-  }
-
-  /// Determina si el archivo es un PDF
-  bool get esPDF {
-    if (tipoArchivo == 'pdf') return true;
-    return extension == 'pdf';
   }
 
   /// Determina si es un comprobante fiscal (factura)

@@ -30,6 +30,10 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
   bool _isLoading = true;
   String? _errorMsg;
 
+  // Variables para memorización de contratos
+  List<ContratoRenta>? _cachedContratosPorVencer;
+  List<ContratoRenta>? _lastContratos;
+
   @override
   void initState() {
     super.initState();
@@ -48,34 +52,26 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
 
       contratosAsyncValue.when(
         data: (contratos) {
-          _contratosTotales = contratos.where((c) => c.idEstado == 1).length;
-          final ahora = DateTime.now();
-          final limite = ahora.add(const Duration(days: 30));
-
-          _contratosProximosVencer =
-              contratos
-                  .where(
-                    (c) =>
-                        c.idEstado == 1 &&
-                        c.fechaFin.isAfter(ahora) &&
-                        c.fechaFin.isBefore(limite),
-                  )
-                  .length;
-
-          _calcularIngresosMes(contratos);
+          _procesarDatosContratos(contratos);
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
         },
         error: (error, stack) {
           AppLogger.error('Error al cargar contratos', error, stack);
-          _errorMsg = 'No se pudieron cargar los contratos: $error';
+          if (mounted) {
+            setState(() {
+              _errorMsg = 'No se pudieron cargar los contratos: $error';
+              _isLoading = false;
+            });
+          }
         },
-        loading: () {},
+        loading: () {}, // No cambiar el estado de carga
       );
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      return Future.delayed(Duration.zero); // Garantiza retorno de Future
     } catch (e, stack) {
       AppLogger.error('Error al cargar dashboard de rentas', e, stack);
       if (mounted) {
@@ -85,7 +81,26 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
               'No se pudieron cargar los datos. Por favor, intenta de nuevo.';
         });
       }
+      return Future.delayed(Duration.zero);
     }
+  }
+
+  /// Procesa los datos de contratos obtenidos para actualizar las métricas del dashboard
+  void _procesarDatosContratos(List<ContratoRenta> contratos) {
+    final contratosActivos = contratos.where((c) => c.idEstado == 1).toList();
+    _contratosTotales = contratosActivos.length;
+
+    final ahora = DateTime.now();
+    final limite = ahora.add(const Duration(days: 30));
+
+    _contratosProximosVencer =
+        contratosActivos
+            .where(
+              (c) => c.fechaFin.isAfter(ahora) && c.fechaFin.isBefore(limite),
+            )
+            .length;
+
+    _calcularIngresosMes(contratosActivos);
   }
 
   /// Calcula los ingresos del mes actual basados en contratos activos
@@ -94,10 +109,7 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
     final mesActual = DateTime(ahora.year, ahora.month);
     _ingresosMes = contratos
         .where(
-          (c) =>
-              c.idEstado == 1 &&
-              c.fechaInicio.isBefore(ahora) &&
-              c.fechaFin.isAfter(mesActual),
+          (c) => c.fechaInicio.isBefore(ahora) && c.fechaFin.isAfter(mesActual),
         )
         .fold(0.0, (sum, contrato) => sum + contrato.montoMensual);
   }
@@ -508,6 +520,14 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
         final contratosAsync = ref.watch(contratosRentaProvider);
         return contratosAsync.when(
           data: (contratos) {
+            // Usar cache si los contratos no han cambiado
+            if (_lastContratos == contratos &&
+                _cachedContratosPorVencer != null) {
+              final contratosPorVencer = _cachedContratosPorVencer!;
+              if (contratosPorVencer.isEmpty) return const SizedBox.shrink();
+              return _buildContratosPorVencerContent(contratosPorVencer);
+            }
+
             final ahora = DateTime.now();
             final limite = ahora.add(const Duration(days: 30));
             final contratosPorVencer =
@@ -520,46 +540,91 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
                     )
                     .toList();
 
-            if (contratosPorVencer.isEmpty) return const SizedBox.shrink();
+            // Guardar en cache
+            _lastContratos = contratos;
+            _cachedContratosPorVencer = contratosPorVencer;
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Contratos próximos a vencer',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (context) => const GestionContratosScreen(),
+            if (contratosPorVencer.isEmpty) return const SizedBox.shrink();
+            return _buildContratosPorVencerContent(contratosPorVencer);
+          },
+          error: (error, stack) {
+            AppLogger.error(
+              'Error al cargar contratos próximos a vencer',
+              error,
+              stack,
+            );
+            return Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Card(
+                color: Colors.red.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red.shade700),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Error al cargar contratos próximos a vencer',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        );
-                      },
-                      child: const Text('Ver todos'),
-                    ),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(error.toString()),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          final _ = ref.refresh(contratosRentaProvider);
+                        },
+                        child: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                ...contratosPorVencer.take(3).map((contrato) {
-                  return _buildContratoProximoVencer(contrato);
-                }),
-              ],
+              ),
             );
           },
-          error: (error, stack) => const SizedBox.shrink(),
           loading: () => const Center(child: CircularProgressIndicator()),
         );
       },
+    );
+  }
+
+  /// Método auxiliar para construir el contenido de contratos por vencer
+  Widget _buildContratosPorVencerContent(
+    List<ContratoRenta> contratosPorVencer,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Contratos próximos a vencer',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GestionContratosScreen(),
+                  ),
+                );
+              },
+              child: const Text('Ver todos'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ...contratosPorVencer.take(3).map((contrato) {
+          return _buildContratoProximoVencer(contrato);
+        }),
+      ],
     );
   }
 
@@ -632,13 +697,26 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
           ],
         ),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder:
-                  (context) => DetalleContratoScreen(idContrato: contrato.id!),
-            ),
-          ).then((_) => _cargarResumenDashboard());
+          if (contrato.id != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (context) =>
+                        DetalleContratoScreen(idContrato: contrato.id!),
+              ),
+            ).then((_) => _cargarResumenDashboard());
+          } else {
+            // Mostrar mensaje de error si el ID del contrato es nulo
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Error: No se puede abrir el contrato (ID no válido)',
+                ),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
         },
       ),
     );
@@ -685,14 +763,20 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
                             );
 
                             // Mostrar indicador de carga mientras buscamos el contrato
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            final snackBar = ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(
                               const SnackBar(
                                 content: Text('Cargando información...'),
+                                duration: Duration(seconds: 2),
                               ),
                             );
 
                             // Obtener el contrato y la información del cliente
                             contratosAsync.whenData((contratos) {
+                              // Cerrar el SnackBar manualmente si aún está visible
+                              snackBar.close();
+
                               // Filtrar el contrato activo para este inmueble
                               final contratoActivo = contratos.firstWhere(
                                 (c) =>
@@ -718,13 +802,16 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
                                         (context) => MovimientosRentaScreen(
                                           idInmueble: inmueble.id!,
                                           nombreInmueble:
-                                              inmueble.nombre ??
-                                              'Inmueble ${inmueble.id}', // Corrección aquí
+                                              inmueble.nombre.isNotEmpty
+                                                  ? inmueble.nombre
+                                                  : 'Inmueble ${inmueble.id}',
                                           idCliente: contratoActivo.idCliente,
                                           nombreCliente:
                                               contratoActivo
                                                   .clienteNombreCompleto ??
-                                              'Cliente ${contratoActivo.idCliente}',
+                                              (contratoActivo.idCliente > 0
+                                                  ? 'Cliente ID: ${contratoActivo.idCliente}'
+                                                  : 'Cliente no especificado'),
                                         ),
                                   ),
                                 );

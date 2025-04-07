@@ -78,10 +78,15 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
                               return DropdownMenuItem<int>(
                                 value: movimiento.id,
                                 child: Row(
+                                  // Cambiar esto
+                                  mainAxisSize:
+                                      MainAxisSize
+                                          .min, // Añade esta línea para limitar el ancho del Row
                                   children: [
                                     Icon(icono, color: color),
                                     const SizedBox(width: 8),
-                                    Expanded(
+                                    // Cambiar Expanded por Flexible para evitar el problema de layout
+                                    Flexible(
                                       child: Text(
                                         '${movimiento.fechaFormateada} - ${movimiento.concepto}',
                                         overflow: TextOverflow.ellipsis,

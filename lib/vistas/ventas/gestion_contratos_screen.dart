@@ -7,6 +7,10 @@ import '../../controllers/contrato_renta_controller.dart';
 import 'package:inmobiliaria/vistas/ventas/detalle_contrato_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/registrar_contrato_screen.dart';
 
+// Define constantes para estados
+const int estadoActivo = 1;
+const int estadoFinalizado = 2;
+
 final contratosProvider = FutureProvider<List<ContratoRenta>>((ref) async {
   final controller = ContratoRentaController();
   try {
@@ -96,7 +100,11 @@ class _GestionContratosScreenState extends ConsumerState<GestionContratosScreen>
       data: (contratos) {
         final filteredContratos =
             contratos
-                .where((contrato) => contrato.idEstado == (activos ? 1 : 2))
+                .where(
+                  (contrato) =>
+                      contrato.idEstado ==
+                      (activos ? estadoActivo : estadoFinalizado),
+                )
                 .toList();
 
         if (filteredContratos.isEmpty) {
@@ -132,13 +140,23 @@ class _GestionContratosScreenState extends ConsumerState<GestionContratosScreen>
 
   Widget _buildContratoCard(ContratoRenta contrato) {
     final diasRestantes = contrato.fechaFin.difference(DateTime.now()).inDays;
-    final bool vigente = diasRestantes > 0 && contrato.idEstado == 1;
+    final bool vigente = diasRestantes > 0 && contrato.idEstado == estadoActivo;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 3,
       child: InkWell(
         onTap: () async {
+          if (contrato.id == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Error: ID de contrato no válido'),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+
           final result = await Navigator.push(
             context,
             MaterialPageRoute(
@@ -146,9 +164,8 @@ class _GestionContratosScreenState extends ConsumerState<GestionContratosScreen>
                   (context) => DetalleContratoScreen(idContrato: contrato.id!),
             ),
           );
-          if (result == true) {
+          if (result == true && mounted) {
             final _ = ref.refresh(contratosProvider);
-            // Alternatively: await ref.refresh(contratosProvider.future);
           }
         },
         child: Padding(
@@ -161,7 +178,7 @@ class _GestionContratosScreenState extends ConsumerState<GestionContratosScreen>
                 children: [
                   Expanded(
                     child: Text(
-                      'Inmueble: ${contrato.idInmueble}',
+                      'Inmueble: Inmueble ${contrato.idInmueble}',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,

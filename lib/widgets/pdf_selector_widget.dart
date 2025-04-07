@@ -1,7 +1,7 @@
 import 'dart:io';
+import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import '../utils/applogger.dart';
 
 class PdfSelectorWidget extends StatefulWidget {
   final Function(File, String) onFileSelected;
@@ -9,11 +9,11 @@ class PdfSelectorWidget extends StatefulWidget {
   final bool isLoading;
 
   const PdfSelectorWidget({
-    Key? key,
+    super.key,
     required this.onFileSelected,
     this.initialFilePath,
     this.isLoading = false,
-  }) : super(key: key);
+  });
 
   @override
   State<PdfSelectorWidget> createState() => _PdfSelectorWidgetState();
@@ -108,13 +108,14 @@ class _PdfSelectorWidgetState extends State<PdfSelectorWidget> {
             ),
             ElevatedButton.icon(
               onPressed: _isLoading ? null : _selectPdfFile,
-              icon: _isLoading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.upload_file),
+              icon:
+                  _isLoading
+                      ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : const Icon(Icons.upload_file),
               label: const Text('Seleccionar PDF'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue.shade700,

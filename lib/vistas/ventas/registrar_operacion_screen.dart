@@ -36,6 +36,19 @@ class _RegistrarOperacionScreenState
   String _tipoOperacionSeleccionada = 'venta'; // Por defecto
   final formatCurrency = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
 
+  // Límites para validación de montos extremos
+  static const double montoMinimo = 100.0;
+  static const double montoMaximoVenta = 100000000.0; // 100 millones
+  static const double montoMaximoRenta = 1000000.0; // 1 millón mensual
+  bool _inmuebleDisponible =
+      true; // Para verificar disponibilidad en tiempo real
+
+  // Variables para almacenar los valores específicos de cada tipo de operación
+  String _montoVentaStr = '';
+  String _montoRentaStr = '';
+  double? _comisionProveedoresVenta;
+  String _condicionesRenta = '';
+
   @override
   void initState() {
     super.initState();
@@ -48,17 +61,78 @@ class _RegistrarOperacionScreenState
 
     // Pre-llenar el monto según el tipo de operación
     _establecerMontoInicial();
+
+    // Verificar disponibilidad del inmueble
+    _verificarDisponibilidadInmueble();
+
+    // Configurar listener para verificar disponibilidad periódicamente
+    // Esta verificación se ejecutará cada 30 segundos mientras el formulario esté abierto
+    _configurarVerificacionPeriodica();
+  }
+
+  // Método para verificar la disponibilidad periódicamente
+  void _configurarVerificacionPeriodica() {
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) {
+        _verificarDisponibilidadInmueble();
+        _configurarVerificacionPeriodica(); // Programar la siguiente verificación
+      }
+    });
+  }
+
+  Future<void> _verificarDisponibilidadInmueble() async {
+    // Esta función verificaría en tiempo real si el inmueble sigue disponible
+    // Se podría implementar una consulta al API o base de datos
+    try {
+      // Simulamos una verificación en tiempo real consultando el provider
+      final inmuebles = await ref.read(inmueblesDisponiblesProvider.future);
+      final inmuebleActualizado = inmuebles.firstWhere(
+        (i) => i.id == widget.inmueble.id,
+        orElse: () => widget.inmueble,
+      );
+
+      if (mounted) {
+        final disponibleAntes = _inmuebleDisponible;
+        setState(() {
+          // Verificamos si el inmueble está disponible (idEstado = 3 para disponible)
+          _inmuebleDisponible = inmuebleActualizado.idEstado == 3;
+
+          // Solo mostrar advertencia si cambia de disponible a no disponible
+          if (disponibleAntes && !_inmuebleDisponible) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'ADVERTENCIA: Este inmueble acaba de cambiar a no disponible. '
+                    'Otro usuario podría estar registrando una operación con él.',
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 8),
+                ),
+              );
+            });
+          }
+        });
+      }
+    } catch (e) {
+      AppLogger.warning('Error al verificar disponibilidad del inmueble: $e');
+      // Si hay error, no cambiamos el estado de disponibilidad
+    }
   }
 
   void _establecerMontoInicial() {
     if (_tipoOperacionSeleccionada == 'venta' &&
         widget.inmueble.precioVenta != null) {
-      _montoController.text =
+      final precioStr =
           widget.inmueble.precioVentaFinal?.toString() ??
           widget.inmueble.precioVenta.toString();
+      _montoController.text = precioStr;
+      _montoVentaStr = precioStr;
     } else if (_tipoOperacionSeleccionada == 'renta' &&
         widget.inmueble.precioRenta != null) {
-      _montoController.text = widget.inmueble.precioRenta.toString();
+      final precioStr = widget.inmueble.precioRenta.toString();
+      _montoController.text = precioStr;
+      _montoRentaStr = precioStr;
     }
   }
 
@@ -94,7 +168,6 @@ class _RegistrarOperacionScreenState
     if (picked != null) {
       setState(() {
         if (isFechaFin) {
-          // Validar que fecha fin sea posterior a fecha inicio
           if (picked.isBefore(_fechaOperacion)) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -109,7 +182,6 @@ class _RegistrarOperacionScreenState
           _fechaFinRenta = picked;
         } else {
           _fechaOperacion = picked;
-          // Si la fecha de operación es posterior a la fecha fin, actualizamos la fecha fin
           if (_fechaFinRenta.isBefore(_fechaOperacion)) {
             _fechaFinRenta = _fechaOperacion.add(const Duration(days: 365));
           }
@@ -118,24 +190,79 @@ class _RegistrarOperacionScreenState
     }
   }
 
-  Future<void> _registrarOperacion() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  Future<void> _mostrarDialogoConfirmacion() async {
+    // Verificar que el widget siga montado antes de continuar
+    if (!mounted) return;
 
-    // Validación más estricta del cliente seleccionado
-    if (_clienteSeleccionado == null || _clienteSeleccionado! <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Debe seleccionar un cliente válido para registrar la operación',
+    final String tipoOperacion =
+        _tipoOperacionSeleccionada == 'venta' ? 'venta' : 'contrato de renta';
+    final String monto = formatCurrency.format(
+      double.tryParse(_montoController.text) ?? 0,
+    );
+    final String cliente =
+        ref
+            .read(clientesProvider)
+            .value
+            ?.firstWhere(
+              (c) => c.id == _clienteSeleccionado,
+              orElse: () => throw Exception('Cliente no encontrado'),
+            )
+            .nombreCompleto ??
+        'No seleccionado';
+
+    final confirmacion = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: Text('Confirmar $tipoOperacion'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¿Está seguro que desea registrar esta ${_tipoOperacionSeleccionada == 'venta' ? 'venta' : 'renta'}?',
+                ),
+                const SizedBox(height: 16),
+                Text('Inmueble: ${widget.inmueble.nombre}'),
+                Text('Cliente: $cliente'),
+                Text(
+                  'Monto: $monto ${_tipoOperacionSeleccionada == 'renta' ? 'mensual' : ''}',
+                ),
+                Text(
+                  'Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaOperacion)}',
+                ),
+                if (_tipoOperacionSeleccionada == 'renta')
+                  Text(
+                    'Hasta: ${DateFormat('dd/MM/yyyy').format(_fechaFinRenta)}',
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('CANCELAR'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('CONFIRMAR'),
+              ),
+            ],
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    );
 
+    // Verificar mounted después del diálogo
+    if (!mounted) return;
+
+    if (confirmacion == true) {
+      await _procesarRegistroOperacion();
+    }
+  }
+
+  Future<void> _procesarRegistroOperacion() async {
     setState(() {
       _isLoading = true;
     });
@@ -144,12 +271,10 @@ class _RegistrarOperacionScreenState
       bool resultado = false;
 
       if (_tipoOperacionSeleccionada == 'venta') {
-        // Log para debugging
         AppLogger.info(
           'Registrando venta con clienteID: $_clienteSeleccionado',
         );
 
-        // Crear objeto de venta con validación adicional
         final venta = Venta(
           idCliente: _clienteSeleccionado!,
           idInmueble: widget.inmueble.id!,
@@ -159,20 +284,16 @@ class _RegistrarOperacionScreenState
               _comisionProveedoresController.text.isNotEmpty
                   ? double.parse(_comisionProveedoresController.text)
                   : 0.0,
-          // La utilidad bruta y neta se calculan automáticamente en el constructor
         );
 
-        // Registrar la venta
         resultado = await ref
             .read(ventasStateProvider.notifier)
             .registrarVenta(venta);
       } else {
-        // Log para debugging
         AppLogger.info(
           'Registrando contrato de renta con clienteID: $_clienteSeleccionado',
         );
 
-        // Crear objeto de contrato de renta con validación adicional
         final contratoRenta = ContratoRenta(
           idInmueble: widget.inmueble.id!,
           idCliente: _clienteSeleccionado!,
@@ -184,7 +305,6 @@ class _RegistrarOperacionScreenState
                   ? null
                   : _condicionesController.text,
         );
-        // Registrar el contrato de renta
         final controller = ContratoRentaController();
         try {
           final idContrato = await controller.registrarContrato(contratoRenta);
@@ -197,7 +317,6 @@ class _RegistrarOperacionScreenState
       if (!mounted) return;
 
       if (resultado) {
-        // Mostrar mensaje de éxito
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -209,10 +328,8 @@ class _RegistrarOperacionScreenState
           ),
         );
 
-        // Forzar actualización del provider de inmuebles disponibles
         ref.invalidate(inmueblesDisponiblesProvider);
 
-        // Regresar a la pantalla anterior con resultado positivo
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -227,7 +344,6 @@ class _RegistrarOperacionScreenState
 
       if (!mounted) return;
 
-      // Mensaje de error más específico y descriptivo
       final mensaje = e.toString().toLowerCase();
       String errorMensaje;
 
@@ -245,7 +361,6 @@ class _RegistrarOperacionScreenState
         errorMensaje =
             'Error: Problema con el monto ingresado. Por favor, verifique e intente nuevamente.';
       } else {
-        // Mensaje genérico pero más informativo
         errorMensaje =
             'Error al registrar la operación: ${e.toString().split('\n').first}';
       }
@@ -266,20 +381,132 @@ class _RegistrarOperacionScreenState
     }
   }
 
+  Future<void> _registrarOperacion() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_clienteSeleccionado == null || _clienteSeleccionado! <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Debe seleccionar un cliente válido para registrar la operación',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Verificamos que el widget siga montado antes de cada operación asíncrona
+    if (!mounted) return;
+
+    await _verificarDisponibilidadInmueble();
+
+    // Verificamos nuevamente después de la operación asíncrona
+    if (!mounted) return;
+
+    if (!_inmuebleDisponible) {
+      // Usamos un contexto específico para este diálogo y NO lo guardamos
+      // como variable. En su lugar, verificaremos mounted inmediatamente
+      // después de que el diálogo se cierre
+      final continuarAunqueNoDisponible = await showDialog<bool>(
+        context: context,
+        builder:
+            (dialogContext) => AlertDialog(
+              // Usamos el contexto del builder aquí
+              title: const Text('Inmueble no disponible'),
+              content: const Text(
+                'Este inmueble aparece como no disponible en el sistema. '
+                '¿Está seguro de que desea continuar con el registro?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('CANCELAR'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                  ),
+                  child: const Text('CONTINUAR DE TODOS MODOS'),
+                ),
+              ],
+            ),
+      );
+
+      // Verificar mounted inmediatamente después de que el diálogo se cierre
+      if (!mounted) return;
+
+      if (continuarAunqueNoDisponible != true) {
+        return;
+      }
+    }
+
+    // Verificar mounted nuevamente antes del siguiente diálogo
+    if (!mounted) return;
+
+    // Mostramos el diálogo de confirmación
+    await _mostrarDialogoConfirmacion();
+  }
+
+  // Método para cambiar el tipo de operación (venta/renta) y actualizar campos relacionados
+  void _cambiarTipoOperacion(String nuevoTipo) {
+    if (_tipoOperacionSeleccionada == nuevoTipo) return;
+
+    // Guardar los valores actuales según el tipo actual
+    if (_tipoOperacionSeleccionada == 'venta') {
+      _montoVentaStr = _montoController.text;
+      _comisionProveedoresVenta =
+          _comisionProveedoresController.text.isNotEmpty
+              ? double.tryParse(_comisionProveedoresController.text)
+              : null;
+    } else if (_tipoOperacionSeleccionada == 'renta') {
+      _montoRentaStr = _montoController.text;
+      _condicionesRenta = _condicionesController.text;
+    }
+
+    // Actualizar el tipo de operación
+    setState(() {
+      _tipoOperacionSeleccionada = nuevoTipo;
+
+      // Restaurar valores guardados para el nuevo tipo
+      if (nuevoTipo == 'venta') {
+        _montoController.text =
+            _montoVentaStr.isNotEmpty
+                ? _montoVentaStr
+                : (widget.inmueble.precioVentaFinal?.toString() ??
+                    widget.inmueble.precioVenta?.toString() ??
+                    '');
+
+        if (_comisionProveedoresVenta != null) {
+          _comisionProveedoresController.text =
+              _comisionProveedoresVenta.toString();
+        } else {
+          _comisionProveedoresController.clear();
+        }
+      } else {
+        _montoController.text =
+            _montoRentaStr.isNotEmpty
+                ? _montoRentaStr
+                : (widget.inmueble.precioRenta?.toString() ?? '');
+
+        _condicionesController.text = _condicionesRenta;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final clientesAsyncValue = ref.watch(clientesProvider);
     final bool esRenta = _tipoOperacionSeleccionada == 'renta';
     final String tipoOperacionTexto = esRenta ? 'Renta' : 'Venta';
 
-    // Determinar si mostrar comisión de proveedores (solo para venta)
     final mostrarComisionProveedores = _tipoOperacionSeleccionada == 'venta';
-    // Determinar si mostrar condiciones (solo para renta)
     final mostrarCondiciones = _tipoOperacionSeleccionada == 'renta';
-    // Determinar si mostrar fecha fin (solo para renta)
     final mostrarFechaFin = _tipoOperacionSeleccionada == 'renta';
 
-    // Cambiar el título del campo según el tipo de operación
     final montoLabel = esRenta ? 'Monto Mensual' : 'Monto de Venta';
 
     return Scaffold(
@@ -291,7 +518,6 @@ class _RegistrarOperacionScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Información del inmueble
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 16),
@@ -314,28 +540,103 @@ class _RegistrarOperacionScreenState
                       ),
                       const SizedBox(height: 8),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(
-                            esRenta ? Icons.home : Icons.sell,
-                            size: 16,
-                            color: Colors.grey,
+                          Row(
+                            children: [
+                              Icon(
+                                esRenta ? Icons.home : Icons.sell,
+                                size: 16,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Operación: $tipoOperacionTexto',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Operación: $tipoOperacionTexto',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                          if (widget.inmueble.tipoOperacion == 'ambos')
+                            Row(
+                              children: [
+                                const Text('Cambiar a: '),
+                                TextButton.icon(
+                                  onPressed:
+                                      esRenta
+                                          ? () => _cambiarTipoOperacion('venta')
+                                          : () =>
+                                              _cambiarTipoOperacion('renta'),
+                                  icon: Icon(
+                                    esRenta ? Icons.sell : Icons.home,
+                                    size: 16,
+                                  ),
+                                  label: Text(esRenta ? 'Venta' : 'Renta'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.teal,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
                         ],
                       ),
+
+                      // Indicador de disponibilidad
+                      if (!_inmuebleDisponible)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 4,
+                            horizontal: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withAlpha(
+                              51,
+                            ), // 0.2 de opacidad equivale aproximadamente a alpha 51 (0.2 * 255 = 51)
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.orange, width: 1),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.orange,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Inmueble posiblemente no disponible',
+                                  style: TextStyle(
+                                    color: Colors.orange[800],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _verificarDisponibilidadInmueble,
+                                style: TextButton.styleFrom(
+                                  minimumSize: Size.zero,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Verificar',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
-
-              // Selección de cliente
               const Text(
                 'Cliente',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -380,8 +681,6 @@ class _RegistrarOperacionScreenState
                     ),
               ),
               const SizedBox(height: 16),
-
-              // Fecha de operación
               const Text(
                 'Fecha de Operación',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -408,8 +707,6 @@ class _RegistrarOperacionScreenState
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Fecha de fin (solo para renta)
               if (mostrarFechaFin) ...[
                 const Text(
                   'Fecha de Fin de Contrato',
@@ -438,8 +735,6 @@ class _RegistrarOperacionScreenState
                 ),
                 const SizedBox(height: 16),
               ],
-
-              // Monto
               Text(
                 montoLabel,
                 style: const TextStyle(
@@ -470,6 +765,27 @@ class _RegistrarOperacionScreenState
                     if (monto <= 0) {
                       return 'El monto debe ser mayor a cero';
                     }
+
+                    // Validación de montos extremos
+                    if (monto < montoMinimo) {
+                      return 'El monto parece ser demasiado bajo (mínimo: ${formatCurrency.format(montoMinimo)})';
+                    }
+
+                    final limiteSuperior =
+                        _tipoOperacionSeleccionada == 'venta'
+                            ? montoMaximoVenta
+                            : montoMaximoRenta;
+
+                    if (monto > limiteSuperior) {
+                      String mensaje =
+                          'El monto parece ser extremadamente alto';
+                      if (_tipoOperacionSeleccionada == 'renta') {
+                        mensaje += ' para una renta mensual';
+                      }
+                      mensaje +=
+                          ' (límite: ${formatCurrency.format(limiteSuperior)})';
+                      return mensaje;
+                    }
                   } catch (e) {
                     return 'Por favor ingrese un valor numérico válido';
                   }
@@ -477,8 +793,6 @@ class _RegistrarOperacionScreenState
                 },
               ),
               const SizedBox(height: 16),
-
-              // Comisión proveedores (solo para venta)
               if (mostrarComisionProveedores) ...[
                 const Text(
                   'Comisión de Proveedores',
@@ -503,8 +817,6 @@ class _RegistrarOperacionScreenState
                 ),
                 const SizedBox(height: 16),
               ],
-
-              // Condiciones adicionales (solo para renta)
               if (mostrarCondiciones) ...[
                 const Text(
                   'Condiciones Adicionales (Opcional)',
@@ -521,8 +833,6 @@ class _RegistrarOperacionScreenState
                 ),
                 const SizedBox(height: 16),
               ],
-
-              // Botón de registro
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

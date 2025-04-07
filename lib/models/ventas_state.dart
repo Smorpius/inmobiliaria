@@ -62,6 +62,8 @@ class VentasState {
             (venta.apellidoCliente?.toLowerCase().contains(terminoLower) ??
                 false) ||
             (venta.nombreInmueble?.toLowerCase().contains(terminoLower) ??
+                false) ||
+            (venta.tipoOperacion?.toLowerCase().contains(terminoLower) ??
                 false);
       }
 

@@ -5,6 +5,23 @@ import '../../providers/venta_providers.dart';
 import '../../models/venta_reporte_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// Constantes para colores usados en los gráficos y tarjetas
+class ReporteColors {
+  static const Color ingresos = Colors.blue;
+  static const Color utilidades = Colors.green;
+  static const Color ventas = Colors.blue;
+  static const Color dinero = Colors.green;
+  static const Color utilidad = Colors.purple;
+  static const Color margen = Colors.orange;
+  static const List<Color> tiposInmuebles = [
+    Colors.blue,
+    Colors.green,
+    Colors.orange,
+    Colors.purple,
+    Colors.red,
+  ];
+}
+
 /// Pantalla que muestra reportes y estadísticas de ventas
 /// con gráficos de ventas mensuales y por tipo de inmueble.
 class ReportesVentasScreen extends ConsumerStatefulWidget {
@@ -67,8 +84,12 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
               // Gráficos de ventas
               estadisticasAsyncValue.when(
                 data: (estadisticas) => _construirGraficos(estadisticas),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
+                loading:
+                    () => _construirPlaceholderGrafico("Cargando gráficos..."),
+                error:
+                    (error, _) => _construirPlaceholderGrafico(
+                      "Error al cargar gráficos: $error",
+                    ),
               ),
             ],
           ),
@@ -139,7 +160,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                 'Total Ventas',
                 estadisticas.totalVentas.toString(),
                 Icons.sell,
-                Colors.blue,
+                ReporteColors.ventas,
               ),
             ),
             const SizedBox(width: 16),
@@ -148,7 +169,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                 'Ingresos',
                 formatter.format(estadisticas.ingresoTotal),
                 Icons.attach_money,
-                Colors.green,
+                ReporteColors.dinero,
               ),
             ),
           ],
@@ -161,7 +182,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                 'Utilidad Total',
                 formatter.format(estadisticas.utilidadTotal),
                 Icons.trending_up,
-                Colors.purple,
+                ReporteColors.utilidad,
               ),
             ),
             const SizedBox(width: 16),
@@ -170,7 +191,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                 'Margen Promedio',
                 '${estadisticas.margenPromedio.toStringAsFixed(2)}%',
                 Icons.pie_chart,
-                Colors.orange,
+                ReporteColors.margen,
               ),
             ),
           ],
@@ -313,24 +334,28 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                     LineChartBarData(
                       spots: ingresos,
                       isCurved: true,
-                      color: Colors.blue,
+                      color: ReporteColors.ingresos,
                       barWidth: 3,
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Colors.blue.withAlpha((0.1 * 255).round()),
+                        color: ReporteColors.ingresos.withAlpha(
+                          (0.1 * 255).round(),
+                        ),
                       ),
                     ),
                     // Línea de utilidades
                     LineChartBarData(
                       spots: utilidades,
                       isCurved: true,
-                      color: Colors.green,
+                      color: ReporteColors.utilidades,
                       barWidth: 3,
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Colors.green.withAlpha((0.1 * 255).round()),
+                        color: ReporteColors.utilidades.withAlpha(
+                          (0.1 * 255).round(),
+                        ),
                       ),
                     ),
                   ],
@@ -341,9 +366,9 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _legendItem('Ingresos', Colors.blue),
+                _legendItem('Ingresos', ReporteColors.ingresos),
                 const SizedBox(width: 24),
-                _legendItem('Utilidades', Colors.green),
+                _legendItem('Utilidades', ReporteColors.utilidades),
               ],
             ),
           ],
@@ -356,34 +381,31 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
   Widget _construirGraficoVentasPorTipo(Map<String, double> ventasPorTipo) {
     // Preparar datos para el gráfico
     final List<PieChartSectionData> sections = [];
-    final colores = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.red,
-    ];
+    final colores = ReporteColors.tiposInmuebles;
 
     double total = ventasPorTipo.values.fold(0, (sum, item) => sum + item);
     int i = 0;
 
-    ventasPorTipo.forEach((tipo, monto) {
-      final porcentaje = (monto / total) * 100;
-      sections.add(
-        PieChartSectionData(
-          color: colores[i % colores.length],
-          value: monto,
-          title: '${porcentaje.toStringAsFixed(1)}%',
-          radius: 80,
-          titleStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
+    // Protección contra división por cero
+    if (total > 0) {
+      ventasPorTipo.forEach((tipo, monto) {
+        final porcentaje = (monto / total) * 100;
+        sections.add(
+          PieChartSectionData(
+            color: colores[i % colores.length],
+            value: monto,
+            title: '${porcentaje.toStringAsFixed(1)}%',
+            radius: 80,
+            titleStyle: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-      );
-      i++;
-    });
+        );
+        i++;
+      });
+    }
 
     return Card(
       elevation: 3,
@@ -399,13 +421,18 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
             const SizedBox(height: 16),
             SizedBox(
               height: 250,
-              child: PieChart(
-                PieChartData(
-                  sections: sections,
-                  centerSpaceRadius: 40,
-                  sectionsSpace: 2,
-                ),
-              ),
+              child:
+                  total > 0
+                      ? PieChart(
+                        PieChartData(
+                          sections: sections,
+                          centerSpaceRadius: 40,
+                          sectionsSpace: 2,
+                        ),
+                      )
+                      : _construirPlaceholderGrafico(
+                        "No hay datos suficientes para generar el gráfico",
+                      ),
             ),
             const SizedBox(height: 16),
             _construirLeyendaPieChart(ventasPorTipo, colores),
@@ -420,10 +447,13 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     Map<String, double> data,
     List<Color> colores,
   ) {
+    // Convertimos las keys a lista una sola vez para optimizar el rendimiento
+    final listaKeys = data.keys.toList();
+
     return Column(
       children:
           data.entries.map((entry) {
-            final index = data.keys.toList().indexOf(entry.key);
+            final index = listaKeys.indexOf(entry.key);
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
@@ -567,5 +597,26 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
   String _capitalizarPalabra(String texto) {
     if (texto.isEmpty) return texto;
     return texto[0].toUpperCase() + texto.substring(1);
+  }
+
+  /// Construye un placeholder para gráficos vacíos
+  Widget _construirPlaceholderGrafico(String mensaje) {
+    return SizedBox(
+      height: 200,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bar_chart, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              mensaje,
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -4,6 +4,8 @@ import '../../models/venta_model.dart';
 import '../../providers/venta_providers.dart';
 import 'package:inmobiliaria/models/estados_venta.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/historial_transaccion_provider.dart';
+import '../../providers/inmuebles_disponibles_provider.dart';
 
 class DetallesVentaScreen extends ConsumerWidget {
   final int idVenta;
@@ -68,7 +70,7 @@ class DetallesVentaScreen extends ConsumerWidget {
           _construirCardDetallesFinancieros(venta, formatter, ref, context),
 
           // Sección de acciones
-          if (venta.idEstado == 7) // Si está en proceso
+          if (venta.idEstado == EstadosVenta.enProceso) // Si está en proceso
             _construirBotonesAccion(context, ref, venta),
         ],
       ),
@@ -227,7 +229,8 @@ class DetallesVentaScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                if (venta.idEstado == 7) // Solo si está en proceso
+                if (venta.idEstado ==
+                    EstadosVenta.enProceso) // Solo si está en proceso
                   IconButton(
                     icon: const Icon(Icons.edit),
                     onPressed:
@@ -281,7 +284,7 @@ class DetallesVentaScreen extends ConsumerWidget {
                   context,
                   ref,
                   venta.id!,
-                  8,
+                  EstadosVenta.completada,
                   'completar esta venta',
                 ),
             style: ElevatedButton.styleFrom(
@@ -299,7 +302,7 @@ class DetallesVentaScreen extends ConsumerWidget {
                   context,
                   ref,
                   venta.id!,
-                  9,
+                  EstadosVenta.cancelada,
                   'cancelar esta venta',
                 ),
             style: OutlinedButton.styleFrom(
@@ -372,13 +375,27 @@ class DetallesVentaScreen extends ConsumerWidget {
               ElevatedButton(
                 onPressed: () async {
                   try {
-                    final gastos = double.parse(gastosController.text);
-                    if (gastos < 0) {
+                    final gastosNuevos = double.tryParse(gastosController.text);
+
+                    // Verificar si el formato es correcto
+                    if (gastosNuevos == null) {
+                      throw FormatException('Ingrese un valor numérico válido');
+                    }
+
+                    if (gastosNuevos < 0) {
                       throw Exception('Los gastos no pueden ser negativos');
                     }
 
-                    // Calcular la nueva utilidad neta restando los gastos de la utilidad bruta
-                    final nuevaUtilidadNeta = venta.utilidadBruta - gastos;
+                    // Validación adicional: los gastos no deben superar la utilidad bruta
+                    if (gastosNuevos > venta.utilidadBruta) {
+                      throw Exception(
+                        'Los gastos no pueden superar la utilidad bruta (${venta.utilidadBruta})',
+                      );
+                    }
+
+                    // Calcular la nueva utilidad neta correctamente
+                    final nuevaUtilidadNeta =
+                        venta.utilidadBruta - gastosNuevos;
 
                     Navigator.pop(context);
                     final success = await ref
@@ -405,9 +422,17 @@ class DetallesVentaScreen extends ConsumerWidget {
                     }
                   } catch (e) {
                     if (context.mounted) {
+                      // Mensaje de error específico según el tipo de excepción
+                      String mensaje;
+                      if (e is FormatException) {
+                        mensaje = 'Error de formato: ${e.message}';
+                      } else {
+                        mensaje = 'Error: $e';
+                      }
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error: $e'),
+                          content: Text(mensaje),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -448,13 +473,37 @@ class DetallesVentaScreen extends ConsumerWidget {
 
                   if (context.mounted) {
                     if (success) {
+                      // Mostrar mensaje de éxito
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Estado actualizado correctamente'),
                           backgroundColor: Colors.green,
                         ),
                       );
+
+                      // Actualizar los providers relacionados para notificar a otras partes de la app
+
+                      // Actualizar los detalles de esta venta específica
                       final _ = ref.refresh(ventaDetalleProvider(idVenta));
+
+                      // Actualizar la lista general de ventas para reflejar el cambio
+                      ref.invalidate(ventasProvider);
+
+                      // Actualizar el estado global de las ventas
+                      ref.read(ventasStateProvider.notifier).cargarVentas();
+
+                      // Actualizar las estadísticas de ventas
+                      final _ = ref.refresh(ventasEstadisticasGeneralProvider);
+
+                      // Si se canceló la venta, también debemos refrescar los inmuebles disponibles
+                      if (nuevoEstado == EstadosVenta.cancelada) {
+                        ref.invalidate(inmueblesDisponiblesProvider);
+                      }
+
+                      // También refrescar el historial de transacciones para esta venta
+                      if (nuevoEstado == EstadosVenta.completada) {
+                        ref.invalidate(historialVentaProvider(idVenta));
+                      }
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -466,10 +515,17 @@ class DetallesVentaScreen extends ConsumerWidget {
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: nuevoEstado == 8 ? Colors.green : Colors.red,
+                  backgroundColor:
+                      nuevoEstado == EstadosVenta.completada
+                          ? Colors.green
+                          : Colors.red,
                   foregroundColor: Colors.white,
                 ),
-                child: Text(nuevoEstado == 8 ? 'Completar' : 'Cancelar'),
+                child: Text(
+                  nuevoEstado == EstadosVenta.completada
+                      ? 'Completar'
+                      : 'Cancelar',
+                ),
               ),
             ],
           ),

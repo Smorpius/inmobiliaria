@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:intl/intl.dart';
 import 'components/detail_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -21,8 +22,11 @@ import 'package:inmobiliaria/models/inmueble_imagenes_state.dart';
 import 'package:inmobiliaria/widgets/inmueble_financiero_info.dart';
 import 'package:inmobiliaria/widgets/inmueble_imagenes_section.dart';
 import 'package:inmobiliaria/models/clientes_interesados_state.dart';
+import 'package:inmobiliaria/providers/inmueble_renta_provider.dart';
 import 'package:inmobiliaria/vistas/ventas/registrar_operacion_screen.dart';
-import 'package:inmobiliaria/vistas/inmuebles/components/registro_movimientos_renta_screen.dart';
+import 'package:inmobiliaria/vistas/inmuebles/components/contrato_generator_screen.dart';
+import 'package:inmobiliaria/vistas/inmuebles/components/registro_movimientos_renta_screen.dart'
+    as movimientos_renta;
 
 class InmuebleDetailScreen extends ConsumerStatefulWidget {
   // Constantes para los estados del inmueble usando lowerCamelCase
@@ -397,7 +401,6 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
 
-            // AÑADIR ESTE NUEVO SliverToBoxAdapter AQUÍ
             if (inmueble.idEstado == InmuebleDetailScreen.estadoRentado)
               SliverToBoxAdapter(
                 child: Padding(
@@ -418,11 +421,67 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                           context,
                           MaterialPageRoute(
                             builder:
-                                (context) => RegistroMovimientosRentaScreen(
-                                  inmueble: inmueble,
-                                ),
+                                (context) =>
+                                    movimientos_renta.RegistroMovimientosRentaScreen(
+                                      inmueble: inmueble,
+                                    ),
                           ),
                         ),
+                  ),
+                ),
+              ),
+
+            if (inmueble.idEstado == InmuebleDetailScreen.estadoEnNegociacion ||
+                inmueble.idEstado == InmuebleDetailScreen.estadoRentado ||
+                inmueble.idEstado == InmuebleDetailScreen.estadoVendido)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: 16.0,
+                    left: 24.0,
+                    right: 24.0,
+                  ),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.description),
+                    label: const Text('Generar Contrato'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      if (inmueble.idCliente == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'El inmueble no tiene un cliente asociado. Asigne un cliente antes de generar el contrato.',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      String tipoContrato = 'renta';
+                      if (inmueble.idEstado ==
+                              InmuebleDetailScreen.estadoVendido ||
+                          (inmueble.tipoOperacion == 'venta' ||
+                              inmueble.tipoOperacion == 'ambos')) {
+                        tipoContrato = 'venta';
+                      } else if (inmueble.tipoOperacion == 'renta') {
+                        tipoContrato = 'renta';
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => ContratoGeneratorScreen(
+                                inmueble: inmueble,
+                                tipoContrato: tipoContrato,
+                              ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
@@ -451,9 +510,199 @@ class _InmuebleDetailScreenState extends ConsumerState<InmuebleDetailScreen> {
                 ),
               ),
             ),
+
+            if (inmueble.idEstado == InmuebleDetailScreen.estadoVendido ||
+                inmueble.idEstado == InmuebleDetailScreen.estadoRentado)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Divider(height: 32),
+                      const Text(
+                        'Historial de Transacciones',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTransactionHistory(inmueble),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTransactionHistory(Inmueble inmueble) {
+    if (inmueble.id == null) {
+      return const Center(
+        child: Text('No se puede cargar el historial: ID no disponible'),
+      );
+    }
+
+    // Usar el proveedor adecuado que devuelve un AsyncValue
+    final movimientosProvider = ref.watch(
+      movimientosPorInmuebleProvider(inmueble.id!),
+    );
+
+    return movimientosProvider.when(
+      data: (movimientos) {
+        if (movimientos.isEmpty) {
+          return const Card(
+            margin: EdgeInsets.symmetric(vertical: 8.0),
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(
+                child: Text(
+                  'No hay transacciones registradas',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: movimientos.length > 5 ? 5 : movimientos.length,
+              itemBuilder: (context, index) {
+                final movimiento = movimientos[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12.0),
+                  child: ListTile(
+                    leading: Icon(
+                      movimiento.tipoMovimiento == 'ingreso'
+                          ? Icons.arrow_circle_down
+                          : Icons.arrow_circle_up,
+                      color:
+                          movimiento.tipoMovimiento == 'ingreso'
+                              ? Colors.green
+                              : Colors.orange,
+                      size: 36,
+                    ),
+                    title: Text(
+                      movimiento.concepto,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(
+                      DateFormat(
+                        'dd/MM/yyyy',
+                      ).format(movimiento.fechaMovimiento),
+                    ),
+                    trailing: Text(
+                      '\$${movimiento.monto.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color:
+                            movimiento.tipoMovimiento == 'ingreso'
+                                ? Colors.green.shade700
+                                : Colors.orange.shade700,
+                      ),
+                    ),
+                    onTap: () {
+                      _mostrarDetallesMovimiento(context, movimiento);
+                    },
+                  ),
+                );
+              },
+            ),
+            if (movimientos.length > 5)
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) =>
+                              movimientos_renta.RegistroMovimientosRentaScreen(
+                                inmueble: inmueble,
+                              ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.history),
+                label: const Text('Ver historial completo'),
+              ),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (error, stack) => Center(
+            child: Text(
+              'Error al cargar transacciones: ${error.toString().split('\n').first}',
+              style: const TextStyle(color: Colors.red),
+            ),
+          ),
+    );
+  }
+
+  void _mostrarDetallesMovimiento(BuildContext context, dynamic movimiento) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Text('Detalles: ${movimiento.concepto}'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DetailRow(
+                    label: 'Tipo',
+                    value:
+                        movimiento.tipoMovimiento == 'ingreso'
+                            ? 'Ingreso'
+                            : 'Egreso',
+                    icon: Icons.category,
+                    isInactivo: false,
+                  ),
+                  const SizedBox(height: 8),
+                  DetailRow(
+                    label: 'Monto',
+                    value: '\$${movimiento.monto.toStringAsFixed(2)}',
+                    icon: Icons.attach_money,
+                    isInactivo: false,
+                  ),
+                  const SizedBox(height: 8),
+                  DetailRow(
+                    label: 'Fecha',
+                    value: DateFormat(
+                      'dd/MM/yyyy',
+                    ).format(movimiento.fechaMovimiento),
+                    icon: Icons.calendar_today,
+                    isInactivo: false,
+                  ),
+                  if (movimiento.comentarios != null &&
+                      movimiento.comentarios!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    DetailRow(
+                      label: 'Comentarios',
+                      value: movimiento.comentarios!,
+                      icon: Icons.comment,
+                      isInactivo: false,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
     );
   }
 

@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import '../../utils/applogger.dart';
 import 'detalles_ventas_screen.dart';
+import 'detalle_contrato_screen.dart';
 import 'package:flutter/material.dart';
 import '../../models/venta_model.dart';
 import '../../models/ventas_state.dart';
@@ -27,7 +28,18 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
     super.initState();
     // Cargar ventas al iniciar
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(ventasStateProvider.notifier).cargarVentas();
+      try {
+        ref.read(ventasStateProvider.notifier).cargarVentas();
+      } catch (e, stackTrace) {
+        if (mounted) {
+          _registrarErrorControlado(
+            'carga_inicial_error',
+            'Error al cargar las ventas inicialmente',
+            e,
+            stackTrace,
+          );
+        }
+      }
     });
   }
 
@@ -52,9 +64,6 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
       ],
       body: Column(
         children: [
-          // Resumen de estadísticas
-          _construirResumenEstadisticas(ref),
-
           // Barra de búsqueda
           _construirBarraBusqueda(context, ref, ventasState),
 
@@ -184,56 +193,6 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
           onTap: () => _navegarADetalleVenta(context, venta.id!),
         );
       },
-    );
-  }
-
-  Widget _construirResumenEstadisticas(WidgetRef ref) {
-    final estadisticasAsyncValue = ref.watch(ventasEstadisticasGeneralProvider);
-
-    return Card(
-      margin: const EdgeInsets.all(16),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: estadisticasAsyncValue.when(
-          data:
-              (estadisticas) => Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatCard(
-                    'Total Ventas',
-                    estadisticas.totalVentas.toString(),
-                    Icons.sell,
-                    Colors.blue,
-                  ),
-                  _buildStatCard(
-                    'Ingresos',
-                    '\$${NumberFormat('#,##0.00', 'es_MX').format(estadisticas.ingresoTotal)}',
-                    Icons.attach_money,
-                    Colors.green,
-                  ),
-                  _buildStatCard(
-                    'Utilidad',
-                    '\$${NumberFormat('#,##0.00', 'es_MX').format(estadisticas.utilidadTotal)}',
-                    Icons.trending_up,
-                    Colors.purple,
-                  ),
-                ],
-              ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) {
-            // Registrar el error con AppLogger
-            _registrarErrorControlado(
-              'estadisticas_error',
-              'Error al cargar estadísticas generales',
-              error,
-              stackTrace,
-            );
-            return Text('Error al cargar estadísticas: $error');
-          },
-        ),
-      ),
     );
   }
 
@@ -431,19 +390,68 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
   }
 
   void _navegarADetalleVenta(BuildContext context, int idVenta) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DetallesVentaScreen(idVenta: idVenta),
-      ),
-    ).then((value) {
-      // Verificar si el widget todavía está montado después de la operación asíncrona
-      if (mounted && value == true) {
-        // Si retornamos true, significa que hubo cambios en la venta
-        // Recargar las ventas para reflejar los cambios
-        ref.read(ventasStateProvider.notifier).cargarVentas();
+    // Primero, obtenemos la venta para determinar el tipo de operación
+    final ventasState = ref.read(ventasStateProvider);
+    final venta = ventasState.ventasFiltradas.firstWhere(
+      (v) => v.id == idVenta,
+      orElse:
+          () => Venta(
+            idCliente: 0,
+            idInmueble: 0,
+            fechaVenta: DateTime.now(),
+            ingreso: 0,
+            comisionProveedores: 0,
+            utilidadBruta: 0,
+            utilidadNeta: 0,
+            idEstado: 0,
+          ),
+    );
+
+    // Si es de tipo renta, navegamos a la pantalla de detalles de contrato
+    if (venta.tipoOperacion?.toLowerCase() == 'renta') {
+      // ¡IMPORTANTE! Usamos el ID original del contrato, no el ID de la venta
+      final idContratoReal = venta.contratoRentaId;
+
+      if (idContratoReal != null) {
+        AppLogger.info('Navegando a detalle de contrato ID: $idContratoReal');
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => DetalleContratoScreen(idContrato: idContratoReal),
+          ),
+        ).then((value) {
+          // Actualizar datos cuando regresemos
+          if (mounted && value == true) {
+            ref.read(ventasStateProvider.notifier).cargarVentas();
+          }
+        });
+      } else {
+        // Mostrar mensaje de error si no se puede obtener el ID del contrato
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Error: No se puede abrir este contrato. ID no encontrado.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    });
+    } else {
+      // Si es una venta normal, seguimos el comportamiento anterior
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetallesVentaScreen(idVenta: idVenta),
+        ),
+      ).then((value) {
+        // Actualizar datos cuando regresemos
+        if (mounted && value == true) {
+          ref.read(ventasStateProvider.notifier).cargarVentas();
+        }
+      });
+    }
   }
 
   void _navegarARegistrarVenta(BuildContext context, WidgetRef ref) {
@@ -472,44 +480,22 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
 
       // Si retornamos true, significa que se registró una venta correctamente
       if (value == true) {
-        // CORRECCIÓN: Refrescar completamente el provider de ventas
+        // Primero invalidamos los providers para forzar una recarga completa
         ref.invalidate(ventasProvider);
+        ref.invalidate(ventasEstadisticasGeneralProvider);
 
-        // Forzar la recarga de ventas con el notifier
-        ref.read(ventasStateProvider.notifier).cargarVentas();
+        // Luego, realizamos una recarga controlada de las ventas
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            // Cargar ventas explícitamente para evitar estado de carga infinita
+            ref.read(ventasStateProvider.notifier).cargarVentas();
+          }
+        });
 
-        // También refrescar estadísticas
-        // ignore: unused_result
-        ref.refresh(ventasEstadisticasGeneralProvider);
-
-        // Mostrar confirmación visual al usuario usando el método local
-        // que ya tiene la verificación de mounted incorporada
+        // Mostrar confirmación visual al usuario
         mostrarMensajeExito();
       }
     });
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 28),
-        const SizedBox(height: 8),
-        Text(title, style: TextStyle(color: Colors.grey.shade700)),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            color: color,
-          ),
-        ),
-      ],
-    );
   }
 
   String _obtenerNombreEstado(String idEstado) {
@@ -550,8 +536,25 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
 
   @override
   void dispose() {
-    // Limpiar recursos
+    // Limpiar recursos y memoria
     _ultimosErrores.clear();
+
+    // Consideración: invalidar providers específicos de esta pantalla
+    // cuando ya no sean necesarios para liberar recursos
+    if (mounted) {
+      // Solo invalidamos providers que son específicos de esta pantalla
+      // y que no se necesitarán inmediatamente después
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Esto se ejecuta después de que el widget se ha desmontado
+        // para evitar errores de "setState() called after dispose()"
+        try {
+          ref.invalidate(ventasEstadisticasGeneralProvider);
+        } catch (e) {
+          // Ignoramos errores aquí ya que estamos en dispose
+        }
+      });
+    }
+
     super.dispose();
   }
 }
@@ -693,15 +696,15 @@ class _VentaTarjeta extends StatelessWidget {
     String estado = EstadosVenta.obtenerNombre(idEstado.toString());
 
     switch (idEstado) {
-      case 7: // en_proceso
+      case 7: // EN_PROCESO
         backgroundColor = Colors.orange[100]!;
         textColor = Colors.orange[800]!;
         break;
-      case 8: // completada
+      case 8: // COMPLETADA
         backgroundColor = Colors.green[100]!;
         textColor = Colors.green[800]!;
         break;
-      case 9: // cancelada
+      case 9: // CANCELADA
         backgroundColor = Colors.red[100]!;
         textColor = Colors.red[800]!;
         break;

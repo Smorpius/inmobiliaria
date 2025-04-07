@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
+// Reemplazar en c:\Ingenieria de Software\inmobiliaria\lib\models\estados_venta.dart
 
 class EstadosVenta {
   static const int enProceso = 7;
   static const int completada = 8;
   static const int cancelada = 9;
 
-  static const Map<String, String> nombres = {
-    '7': 'En proceso',
-    '8': 'Completada',
-    '9': 'Cancelada',
-  };
+  static String obtenerNombre(dynamic idEstado) {
+    // Convertir a entero si es String
+    int id = idEstado is String ? int.tryParse(idEstado) ?? 0 : idEstado;
 
-  static String obtenerNombre(String idEstado) {
-    return nombres[idEstado] ?? 'Desconocido';
+    switch (id) {
+      case enProceso:
+        return 'En Proceso';
+      case completada:
+        return 'Completada';
+      case cancelada:
+        return 'Cancelada';
+      default:
+        return 'Desconocido';
+    }
   }
 
   static Color obtenerColor(int idEstado) {

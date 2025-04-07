@@ -43,6 +43,7 @@ dependencies:
   file_picker: ^5.5.0           # Selector de archivos PDF y otros tipos
   pdf: ^3.10.7                  # Para generar y manipular PDFs
   printing: ^5.11.1             # Para vista previa e impresión de PDFs
+  open_file: ^3.5.10
 
 dev_dependencies:
   flutter_test:

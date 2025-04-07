@@ -1,18 +1,19 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:printing/printing.dart';
-import '../models/inmueble_model.dart';
+import '../utils/applogger.dart';
 import '../models/cliente_model.dart';
-import '../utils/applogger.dart';
-import '../services/contrato_pdf_service.dart';
-import '../utils/applogger.dart';
+import 'package:flutter/material.dart';
+import '../models/inmueble_model.dart';
 import '../services/mysql_helper.dart';
+import 'package:printing/printing.dart';
+import '../services/contrato_pdf_service.dart';
 import '../models/contrato_generado_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final contratoGeneradoControllerProvider = Provider<ContratoGeneradoController>((ref) {
-  return ContratoGeneradoController();
-});
+final contratoGeneradoControllerProvider = Provider<ContratoGeneradoController>(
+  (ref) {
+    return ContratoGeneradoController();
+  },
+);
 
 class ContratoGeneradoController {
   final ContratoPdfService _pdfService = ContratoPdfService();
@@ -232,9 +233,7 @@ class ContratoGeneradoController {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // Generar el PDF
@@ -256,12 +255,12 @@ class ContratoGeneradoController {
       }
     } catch (e, stack) {
       AppLogger.error('Error al generar contrato de venta', e, stack);
-      
+
       // Cerrar diálogo de carga si está abierto
       if (context.mounted) {
         Navigator.maybeOf(context)?.pop();
       }
-      
+
       // Mostrar mensaje de error
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -289,9 +288,7 @@ class ContratoGeneradoController {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // Generar el PDF
@@ -315,12 +312,12 @@ class ContratoGeneradoController {
       }
     } catch (e, stack) {
       AppLogger.error('Error al generar contrato de renta', e, stack);
-      
+
       // Cerrar diálogo de carga si está abierto
       if (context.mounted) {
         Navigator.maybeOf(context)?.pop();
       }
-      
+
       // Mostrar mensaje de error
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -334,49 +331,54 @@ class ContratoGeneradoController {
   }
 
   /// Muestra un PDF en un visor con opciones de impresión y compartir
-  Future<void> _mostrarPdfPreview(BuildContext context, String filePath, String title) async {
+  Future<void> _mostrarPdfPreview(
+    BuildContext context,
+    String filePath,
+    String title,
+  ) async {
     final file = File(filePath);
     if (await file.exists()) {
       if (context.mounted) {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (BuildContext context) => Scaffold(
-              appBar: AppBar(
-                title: Text(title),
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.share),
-                    onPressed: () async {
-                      try {
-                        await Printing.sharePdf(
-                          bytes: await file.readAsBytes(),
-                          filename: file.path.split('/').last,
-                        );
-                      } catch (e) {
-                        AppLogger.error('Error al compartir PDF', e);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error al compartir: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    tooltip: 'Compartir',
+            builder:
+                (BuildContext context) => Scaffold(
+                  appBar: AppBar(
+                    title: Text(title),
+                    actions: [
+                      IconButton(
+                        icon: const Icon(Icons.share),
+                        onPressed: () async {
+                          try {
+                            await Printing.sharePdf(
+                              bytes: await file.readAsBytes(),
+                              filename: file.path.split('/').last,
+                            );
+                          } catch (e) {
+                            AppLogger.error('Error al compartir PDF', e);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error al compartir: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        tooltip: 'Compartir',
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              body: PdfPreview(
-                build: (format) => file.readAsBytes(),
-                allowPrinting: true,
-                allowSharing: true,
-                canChangePageFormat: false,
-                canChangeOrientation: false,
-                canDebug: false,
-              ),
-            ),
+                  body: PdfPreview(
+                    build: (format) => file.readAsBytes(),
+                    allowPrinting: true,
+                    allowSharing: true,
+                    canChangePageFormat: false,
+                    canChangeOrientation: false,
+                    canDebug: false,
+                  ),
+                ),
           ),
         );
       }
@@ -384,7 +386,9 @@ class ContratoGeneradoController {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No se pudo abrir el contrato: archivo no encontrado'),
+            content: Text(
+              'No se pudo abrir el contrato: archivo no encontrado',
+            ),
             backgroundColor: Colors.red,
           ),
         );

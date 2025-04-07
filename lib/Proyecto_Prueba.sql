@@ -104,6 +104,7 @@ DROP PROCEDURE IF EXISTS ActualizarComprobanteMovimiento;
 DROP PROCEDURE IF EXISTS ObtenerComprobantesDetallados;
 DROP PROCEDURE IF EXISTS BuscarComprobantes;
 DROP PROCEDURE IF EXISTS BuscarComprobantesPorTipo;
+DROP PROCEDURE IF EXISTS ObtenerContratoPorId;
 DROP PROCEDURE IF EXISTS ObtenerResumenComprobantes;
 DROP PROCEDURE IF EXISTS ReporteComprobantesMovimientosPorPeriodo;
 DROP PROCEDURE IF EXISTS EliminarComprobanteMovimiento;
@@ -3158,7 +3159,7 @@ END //
 -- Procedimiento para agregar comprobante a un movimiento
 CREATE PROCEDURE AgregarComprobanteMovimiento(
     IN p_id_movimiento INT,
-    IN p_ruta_imagen VARCHAR(255),
+    IN p_ruta_archivo VARCHAR(255),  -- Cambiado de p_ruta_imagen a p_ruta_archivo
     IN p_tipo_archivo ENUM('imagen', 'pdf', 'documento'),
     IN p_descripcion TEXT,
     IN p_es_principal TINYINT(1),
@@ -3174,43 +3175,54 @@ CREATE PROCEDURE AgregarComprobanteMovimiento(
 BEGIN
     DECLARE v_movimiento_existe INT;
     
+    -- Verificar si el movimiento existe
     SELECT COUNT(*) INTO v_movimiento_existe
-    FROM movimientos_renta 
+    FROM movimientos_renta
     WHERE id_movimiento = p_id_movimiento;
     
     IF v_movimiento_existe = 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El movimiento especificado no existe';
     END IF;
     
-    -- Validar que si es factura, tenga número de referencia
-    IF p_tipo_comprobante = 'factura' AND (p_numero_referencia IS NULL OR p_numero_referencia = '') THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Una factura debe tener un número de referencia';
-    END IF;
-    
-    -- Validar que la fecha de emisión no sea futura
-    IF p_fecha_emision > CURDATE() THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La fecha de emisión no puede ser futura';
-    END IF;
-    
     START TRANSACTION;
     
-    IF p_es_principal = 1 THEN
-        UPDATE comprobantes_movimientos
-        SET es_principal = 0
-        WHERE id_movimiento = p_id_movimiento;
-    END IF;
-    
+    -- Insertar el nuevo comprobante con ruta_archivo (antes ruta_imagen)
     INSERT INTO comprobantes_movimientos (
-        id_movimiento, ruta_imagen, tipo_archivo, descripcion, es_principal,
-        tipo_comprobante, numero_referencia, emisor, receptor, metodo_pago,
-        fecha_emision, notas_adicionales
+        id_movimiento, 
+        ruta_archivo,  -- Cambiado de ruta_imagen a ruta_archivo
+        tipo_archivo, 
+        descripcion, 
+        es_principal, 
+        tipo_comprobante,
+        numero_referencia,
+        emisor,
+        receptor,
+        metodo_pago,
+        fecha_emision,
+        notas_adicionales
     ) VALUES (
-        p_id_movimiento, p_ruta_imagen, COALESCE(p_tipo_archivo, 'imagen'), p_descripcion, p_es_principal,
-        p_tipo_comprobante, p_numero_referencia, p_emisor, p_receptor, p_metodo_pago,
-        p_fecha_emision, p_notas_adicionales
+        p_id_movimiento, 
+        p_ruta_archivo,  -- Cambiado de p_ruta_imagen a p_ruta_archivo
+        p_tipo_archivo, 
+        p_descripcion, 
+        p_es_principal,
+        p_tipo_comprobante,
+        p_numero_referencia,
+        p_emisor,
+        p_receptor,
+        p_metodo_pago,
+        p_fecha_emision,
+        p_notas_adicionales
     );
     
     SET p_id_comprobante_out = LAST_INSERT_ID();
+    
+    -- Si este es el comprobante principal, actualizar los demás a no principales
+    IF p_es_principal = 1 THEN
+        UPDATE comprobantes_movimientos
+        SET es_principal = 0
+        WHERE id_movimiento = p_id_movimiento AND id_comprobante != p_id_comprobante_out;
+    END IF;
     
     COMMIT;
 END //
@@ -4168,6 +4180,23 @@ BEGIN
   JOIN estados e ON cr.id_estado = e.id_estado
   JOIN inmuebles i ON cr.id_inmueble = i.id_inmueble
   ORDER BY cr.fecha_registro DESC;
+END //
+
+-- Procedimiento para obtener un contrato por ID
+CREATE PROCEDURE ObtenerContratoPorId(IN p_id_contrato INT)
+BEGIN
+  SELECT 
+    cr.*,
+    c.nombre AS nombre_cliente,
+    c.apellido_paterno AS apellido_cliente,
+    CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', IFNULL(c.apellido_materno, '')) AS cliente_nombre_completo,
+    i.nombre_inmueble,
+    e.nombre_estado
+  FROM contratos_renta cr
+  JOIN clientes c ON cr.id_cliente = c.id_cliente
+  JOIN inmuebles i ON cr.id_inmueble = i.id_inmueble
+  JOIN estados e ON cr.id_estado = e.id_estado
+  WHERE cr.id_contrato = p_id_contrato;
 END //
 
 -- Procedimiento para buscar contratos con filtros específicos

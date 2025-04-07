@@ -1,3 +1,4 @@
+import 'package:logging/logging.dart';
 import 'package:flutter/material.dart';
 import '../models/comprobante_venta_model.dart';
 import '../providers/comprobantes_provider.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Widget para mostrar los comprobantes de una venta específica
 class ComprobantesVentaWidget extends ConsumerWidget {
+  static final Logger _logger = Logger('ComprobantesVentaWidget');
+
   final int idVenta;
   final bool esSoloLectura;
   final void Function(ComprobanteVenta)? onComprobanteSelected;
@@ -117,7 +120,7 @@ class ComprobantesVentaWidget extends ConsumerWidget {
                     final refreshResult = ref.refresh(
                       comprobantesPorVentaProvider(idVenta),
                     );
-                    debugPrint(
+                    _logger.info(
                       'Refreshed comprobantes: ${refreshResult.hashCode}',
                     );
                   },
@@ -202,7 +205,7 @@ class ComprobantesVentaWidget extends ConsumerWidget {
           final refreshResult = ref.refresh(
             comprobantesPorVentaProvider(idVenta),
           );
-          debugPrint('Comprobantes actualizados: ${refreshResult.hashCode}');
+          _logger.info('Comprobantes actualizados: ${refreshResult.hashCode}');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

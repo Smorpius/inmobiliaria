@@ -84,28 +84,36 @@ class ProveedoresService {
     }
   }
 
-  /// Crea un nuevo proveedor usando procedimiento almacenado
+  /// Crea un nuevo proveedor usando procedimiento almacenado con reintentos automáticos
   Future<Proveedor> crearProveedor(
     Proveedor proveedor, {
     int? usuarioModificacion,
   }) async {
-    try {
-      return await _db.withConnection((conn) async {
-        AppLogger.info('Iniciando creación de proveedor: ${proveedor.nombre}');
+    int intentos = 0;
+    const maxIntentos = 3;
 
-        await conn.query('START TRANSACTION');
+    while (intentos < maxIntentos) {
+      try {
+        // Verificar la conexión antes de intentar la operación
         try {
-          // Verifica o crea el usuario para la auditoría
-          final idUsuarioReal = await _asegurarUsuarioAdministrador(
-            usuarioModificacion,
+          await verificarConexion();
+        } catch (e) {
+          AppLogger.warning('La conexión parece estar fallando: $e');
+          await Future.delayed(Duration(seconds: 2));
+        }
+
+        // Utilizar withTransaction para manejo más robusto de la transacción
+        return await _db.withTransaction((conn) async {
+          AppLogger.info(
+            'Iniciando creación de proveedor (intento ${intentos + 1}): ${proveedor.nombre}',
           );
 
           // Reinicia la variable de salida
           await conn.query('SET @p_id_proveedor_out = 0');
 
-          // Llamada al procedimiento almacenado
+          // Llamada al procedimiento almacenado - CORREGIDO: Eliminado parámetro de usuario
           await conn.query(
-            'CALL CrearProveedor(?, ?, ?, ?, ?, ?, ?, ?, @p_id_proveedor_out)',
+            'CALL CrearProveedor(?, ?, ?, ?, ?, ?, ?, @p_id_proveedor_out)',
             [
               proveedor.nombre,
               proveedor.nombreEmpresa,
@@ -114,7 +122,6 @@ class ProveedoresService {
               proveedor.telefono,
               proveedor.correo,
               proveedor.tipoServicio,
-              idUsuarioReal,
             ],
           );
 
@@ -129,17 +136,46 @@ class ProveedoresService {
             'Proveedor creado exitosamente con ID: $idNuevoProveedor',
           );
 
-          await conn.query('COMMIT');
           return proveedor.copyWith(idProveedor: idNuevoProveedor);
-        } catch (e) {
-          await conn.query('ROLLBACK');
-          rethrow;
+        });
+      } catch (e) {
+        intentos++;
+        _manejarError('crear proveedor (intento $intentos)', e);
+
+        // Determinar si es un error temporal
+        bool esErrorTemporal = _esErrorTemporal(e);
+
+        if (intentos >= maxIntentos || !esErrorTemporal) {
+          AppLogger.error(
+            'Todos los intentos de crear proveedor fallaron o no es un error temporal',
+          );
+          throw Exception('Error al crear proveedor: $e');
         }
-      });
-    } catch (e) {
-      _manejarError('crear proveedor', e);
-      throw Exception('Error al crear proveedor: $e');
+
+        // Esperar con backoff exponencial antes de reintentar
+        final tiempoEspera = Duration(seconds: 2 * (1 << intentos));
+        AppLogger.info('Reintentando en ${tiempoEspera.inSeconds} segundos...');
+        await Future.delayed(tiempoEspera);
+      }
     }
+
+    // Esta línea no debería alcanzarse, pero por seguridad
+    throw Exception(
+      "No se pudo crear el proveedor después de múltiples intentos",
+    );
+  }
+
+  /// Determina si un error es temporal y se puede reintentar
+  bool _esErrorTemporal(dynamic e) {
+    final error = e.toString().toLowerCase();
+    return error.contains('timeout') ||
+        error.contains('connection') ||
+        error.contains('socket') ||
+        error.contains('mysql') ||
+        error.contains('network') ||
+        error.contains('recurso ocupado') ||
+        error.contains('deadlock') ||
+        error.contains('no se pudo conectar');
   }
 
   /// Actualiza un proveedor existente usando procedimiento almacenado
@@ -148,36 +184,29 @@ class ProveedoresService {
     int? usuarioModificacion,
   }) async {
     try {
-      return await _db.withConnection((conn) async {
+      return await _db.withTransaction((conn) async {
         AppLogger.info('Actualizando proveedor ID: ${proveedor.idProveedor}');
 
-        await conn.query('START TRANSACTION');
-        try {
-          final idUsuarioReal = await _asegurarUsuarioAdministrador(
-            usuarioModificacion,
-          );
+        final idUsuarioReal = await _asegurarUsuarioAdministrador(
+          usuarioModificacion,
+        );
 
-          await conn
-              .query('CALL ActualizarProveedor(?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-                proveedor.idProveedor,
-                proveedor.nombre,
-                proveedor.nombreEmpresa,
-                proveedor.nombreContacto,
-                proveedor.direccion,
-                proveedor.telefono,
-                proveedor.correo,
-                proveedor.tipoServicio,
-                idUsuarioReal,
-              ]);
+        await conn
+            .query('CALL ActualizarProveedor(?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+              proveedor.idProveedor,
+              proveedor.nombre,
+              proveedor.nombreEmpresa,
+              proveedor.nombreContacto,
+              proveedor.direccion,
+              proveedor.telefono,
+              proveedor.correo,
+              proveedor.tipoServicio,
+              idUsuarioReal,
+            ]);
 
-          await conn.query('COMMIT');
-          AppLogger.info(
-            'Proveedor ${proveedor.idProveedor} actualizado exitosamente',
-          );
-        } catch (e) {
-          await conn.query('ROLLBACK');
-          rethrow;
-        }
+        AppLogger.info(
+          'Proveedor ${proveedor.idProveedor} actualizado exitosamente',
+        );
       });
     } catch (e) {
       _manejarError('actualizar proveedor', e);
@@ -188,7 +217,16 @@ class ProveedoresService {
   /// Obtiene una conexión activa a la base de datos
   Future<dynamic> verificarConexion() async {
     try {
-      return await _db.connection;
+      // Verificar que la conexión esté activa con un query simple
+      final conn = await _db.connection;
+      final result = await conn.query('SELECT 1 as test');
+      await _db.releaseConnection(conn);
+
+      if (result.isEmpty || result.first['test'] != 1) {
+        throw Exception('La conexión no está respondiendo correctamente');
+      }
+
+      return true;
     } catch (e) {
       _manejarError('verificar conexión', e);
       throw Exception('Error al establecer conexión con la base de datos: $e');
@@ -201,27 +239,20 @@ class ProveedoresService {
     int? usuarioModificacion,
   }) async {
     try {
-      return await _db.withConnection((conn) async {
+      return await _db.withTransaction((conn) async {
         AppLogger.info('Inactivando proveedor con ID: $idProveedor');
 
-        await conn.query('START TRANSACTION');
-        try {
-          final idUsuarioReal = await _asegurarUsuarioAdministrador(
-            usuarioModificacion,
-          );
+        final idUsuarioReal = await _asegurarUsuarioAdministrador(
+          usuarioModificacion,
+        );
 
-          // Usar el procedimiento almacenado para inactivar proveedor
-          await conn.query('CALL InactivarProveedor(?, ?)', [
-            idProveedor,
-            idUsuarioReal,
-          ]);
+        // Usar el procedimiento almacenado para inactivar proveedor
+        await conn.query('CALL InactivarProveedor(?, ?)', [
+          idProveedor,
+          idUsuarioReal,
+        ]);
 
-          await conn.query('COMMIT');
-          AppLogger.info('Proveedor ID:$idProveedor inactivado correctamente');
-        } catch (e) {
-          await conn.query('ROLLBACK');
-          rethrow;
-        }
+        AppLogger.info('Proveedor ID:$idProveedor inactivado correctamente');
       });
     } catch (e) {
       _manejarError('inactivar proveedor', e);
@@ -265,27 +296,20 @@ class ProveedoresService {
     int? usuarioModificacion,
   }) async {
     try {
-      return await _db.withConnection((conn) async {
+      return await _db.withTransaction((conn) async {
         AppLogger.info('Reactivando proveedor con ID: $idProveedor');
 
-        await conn.query('START TRANSACTION');
-        try {
-          final idUsuarioReal = await _asegurarUsuarioAdministrador(
-            usuarioModificacion,
-          );
+        final idUsuarioReal = await _asegurarUsuarioAdministrador(
+          usuarioModificacion,
+        );
 
-          // Usar el procedimiento almacenado para reactivar proveedor
-          await conn.query('CALL ReactivarProveedor(?, ?)', [
-            idProveedor,
-            idUsuarioReal,
-          ]);
+        // Usar el procedimiento almacenado para reactivar proveedor
+        await conn.query('CALL ReactivarProveedor(?, ?)', [
+          idProveedor,
+          idUsuarioReal,
+        ]);
 
-          await conn.query('COMMIT');
-          AppLogger.info('Proveedor ID:$idProveedor reactivado correctamente');
-        } catch (e) {
-          await conn.query('ROLLBACK');
-          rethrow;
-        }
+        AppLogger.info('Proveedor ID:$idProveedor reactivado correctamente');
       });
     } catch (e) {
       _manejarError('reactivar proveedor', e);

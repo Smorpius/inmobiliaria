@@ -11,6 +11,7 @@ import 'vistas/empleados/lista/lista_empleados_screen.dart';
 import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
+import 'vistas/documentos/documentos_screen.dart'; // Importar la nueva pantalla
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -153,6 +154,59 @@ class MyApp extends ConsumerWidget {
         '/proveedores': (context) => const ListaProveedoresScreen(),
         '/ventas': (context) => const ListaVentasScreen(),
         '/ventas/reportes': (context) => const ReportesVentasScreen(),
+        '/documentos':
+            (context) => const DocumentosScreen(), // Nueva ruta añadida
+      },
+      // Manejador para rutas desconocidas
+      onUnknownRoute: (settings) {
+        AppLogger.warning(
+          'Intento de acceder a ruta desconocida: ${settings.name}',
+        );
+        return MaterialPageRoute(
+          builder:
+              (context) => Scaffold(
+                appBar: AppBar(
+                  title: const Text('Página no encontrada'),
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 80,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'La página solicitada no existe',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'No se pudo encontrar la ruta: ${settings.name}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton(
+                        onPressed:
+                            () => Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/',
+                              (route) => false,
+                            ),
+                        child: const Text('Volver al inicio'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+        );
       },
     );
   }

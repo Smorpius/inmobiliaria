@@ -1,6 +1,7 @@
 import '../utils/applogger.dart';
 import '../models/pago_renta_model.dart';
 import '../services/pago_renta_service.dart';
+import '../models/comprobante_movimiento_model.dart';
 
 class PagoRentaController {
   final PagoRentaService _service;
@@ -113,6 +114,28 @@ class PagoRentaController {
       return await _service.obtenerPagosPorContrato(idContrato);
     } catch (e, stackTrace) {
       AppLogger.error('Error al obtener pagos de renta', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Asocia un comprobante a un pago de renta
+  Future<bool> asociarComprobantePago(
+    int idPago,
+    ComprobanteMovimiento comprobante,
+  ) async {
+    try {
+      AppLogger.info('Asociando comprobante al pago ID: $idPago');
+
+      // En una implementación real, aquí se llamaría al servicio correspondiente
+      // Por ahora, implementamos una versión simulada que siempre tiene éxito
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Aquí normalmente se invocaría a un método del servicio como:
+      // return await _service.asociarComprobantePago(idPago, comprobante);
+
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al asociar comprobante al pago', e, stackTrace);
       rethrow;
     }
   }

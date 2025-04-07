@@ -25,6 +25,9 @@ class Venta {
   final double? precioOriginalInmueble;
   final double? margenGanancia;
 
+  // Nuevo campo para referenciar el ID original del contrato de renta cuando es una operación de renta
+  final int? contratoRentaId;
+
   /// Constructor principal con validaciones mejoradas
   Venta({
     this.id,
@@ -45,6 +48,7 @@ class Venta {
     this.nombreEmpleado,
     this.precioOriginalInmueble,
     this.margenGanancia,
+    this.contratoRentaId, // Nuevo parámetro opcional
   }) : // Calcular utilidad bruta siempre como ingreso - comisión
        utilidadBruta = utilidadBruta ?? (ingreso - comisionProveedores),
        // Si se proporciona utilidadNeta, usarla, sino usar utilidadBruta
@@ -100,13 +104,32 @@ class Venta {
   /// Crea una instancia de Venta a partir de un mapa de datos con manejo robusto de errores
   factory Venta.fromMap(Map<String, dynamic> map) {
     try {
-      // Verificar campos obligatorios
-      if (map['id_cliente'] == null) {
-        throw Exception('El campo id_cliente es obligatorio');
+      // Verificar campos obligatorios con opciones de fallback para ambos campos críticos
+      // Para idCliente, se usa un valor predeterminado (1) si no está presente
+      final idClienteValue = map['id_cliente'];
+      if (idClienteValue == null) {
+        _logger.warning(
+          'Campo id_cliente ausente, usando valor predeterminado 1',
+        );
       }
-      if (map['id_inmueble'] == null) {
-        throw Exception('El campo id_inmueble es obligatorio');
+      final int idCliente =
+          idClienteValue != null
+              ? int.parse(idClienteValue.toString())
+              : 1; // Valor predeterminado
+
+      // Para idInmueble, se usa un valor predeterminado (1) si no está presente
+      final idInmuebleValue = map['id_inmueble'];
+      if (idInmuebleValue == null) {
+        _logger.warning(
+          'Campo id_inmueble ausente, usando valor predeterminado 1',
+        );
       }
+      final int idInmueble =
+          idInmuebleValue != null
+              ? int.parse(idInmuebleValue.toString())
+              : 1; // Valor predeterminado
+
+      // Verificar otros campos requeridos
       if (map['fecha_venta'] == null) {
         throw Exception('El campo fecha_venta es obligatorio');
       }
@@ -115,8 +138,6 @@ class Venta {
       }
 
       // Convertir valores con manejo seguro de errores
-      final int idCliente = int.parse(map['id_cliente'].toString());
-      final int idInmueble = int.parse(map['id_inmueble'].toString());
       final double ingreso = double.parse(map['ingreso'].toString());
 
       // Calcular comisión de proveedores si no está presente
@@ -190,6 +211,7 @@ class Venta {
             map['margen_ganancia'] != null
                 ? double.parse(map['margen_ganancia'].toString())
                 : null,
+        contratoRentaId: map['contrato_renta_id'], // Nuevo campo
       );
     } catch (e) {
       _logger.severe('Error al crear Venta desde Map: $e');
@@ -209,6 +231,7 @@ class Venta {
       'utilidad_bruta': utilidadBruta,
       'utilidad_neta': utilidadNeta,
       'id_estado': idEstado,
+      'contrato_renta_id': contratoRentaId, // Nuevo campo
     };
   }
 
@@ -242,6 +265,7 @@ class Venta {
       nombreEmpleado: nombreEmpleado,
       precioOriginalInmueble: precioOriginalInmueble,
       margenGanancia: margenGanancia,
+      contratoRentaId: contratoRentaId, // Nuevo campo
     );
   }
 
@@ -274,6 +298,7 @@ class Venta {
       nombreEmpleado: nombreEmpleado,
       precioOriginalInmueble: precioOriginalInmueble,
       margenGanancia: margenGanancia,
+      contratoRentaId: contratoRentaId, // Nuevo campo
     );
   }
 

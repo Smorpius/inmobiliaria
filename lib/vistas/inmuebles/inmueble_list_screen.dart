@@ -1,7 +1,7 @@
 import 'add_inmueble_screen.dart';
 import 'inmueble_edit_screen.dart';
 import '../../utils/applogger.dart';
-import 'inmueble_detail_screen.dart';
+import 'inmueble_detalle_screen.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../models/inmueble_model.dart';

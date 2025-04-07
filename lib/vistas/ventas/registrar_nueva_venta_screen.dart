@@ -15,8 +15,7 @@ class RegistrarNuevaVentaScreen extends ConsumerStatefulWidget {
 
 class _RegistrarNuevaVentaScreenState
     extends ConsumerState<RegistrarNuevaVentaScreen> {
-  final _ingresoController = TextEditingController();
-  final _comisionProveedoresController = TextEditingController();
+  // Eliminados los controladores no utilizados: _ingresoController y _comisionProveedoresController
   int? _inmuebleSeleccionado;
   String _filtroTipo = 'Todos';
   String _busqueda = '';
@@ -35,8 +34,6 @@ class _RegistrarNuevaVentaScreenState
 
   @override
   void dispose() {
-    _ingresoController.dispose();
-    _comisionProveedoresController.dispose();
     super.dispose();
   }
 
@@ -49,13 +46,13 @@ class _RegistrarNuevaVentaScreenState
       if (inmueble.tipoOperacion == 'venta' ||
           inmueble.tipoOperacion == 'ambos') {
         if (inmueble.precioVentaFinal != null) {
-          _ingresoController.text = inmueble.precioVentaFinal!.toString();
+          // Código relacionado con _ingresoController eliminado
         } else if (inmueble.precioVenta != null) {
-          _ingresoController.text = inmueble.precioVenta!.toString();
+          // Código relacionado con _ingresoController eliminado
         }
       } else if (inmueble.tipoOperacion == 'renta') {
         if (inmueble.precioRenta != null) {
-          _ingresoController.text = inmueble.precioRenta!.toString();
+          // Código relacionado con _ingresoController eliminado
         }
       }
     });
@@ -70,6 +67,14 @@ class _RegistrarNuevaVentaScreenState
     }
 
     if (_inmuebleDetalle == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudieron cargar los detalles del inmueble. Intente seleccionarlo nuevamente.',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -94,9 +99,22 @@ class _RegistrarNuevaVentaScreenState
             (context) => RegistrarOperacionScreen(inmueble: _inmuebleDetalle!),
       ),
     ).then((result) {
-      if (result == true && mounted) {
+      if (!mounted) return;
+
+      if (result == true) {
+        // Operación exitosa, regresar a la pantalla anterior con resultado positivo
         Navigator.of(context).pop(true);
+      } else if (result == false) {
+        // Operación cancelada o fallida
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('La operación no pudo completarse'),
+            backgroundColor: Colors.orange,
+          ),
+        );
       }
+      // Si result es null, significa que se regresó sin completar la operación
+      // No hacemos nada, seguimos en la pantalla actual
     });
   }
 
@@ -272,13 +290,17 @@ class _RegistrarNuevaVentaScreenState
                     final precioFormateado =
                         inmueble.tipoOperacion == 'venta' ||
                                 inmueble.tipoOperacion == 'ambos'
-                            ? formatCurrency.format(inmueble.precioVenta)
-                            : "${formatCurrency.format(inmueble.precioRenta)}/mes";
+                            ? (inmueble.precioVenta != null
+                                ? formatCurrency.format(inmueble.precioVenta!)
+                                : "No disponible")
+                            : (inmueble.precioRenta != null
+                                ? "${formatCurrency.format(inmueble.precioRenta!)}/mes"
+                                : "Precio no disponible");
 
                     // Formatear precio final si existe
                     final precioFinalFormateado =
                         inmueble.precioVentaFinal != null
-                            ? formatCurrency.format(inmueble.precioVentaFinal)
+                            ? formatCurrency.format(inmueble.precioVentaFinal!)
                             : "No calculado";
 
                     return Card(

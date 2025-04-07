@@ -1,4 +1,5 @@
 import '../utils/applogger.dart';
+import 'package:logging/logging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Gestiona automáticamente estados de carga, error y datos,
 /// con optimizaciones para prevenir congelamientos y mejorar la experiencia.
 class AsyncValueWidget<T> extends StatelessWidget {
+  static final Logger _logger = Logger('AsyncValueWidget');
+
   /// El valor asíncrono a mostrar
   final AsyncValue<T> value;
 
@@ -91,8 +94,12 @@ class AsyncValueWidget<T> extends StatelessWidget {
         try {
           AppLogger.error('Error en AsyncValueWidget', error, stackTrace);
         } catch (_) {
-          // Si AppLogger no está disponible, usar log estándar
-          debugPrint('Error en AsyncValueWidget: $error');
+          // Si AppLogger no está disponible, usar el logger
+          _logger.severe(
+            'Error en AsyncValueWidget: $error',
+            error,
+            stackTrace,
+          );
         }
 
         // Usar el widget de error personalizado si existe

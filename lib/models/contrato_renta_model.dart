@@ -36,10 +36,22 @@ class ContratoRenta {
   // Crear desde un mapa (para deserialización)
   factory ContratoRenta.fromMap(Map<String, dynamic> map) {
     try {
+      // Manejar explícitamente el campo condiciones_adicionales que puede ser un Blob
+      String? condiciones;
+      if (map['condiciones_adicionales'] != null) {
+        // Si es un Blob o un tipo no string, convertirlo a String
+        if (map['condiciones_adicionales'] is! String) {
+          condiciones = map['condiciones_adicionales'].toString();
+        } else {
+          condiciones = map['condiciones_adicionales'];
+        }
+      }
+
       return ContratoRenta(
         id: map['id_contrato'],
-        idInmueble: map['id_inmueble'],
-        idCliente: map['id_cliente'],
+        idInmueble:
+            map['id_inmueble'] ?? 1, // Usar valor por defecto si es nulo
+        idCliente: map['id_cliente'] ?? 1, // Usar valor por defecto si es nulo
         fechaInicio:
             map['fecha_inicio'] is DateTime
                 ? map['fecha_inicio']
@@ -49,7 +61,7 @@ class ContratoRenta {
                 ? map['fecha_fin']
                 : DateTime.parse(map['fecha_fin'].toString()),
         montoMensual: double.parse(map['monto_mensual'].toString()),
-        condicionesAdicionales: map['condiciones_adicionales'],
+        condicionesAdicionales: condiciones, // Usar el valor convertido
         idEstado: map['id_estado'] ?? 1,
         fechaRegistro:
             map['fecha_registro'] != null
@@ -61,8 +73,12 @@ class ContratoRenta {
         apellidoCliente: map['apellido_cliente'],
         estadoRenta: map['estado_renta'],
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       _logger.severe('Error al crear ContratoRenta desde Map: $e');
+      _logger.severe(
+        'Stack trace: $stackTrace',
+      ); // Incluir el stacktrace para mejor diagnóstico
+      _logger.severe('Map: $map'); // Loggear el mapa para ver qué datos vienen
       rethrow;
     }
   }
@@ -115,10 +131,24 @@ class ContratoRenta {
 
   // Obtener nombre completo del cliente, si está disponible
   String? get clienteNombreCompleto {
-    if (nombreCliente != null || apellidoCliente != null) {
-      return '$nombreCliente $apellidoCliente'.trim();
+    // Primero verificamos si ambos existen
+    if (nombreCliente != null && apellidoCliente != null) {
+      // Si ambos tienen contenido, los concatenamos
+      if (nombreCliente!.isNotEmpty && apellidoCliente!.isNotEmpty) {
+        return '$nombreCliente $apellidoCliente'.trim();
+      }
     }
-    return null;
+
+    // Si solo uno existe y tiene contenido, lo devolvemos
+    if (nombreCliente != null && nombreCliente!.isNotEmpty) {
+      return nombreCliente;
+    }
+    if (apellidoCliente != null && apellidoCliente!.isNotEmpty) {
+      return apellidoCliente;
+    }
+
+    // Si llegamos aquí, no hay información del cliente
+    return 'Cliente no especificado';
   }
 
   /// Calcula la duración total del contrato en meses

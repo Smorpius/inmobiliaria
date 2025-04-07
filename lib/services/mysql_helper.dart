@@ -38,7 +38,7 @@ class DatabaseService {
   static const int maxRetries = 2;
   static const int initialRetryDelay = 3000;
   static const Duration connectionTimeout = Duration(seconds: 30);
-  static const Duration queryTimeout = Duration(seconds: 45);
+  static const Duration queryTimeout = Duration(seconds: 90);
   static const Duration estabilizacionPeriod = Duration(seconds: 5);
 
   // Pool de conexiones

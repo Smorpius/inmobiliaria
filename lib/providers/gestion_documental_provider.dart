@@ -195,7 +195,7 @@ class GestionDocumentalService {
     int? idUsuario,
   }) {
     return historialTransaccionService.registrarCambio(
-      tipoEntidad: tipoEntidad,
+      tipoEntidadStr: tipoEntidad,
       idEntidad: idEntidad,
       campoModificado: campoModificado,
       valorAnterior: valorAnterior,
@@ -213,7 +213,7 @@ class GestionDocumentalService {
     int? idUsuario,
   }) {
     return historialTransaccionService.registrarCambioSiDiferente(
-      tipoEntidad: tipoEntidad,
+      tipoEntidadStr: tipoEntidad,
       idEntidad: idEntidad,
       campoModificado: campoModificado,
       valorAnterior: valorAnterior,

@@ -1,27 +1,21 @@
-import 'package:intl/intl.dart';
+import 'comprobante_base_model.dart';
 import 'package:logging/logging.dart';
 
 /// Modelo que representa un comprobante o documento adjunto a una venta
-class ComprobanteVenta {
+class ComprobanteVenta extends ComprobanteBase {
   static final Logger _logger = Logger('ComprobanteVentaModel');
 
-  final int? id;
   final int idVenta;
-  final String rutaArchivo;
-  final String tipoArchivo; // 'imagen', 'pdf', 'documento'
-  final String? descripcion;
-  final bool esPrincipal;
-  final DateTime fechaCarga;
 
   ComprobanteVenta({
-    this.id,
+    super.id,
     required this.idVenta,
-    required this.rutaArchivo,
-    required this.tipoArchivo,
-    this.descripcion,
-    this.esPrincipal = false,
-    DateTime? fechaCarga,
-  }) : fechaCarga = fechaCarga ?? DateTime.now();
+    required super.rutaArchivo,
+    required super.tipoArchivo,
+    super.descripcion,
+    super.esPrincipal = false,
+    super.fechaCarga,
+  });
 
   /// Crea un objeto ComprobanteVenta desde un mapa (para deserialización desde BD)
   factory ComprobanteVenta.fromMap(Map<String, dynamic> map) {
@@ -45,6 +39,7 @@ class ComprobanteVenta {
   }
 
   /// Convierte el objeto a un mapa para serialización
+  @override
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id_comprobante': id,
@@ -77,29 +72,8 @@ class ComprobanteVenta {
     );
   }
 
-  /// Obtiene la extensión del archivo desde la ruta
-  String get extension {
-    final parts = rutaArchivo.split('.');
-    return parts.length > 1 ? parts.last.toLowerCase() : '';
-  }
-
-  /// Determina si el archivo es una imagen basado en su extensión o tipo
-  bool get esImagen {
-    if (tipoArchivo == 'imagen') return true;
-    final ext = extension;
-    return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext);
-  }
-
-  /// Determina si el archivo es un PDF
-  bool get esPDF {
-    if (tipoArchivo == 'pdf') return true;
-    return extension == 'pdf';
-  }
-
   /// Obtiene la fecha de registro formateada (alias de fechaCarga)
-  String get fechaRegistro {
-    return DateFormat('dd/MM/yyyy HH:mm').format(fechaCarga);
-  }
+  String get fechaRegistro => fechaFormateada;
 
   @override
   String toString() =>

@@ -1,6 +1,9 @@
 import 'package:intl/intl.dart';
+import 'package:logging/logging.dart';
 
 class MovimientoRenta {
+  static final Logger _logger = Logger('MovimientoRenta');
+
   final int? id;
   final int idInmueble;
   final int idCliente;
@@ -38,6 +41,24 @@ class MovimientoRenta {
   }) : fechaRegistro = fechaRegistro ?? DateTime.now();
 
   factory MovimientoRenta.fromMap(Map<String, dynamic> map) {
+    // Convertir comentarios que vienen como Blob a String
+    String? comentariosStr;
+    if (map['comentarios'] != null) {
+      if (map['comentarios'].runtimeType.toString().contains('Blob')) {
+        try {
+          // Si es un tipo Blob, intentar convertir a String
+          final blob = map['comentarios'];
+          comentariosStr = String.fromCharCodes(blob.toBytes());
+        } catch (e) {
+          _logger.warning('Error al convertir Blob a String: $e');
+          comentariosStr = null;
+        }
+      } else {
+        // Si no es Blob, usar directamente como String
+        comentariosStr = map['comentarios'].toString();
+      }
+    }
+
     return MovimientoRenta(
       id: map['id_movimiento'],
       idInmueble: map['id_inmueble'],
@@ -50,7 +71,7 @@ class MovimientoRenta {
               ? map['fecha_movimiento']
               : DateTime.parse(map['fecha_movimiento']),
       mesCorrespondiente: map['mes_correspondiente'] ?? '',
-      comentarios: map['comentarios'],
+      comentarios: comentariosStr,
       idEstado: map['id_estado'] ?? 1,
       fechaRegistro:
           map['fecha_registro'] is DateTime

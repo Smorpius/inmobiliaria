@@ -226,6 +226,32 @@ class ContratoRentaController {
     });
   }
 
+  /// Obtiene un contrato específico por su ID
+  Future<ContratoRenta?> obtenerContratoPorId(int idContrato) async {
+    return _ejecutarOperacion('obtener contrato por id', () async {
+      try {
+        if (idContrato <= 0) {
+          throw Exception('ID de contrato inválido');
+        }
+
+        return await dbHelper.withConnection((conn) async {
+          final results = await conn.query('CALL ObtenerContratoPorId(?)', [
+            idContrato,
+          ]);
+
+          if (results.isEmpty || results.first.isEmpty) {
+            return null;
+          }
+
+          return ContratoRenta.fromMap(results.first.fields);
+        });
+      } catch (e, stackTrace) {
+        AppLogger.error('Error al obtener contrato por ID', e, stackTrace);
+        return null;
+      }
+    });
+  }
+
   /// Método auxiliar para ejecutar operaciones con manejo de errores consistente
   Future<T> _ejecutarOperacion<T>(
     String descripcion,
