@@ -9,28 +9,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'utils/applogger.dart'; // Importación del AppLogger
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
 import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
+import 'utils/pdf_font_helper.dart'; // Importación de PdfFontHelper
 import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
 import 'vistas/documentos/documentos_screen.dart'; // Importar la nueva pantalla
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    AppLogger.init(
+      level: LogLevel.info,
+    ); // Cambiado a "info" para mostrar solo información importante
 
-  // Inicializar AppLogger con nivel WARNING para reducir la cantidad de logs
-  AppLogger.init(level: LogLevel.warning);
+    // Inicializar y precargar fuentes para PDFs con timeout
+    try {
+      await PdfFontHelper.init();
+      AppLogger.info('Sistema de fuentes para PDFs inicializado correctamente');
+    } catch (e) {
+      AppLogger.error(
+        'Error al inicializar sistema de fuentes para PDFs',
+        e,
+        StackTrace.current,
+      );
+    }
 
-  // Opcional: personaliza cómo se muestran los logs
-  // AppLogger.logOutput = (message) {
-  //   final timestamp = DateTime.now().toString().split('.').first;
-  //   print('[$timestamp] $message');
-  // };
+    // Inicializar datos de fecha para español
+    await initializeDateFormatting('es_ES', null);
+    AppLogger.info('Inicialización de formato de fecha completada');
 
-  // Inicializar datos de fecha para español
-  await initializeDateFormatting('es_ES', null);
-  AppLogger.info('Inicialización de formato de fecha completada');
-
-  // Ejecutar la aplicación con ProviderScope sin overrides
-  runApp(const ProviderScope(child: MyApp()));
+    runApp(const ProviderScope(child: MyApp()));
+  } catch (e, stack) {
+    AppLogger.error('ERROR CRÍTICO DE INICIALIZACIÓN', e, stack);
+  }
 }
 
 class MyApp extends ConsumerWidget {

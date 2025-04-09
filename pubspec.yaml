@@ -40,7 +40,15 @@ dependencies:
   fl_chart: ^0.70.2
   mysql_client: ^0.0.27
   synchronized: ^3.3.1
-  file_picker: ^5.5.0           # Selector de archivos PDF y otros tipos
+  
+  # Reemplazando file_picker con file_selector (más estable)
+  file_selector: ^1.0.3  # API unificada para selección de archivos en todas las plataformas
+  file_selector_android: ^0.5.0
+  file_selector_ios: ^0.5.3+1  # Versión corregida según la sugerencia
+  file_selector_linux: ^0.9.2
+  file_selector_macos: ^0.9.3+1
+  file_selector_windows: ^0.9.3
+  
   pdf: ^3.10.7                  # Para generar y manipular PDFs
   printing: ^5.11.1             # Para vista previa e impresión de PDFs
   open_file: ^3.5.10
@@ -55,6 +63,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
+  
   assets:
     - assets/logo.png
+    - assets/fonts/
+
+  fonts:
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf

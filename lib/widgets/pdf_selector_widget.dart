@@ -1,7 +1,7 @@
 import 'dart:io';
 import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:file_selector/file_selector.dart';
 
 class PdfSelectorWidget extends StatefulWidget {
   final Function(File, String) onFileSelected;
@@ -59,14 +59,13 @@ class _PdfSelectorWidgetState extends State<PdfSelectorWidget> {
     });
 
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
+      final typeGroup = XTypeGroup(label: 'PDFs', extensions: ['pdf']);
 
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final fileName = result.files.single.name;
+      final XFile? result = await openFile(acceptedTypeGroups: [typeGroup]);
+
+      if (result != null) {
+        final file = File(result.path);
+        final fileName = result.name;
 
         setState(() {
           _pdfFile = file;
@@ -174,7 +173,6 @@ class _PdfSelectorWidgetState extends State<PdfSelectorWidget> {
                       _pdfFile = null;
                       _fileName = null;
                     });
-                    // Notify that file was removed
                     widget.onFileSelected(File(''), '');
                   },
                 ),

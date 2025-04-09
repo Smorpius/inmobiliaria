@@ -278,16 +278,32 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.1"
-  file_picker:
+  file_selector:
     dependency: "direct main"
     description:
-      name: file_picker
-      sha256: be325344c1f3070354a1d84a231a1ba75ea85d413774ec4bdf444c023342e030
+      name: file_selector
+      sha256: "5019692b593455127794d5718304ff1ae15447dea286cdda9f0db2a796a1b828"
       url: "https://pub.dev"
     source: hosted
-    version: "5.5.0"
+    version: "1.0.3"
+  file_selector_android:
+    dependency: "direct main"
+    description:
+      name: file_selector_android
+      sha256: f3a3d48a36d1640b4dca22a086f26b426c246925a80eddc2953120775fbcf86a
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.1+13"
+  file_selector_ios:
+    dependency: "direct main"
+    description:
+      name: file_selector_ios
+      sha256: "94b98ad950b8d40d96fee8fa88640c2e4bd8afcdd4817993bd04e20310f45420"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.3+1"
   file_selector_linux:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: file_selector_linux
       sha256: "54cbbd957e1156d29548c7d9b9ec0c0ebb6de0a90452198683a7d23aed617a33"
@@ -295,7 +311,7 @@ packages:
     source: hosted
     version: "0.9.3+2"
   file_selector_macos:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: file_selector_macos
       sha256: "271ab9986df0c135d45c3cdb6bd0faa5db6f4976d3e4b437cf7d0f258d941bfc"
@@ -310,8 +326,16 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.6.2"
-  file_selector_windows:
+  file_selector_web:
     dependency: transitive
+    description:
+      name: file_selector_web
+      sha256: c4c0ea4224d97a60a7067eca0c8fd419e708ff830e0c83b11a48faf566cec3e7
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.4+2"
+  file_selector_windows:
+    dependency: "direct main"
     description:
       name: file_selector_windows
       sha256: "320fcfb6f33caa90f0b58380489fc5ac05d99ee94b61aa96ec2bff0ba81d3c2b"
@@ -1338,14 +1362,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.2"
-  win32:
-    dependency: transitive
-    description:
-      name: win32
-      sha256: dc6ecaa00a7c708e5b4d10ee7bec8c270e9276dfcab1783f57e9962d7884305f
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.12.0"
   xdg_directories:
     dependency: transitive
     description:

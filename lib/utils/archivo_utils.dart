@@ -5,33 +5,47 @@ import 'package:path_provider/path_provider.dart';
 
 /// Clase de utilidades para manejo de archivos y rutas
 class ArchivoUtils {
+  static const String _dirComprobantes = 'comprobantes';
+  static const String _dirContratos = 'contratos';
+  static const String _dirTemp = 'temp';
+
   /// Normaliza una ruta de archivo para garantizar consistencia
   static String normalizarRuta(String rutaArchivo) {
+    if (rutaArchivo.isEmpty) return '';
+
     // Convertir a formato estándar con barras diagonales forward
     String normalizada = rutaArchivo
         .replaceAll('\\\\', '/')
         .replaceAll('\\', '/');
 
-    // Asegurarse que tiene el prefijo correcto
-    if (!normalizada.startsWith('/') &&
-        !normalizada.startsWith('comprobantes/') &&
-        normalizada.contains('comprobantes/')) {
-      normalizada = 'comprobantes/${normalizada.split('comprobantes/')[1]}';
+    // Eliminar caracteres problemáticos y espacios extras
+    normalizada = normalizada.trim().replaceAll('//', '/').replaceAll(' ', '_');
+
+    // Extraer nombre del archivo si está dentro de un directorio conocido
+    final directoriosConocidos = [_dirComprobantes, _dirContratos, _dirTemp];
+    for (final dir in directoriosConocidos) {
+      if (normalizada.contains('$dir/')) {
+        final partes = normalizada.split('$dir/');
+        if (partes.length > 1) {
+          // Tomar la última parte después del directorio conocido
+          normalizada = '$dir/${partes.last}';
+          break;
+        }
+      }
     }
 
-    // Si no tiene el prefijo comprobantes/ y no es una ruta absoluta, añadirlo
+    // Si no tiene un prefijo de directorio conocido, añadir el directorio por defecto
     if (!normalizada.startsWith('/') &&
-        !normalizada.startsWith('comprobantes/') &&
-        normalizada.isNotEmpty) {
-      normalizada = 'comprobantes/$normalizada';
+        !directoriosConocidos.any((dir) => normalizada.startsWith('$dir/'))) {
+      normalizada = '$_dirComprobantes/$normalizada';
     }
 
-    // Eliminar duplicados de "comprobantes/comprobantes/"
-    while (normalizada.contains('comprobantes/comprobantes/')) {
-      normalizada = normalizada.replaceAll(
-        'comprobantes/comprobantes/',
-        'comprobantes/',
-      );
+    // Eliminar duplicados de directorios
+    for (final dir in directoriosConocidos) {
+      final patronDuplicado = '$dir/$dir/';
+      while (normalizada.contains(patronDuplicado)) {
+        normalizada = normalizada.replaceAll(patronDuplicado, '$dir/');
+      }
     }
 
     return normalizada;
@@ -49,17 +63,30 @@ class ArchivoUtils {
     try {
       final baseDir = await getApplicationDocumentsDirectory();
       final rutaNormalizada = normalizarRuta(rutaRelativa);
+      final nombreArchivo = path.basename(rutaRelativa);
 
-      // Lista de posibles ubicaciones a probar
+      // Lista de posibles ubicaciones a probar en orden de prioridad
       final ubicaciones = [
+        // 1. Ruta normalizada completa
         path.join(baseDir.path, rutaNormalizada),
-        path.join(baseDir.path, path.basename(rutaRelativa)),
-        path.join(baseDir.path, 'comprobantes', path.basename(rutaRelativa)),
+
+        // 2. Solo el nombre del archivo en la raíz
+        path.join(baseDir.path, nombreArchivo),
+
+        // 3. El nombre del archivo en cada directorio conocido
+        path.join(baseDir.path, _dirComprobantes, nombreArchivo),
+        path.join(baseDir.path, _dirContratos, nombreArchivo),
+        path.join(baseDir.path, _dirTemp, nombreArchivo),
+
+        // 4. Buscar en subdirectorios comunes
+        path.join(baseDir.path, _dirComprobantes, 'movimientos', nombreArchivo),
+        path.join(baseDir.path, _dirComprobantes, 'ventas', nombreArchivo),
+        path.join(baseDir.path, _dirComprobantes, 'rentas', nombreArchivo),
       ];
 
-      // Registrar para depuración
+      // Registrar para depuración con nivel detalle disminuido
       AppLogger.info(
-        'Buscando archivo en múltiples ubicaciones: $rutaRelativa',
+        'Verificando archivo en múltiples ubicaciones: $nombreArchivo',
       );
 
       // Verificar cada ubicación
@@ -75,9 +102,49 @@ class ArchivoUtils {
         'No se pudo encontrar el archivo en ninguna ubicación: $rutaRelativa',
       );
       return false;
-    } catch (e) {
-      AppLogger.error('Error al verificar existencia de archivo', e);
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Error al verificar existencia de archivo',
+        e,
+        stackTrace,
+      );
       return false;
+    }
+  }
+
+  /// Busca un archivo por su nombre en múltiples ubicaciones y devuelve la ruta completa
+  static Future<String?> buscarArchivoPorNombre(String nombreArchivo) async {
+    try {
+      final baseDir = await getApplicationDocumentsDirectory();
+
+      // Lista de posibles directorios donde buscar
+      final directorios = [
+        baseDir.path,
+        path.join(baseDir.path, _dirComprobantes),
+        path.join(baseDir.path, _dirContratos),
+        path.join(baseDir.path, _dirTemp),
+        path.join(baseDir.path, _dirComprobantes, 'movimientos'),
+        path.join(baseDir.path, _dirComprobantes, 'ventas'),
+        path.join(baseDir.path, _dirComprobantes, 'rentas'),
+      ];
+
+      // Buscar en todos los directorios
+      for (final directorio in directorios) {
+        final dir = Directory(directorio);
+        if (!(await dir.exists())) continue;
+
+        final archivos = await dir.list().toList();
+        for (final archivo in archivos) {
+          if (archivo is File && path.basename(archivo.path) == nombreArchivo) {
+            return archivo.path;
+          }
+        }
+      }
+
+      return null;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al buscar archivo por nombre', e, stackTrace);
+      return null;
     }
   }
 
@@ -93,19 +160,24 @@ class ArchivoUtils {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final extension = path.extension(archivoTemporal.path).toLowerCase();
 
+      // Sanear el nombre base eliminando caracteres especiales
+      final nombreBaseSaneado = nombreBase
+          .replaceAll(RegExp(r'[^\w\s.-]'), '')
+          .replaceAll(' ', '_');
+
       // Crear un nombre único
-      final nombreUnico = '${nombreBase}_$timestamp$extension';
+      final nombreUnico = '${nombreBaseSaneado}_$timestamp$extension';
 
       // Definir el directorio de destino
       String directorioDestino;
       if (subDirectorio != null && subDirectorio.isNotEmpty) {
         directorioDestino = path.join(
           appDir.path,
-          'comprobantes',
+          _dirComprobantes,
           subDirectorio,
         );
       } else {
-        directorioDestino = path.join(appDir.path, 'comprobantes');
+        directorioDestino = path.join(appDir.path, _dirComprobantes);
       }
 
       // Asegurar que el directorio exista
@@ -129,11 +201,42 @@ class ArchivoUtils {
 
       // Calcular y retornar ruta relativa normalizada
       final rutaRelativa =
-          'comprobantes/${subDirectorio != null ? "$subDirectorio/" : ""}$nombreUnico';
+          '$_dirComprobantes/${subDirectorio != null ? "$subDirectorio/" : ""}$nombreUnico';
       return normalizarRuta(rutaRelativa);
     } catch (e, stack) {
       AppLogger.error('Error al guardar archivo permanente', e, stack);
       throw Exception('No se pudo guardar el archivo: $e');
+    }
+  }
+
+  /// Verifica si el nombre de archivo es un PDF
+  static bool esPDF(String rutaArchivo) {
+    return path.extension(rutaArchivo).toLowerCase() == '.pdf';
+  }
+
+  /// Obtiene el tipo MIME basado en la extensión del archivo
+  static String obtenerTipoMIME(String rutaArchivo) {
+    final ext = path.extension(rutaArchivo).toLowerCase();
+    switch (ext) {
+      case '.pdf':
+        return 'application/pdf';
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.gif':
+        return 'image/gif';
+      case '.doc':
+        return 'application/msword';
+      case '.docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case '.xls':
+        return 'application/vnd.ms-excel';
+      case '.xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default:
+        return 'application/octet-stream';
     }
   }
 }

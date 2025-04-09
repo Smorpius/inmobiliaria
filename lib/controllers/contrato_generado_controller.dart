@@ -65,6 +65,17 @@ class ContratoGeneradoController {
         );
       }
 
+      // Verificar que la referencia existe antes de intentar registrar
+      bool referenciaExiste = await _verificarReferenciaExiste(
+        tipoContrato,
+        idReferencia,
+      );
+      if (!referenciaExiste) {
+        throw Exception(
+          'La referencia especificada no existe o no corresponde al tipo de contrato',
+        );
+      }
+
       return await dbHelper.withConnection((conn) async {
         await conn.query('START TRANSACTION');
         try {
@@ -92,7 +103,73 @@ class ContratoGeneradoController {
             e,
             StackTrace.current,
           );
+          // Mejorar la detección del error específico del procedimiento
+          if (e.toString().contains('La referencia especificada no existe')) {
+            throw Exception(
+              'La referencia especificada no existe o no corresponde al tipo de contrato',
+            );
+          }
           throw Exception('Error al registrar contrato generado: $e');
+        }
+      });
+    });
+  }
+
+  /// Método auxiliar para verificar que la referencia existe
+  Future<bool> _verificarReferenciaExiste(
+    String tipoContrato,
+    int idReferencia,
+  ) async {
+    return await _ejecutarOperacion('verificar referencia existente', () async {
+      return await dbHelper.withConnection((conn) async {
+        try {
+          AppLogger.info(
+            'Verificando referencia para tipo: $tipoContrato, ID: $idReferencia',
+          );
+
+          String tabla =
+              tipoContrato.toLowerCase() == 'venta'
+                  ? 'ventas'
+                  : 'contratos_renta';
+
+          String campo =
+              tipoContrato.toLowerCase() == 'venta'
+                  ? 'id_venta'
+                  : 'id_contrato';
+
+          // Usamos una consulta más robusta que verifica también un estado válido
+          var result = await conn.query(
+            'SELECT COUNT(*) as existe FROM $tabla WHERE $campo = ? AND id_estado > 0',
+            [idReferencia],
+          );
+
+          if (result.isEmpty || result.first['existe'] == null) {
+            AppLogger.warning('Error al verificar referencia: resultado vacío');
+            return false;
+          }
+
+          int existe = result.first['existe'] as int;
+
+          if (existe == 0) {
+            AppLogger.warning(
+              'La referencia no existe: $tipoContrato #$idReferencia',
+            );
+          } else {
+            AppLogger.info(
+              'Referencia verificada correctamente: $tipoContrato #$idReferencia',
+            );
+          }
+
+          return existe > 0;
+        } catch (e) {
+          AppLogger.error(
+            'Error al verificar referencia',
+            e,
+            StackTrace.current,
+          );
+          throw Exception(
+            'Error al verificar la referencia: ${e.toString().split('\n').first}',
+          );
         }
       });
     });
@@ -295,7 +372,7 @@ class ContratoGeneradoController {
       final pdfPath = await _pdfService.generarContratoRentaPDF(
         inmueble: inmueble,
         cliente: cliente,
-        montoMensual: montoMensual,
+        montoRenta: montoMensual,
         fechaInicio: fechaInicio,
         fechaFin: fechaFin,
         condicionesAdicionales: condicionesAdicionales,

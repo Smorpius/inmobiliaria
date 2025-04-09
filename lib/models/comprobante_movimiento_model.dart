@@ -111,8 +111,9 @@ class ComprobanteMovimiento extends ComprobanteBase {
         if (valor == null) return valorPorDefecto;
         if (valor is bool) return valor;
         if (valor is int) return valor == 1;
-        if (valor is String)
+        if (valor is String) {
           return valor == '1' || valor.toLowerCase() == 'true';
+        }
         return valorPorDefecto;
       }
 

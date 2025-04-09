@@ -176,6 +176,22 @@ class MovimientosRentaService {
         // Validaciones básicas
         _validarComprobante(comprobante);
 
+        // Primero verificar que el movimiento existe
+        final verificacionMovimiento = await conn.query(
+          'SELECT COUNT(*) as existe FROM movimientos_renta WHERE id_movimiento = ?',
+          [comprobante.idMovimiento],
+        );
+
+        if (verificacionMovimiento.isEmpty ||
+            verificacionMovimiento.first['existe'] == 0) {
+          throw MovimientoRentaException(
+            'El movimiento con ID ${comprobante.idMovimiento} no existe',
+            stackTrace: StackTrace.current,
+            categoria: ErrorCategoria.noEncontrado,
+            codigoError: 'MOVIMIENTO_NO_EXISTE',
+          );
+        }
+
         // Utilizar versión completa con todos los parámetros necesarios
         await conn.query(
           'CALL AgregarComprobanteMovimiento(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_comprobante_out)',
@@ -199,7 +215,7 @@ class MovimientosRentaService {
           ],
         );
 
-        // Validación más robusta del resultado
+        // Validación más robusta del resultado con manejo de errores específicos
         final result = await conn.query('SELECT @id_comprobante_out as id');
         if (result.isEmpty) {
           await conn.query('ROLLBACK');
@@ -364,12 +380,28 @@ class MovimientosRentaService {
             'ID de movimiento inválido: debe ser mayor a cero',
             stackTrace: StackTrace.current,
             categoria: ErrorCategoria.validacion,
+            codigoError: 'ID_INVALIDO',
           );
         }
 
         AppLogger.info(
           'Obteniendo comprobantes para movimiento: $idMovimiento',
         );
+
+        // Verificar primero que el movimiento existe
+        final verificacion = await conn.query(
+          'SELECT COUNT(*) as existe FROM movimientos_renta WHERE id_movimiento = ?',
+          [idMovimiento],
+        );
+
+        if (verificacion.isEmpty || verificacion.first['existe'] == 0) {
+          throw MovimientoRentaException(
+            'El movimiento con ID $idMovimiento no existe',
+            stackTrace: StackTrace.current,
+            categoria: ErrorCategoria.noEncontrado,
+            codigoError: 'MOVIMIENTO_NO_EXISTE',
+          );
+        }
 
         final results = await conn.query(
           'CALL ObtenerComprobantesPorMovimiento(?)',

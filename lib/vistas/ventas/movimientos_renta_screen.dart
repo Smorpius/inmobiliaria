@@ -129,6 +129,19 @@ class _MovimientosRentaScreenState
             _selectedMonth = _fechaMovimiento.month;
           });
 
+          // IMPORTANTE: Invalidar aquí todos los providers relacionados para forzar la actualización
+          // de los datos en todas las partes de la aplicación
+          ref.invalidate(movimientosRentaStateProvider(widget.idInmueble));
+          ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
+          
+          // Invalidar el provider de resumen
+          final resumenParams = ResumenRentaParams(
+            idInmueble: widget.idInmueble,
+            anio: _fechaMovimiento.year,
+            mes: _fechaMovimiento.month,
+          );
+          ref.invalidate(resumenRentaPorMesProvider(resumenParams));
+          
           // Recargamos los movimientos explícitamente
           await ref
               .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
@@ -297,6 +310,20 @@ class _MovimientosRentaScreenState
             _selectedMonth = mesPagoRenta.month;
           });
 
+          // IMPORTANTE: Invalidar aquí todos los providers relacionados para forzar la actualización
+          // de los datos en todas las partes de la aplicación
+          ref.invalidate(movimientosRentaStateProvider(widget.idInmueble));
+          ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
+          
+          // Invalidar el provider de resumen específico para el mes del pago de renta
+          final resumenParams = ResumenRentaParams(
+            idInmueble: widget.idInmueble,
+            anio: mesPagoRenta.year,
+            mes: mesPagoRenta.month,
+          );
+          ref.invalidate(resumenRentaPorMesProvider(resumenParams));
+
+          // Recargamos los movimientos explícitamente
           await ref
               .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
               .cargarMovimientos(widget.idInmueble);

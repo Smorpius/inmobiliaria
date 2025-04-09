@@ -10,6 +10,7 @@ import '../../vistas/ventas/registrar_contrato_screen.dart';
 import '../../vistas/ventas/registrar_pago_renta_screen.dart';
 import 'package:inmobiliaria/providers/inmueble_renta_provider.dart';
 import 'package:inmobiliaria/vistas/ventas/detalle_contrato_screen.dart';
+import '../ventas/reportes_movimientos_screen.dart'; // Importar la nueva pantalla
 
 /// Dashboard principal del módulo de Rentas
 class DashboardRentasScreen extends ConsumerStatefulWidget {
@@ -343,13 +344,7 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
                 texto: 'Reportes',
                 icono: Icons.bar_chart,
                 color: Colors.amber.shade800,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Reportes detallados próximamente'),
-                    ),
-                  );
-                },
+                onTap: () => _mostrarDialogoSeleccionInmuebleReporte(context),
               ),
             ],
           ),
@@ -457,13 +452,7 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
               descripcion: 'Estadísticas y análisis',
               icono: Icons.bar_chart,
               color: Colors.purple,
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Reportes avanzados próximamente'),
-                  ),
-                );
-              },
+              onTap: () => _mostrarDialogoSeleccionInmuebleReporte(context),
             ),
           ],
         ),
@@ -907,6 +896,98 @@ class _DashboardRentasScreenState extends ConsumerState<DashboardRentasScreen> {
                   error:
                       (error, stack) =>
                           Center(child: Text('Error: ${error.toString()}')),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCELAR'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _mostrarDialogoSeleccionInmuebleReporte(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Seleccionar Inmueble para Reporte'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: Consumer(
+              builder: (context, ref, child) {
+                final inmueblesAsync = ref.watch(inmueblesRentadosProvider);
+
+                return inmueblesAsync.when(
+                  data: (inmuebles) {
+                    if (inmuebles.isEmpty) {
+                      return const Center(
+                        child: Text('No hay inmuebles rentados actualmente'),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: inmuebles.length,
+                      itemBuilder: (context, index) {
+                        final inmueble = inmuebles[index];
+                        return ListTile(
+                          title: Text('Inmueble ID: ${inmueble.id}'),
+                          subtitle: Text(
+                            inmueble.nombre.isNotEmpty
+                                ? inmueble.nombre
+                                : inmueble.idDireccion?.toString() ??
+                                    'Sin dirección',
+                          ),
+                          leading: const Icon(Icons.home),
+                          onTap: () {
+                            // Cerrar el diálogo
+                            Navigator.pop(context);
+
+                            // Navegar a la pantalla de reportes con la información del inmueble
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => ReportesMovimientosScreen(
+                                      idInmueble: inmueble.id!,
+                                      nombreInmueble:
+                                          inmueble.nombre.isNotEmpty
+                                              ? inmueble.nombre
+                                              : 'Inmueble ${inmueble.id}',
+                                    ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                  loading:
+                      () => const Center(child: CircularProgressIndicator()),
+                  error:
+                      (error, stack) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('Error: ${error.toString()}'),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                final _ = ref.refresh(
+                                  inmueblesRentadosProvider,
+                                );
+                              },
+                              child: const Text('Reintentar'),
+                            ),
+                          ],
+                        ),
+                      ),
                 );
               },
             ),

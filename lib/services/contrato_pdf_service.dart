@@ -1,12 +1,12 @@
-import 'dart:io';
+import 'pdf_service.dart';
 import 'package:pdf/pdf.dart';
 import 'package:intl/intl.dart';
 import '../utils/applogger.dart';
 import '../models/cliente_model.dart';
 import 'package:flutter/services.dart';
 import '../models/inmueble_model.dart';
+import '../utils/pdf_font_helper.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:path_provider/path_provider.dart';
 
 class ContratoPdfService {
   /// Genera un contrato de venta en formato PDF
@@ -17,150 +17,203 @@ class ContratoPdfService {
     DateTime? fechaContrato,
   }) async {
     try {
-      final pdf = pw.Document();
-      final fechaActual = fechaContrato ?? DateTime.now();
-      final formatoFecha = DateFormat('dd/MM/yyyy');
-      final formatoMoneda = NumberFormat.currency(
-        symbol: '\$',
-        locale: 'es_MX',
-      );
+      // Usar PdfService en lugar de crear el documento directamente
+      final pdf = await PdfService.crearDocumento();
 
-      // Obtener el logo desde assets si existe
+      // Cargar logo (opcional)
+      Uint8List? logoData;
       pw.MemoryImage? logoImage;
       try {
-        final logoData = await rootBundle.load('assets/logo.png');
-        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+        logoData = await rootBundle
+            .load('assets/logo.png')
+            .then((data) => data.buffer.asUint8List());
+        if (logoData != null) {
+          logoImage = pw.MemoryImage(logoData);
+        }
       } catch (e) {
-        AppLogger.info('No se pudo cargar el logo: $e');
+        AppLogger.warning('No se pudo cargar el logo: $e');
       }
 
-      // Crear el PDF
+      final contrato = fechaContrato ?? DateTime.now();
+
       pdf.addPage(
         pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(30),
-          header: (context) => _buildHeader(logoImage),
-          footer:
-              (context) => _buildFooter(context.pageNumber, context.pagesCount),
-          build:
-              (context) => [
-                _buildTitle('CONTRATO DE COMPRAVENTA DE BIEN INMUEBLE'),
-                pw.SizedBox(height: 20),
+          header: (context) {
+            // Cargamos la fuente de manera síncrona aquí
+            final font = PdfFontHelper.getCachedFont();
+            if (font == null) {
+              return pw.Container(
+                height: 0,
+              ); // Fallback si la fuente no está disponible
+            }
 
-                // Introducción/preámbulo
-                pw.Paragraph(
-                  text:
-                      'En ${inmueble.ciudad ?? "la ciudad"}, a ${formatoFecha.format(fechaActual)}, comparecen:',
-                  style: const pw.TextStyle(fontSize: 11),
+            final titleStyle = pw.TextStyle(
+              font: font,
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            );
+            final subtitleStyle = pw.TextStyle(font: font, fontSize: 10);
+
+            return pw.Container(
+              padding: const pw.EdgeInsets.only(bottom: 10),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(width: 1, color: PdfColors.grey300),
                 ),
-                pw.SizedBox(height: 10),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  logoImage != null
+                      ? pw.Image(logoImage, width: 60)
+                      : pw.Container(
+                        width: 60,
+                        height: 60,
+                        child: pw.Center(
+                          child: pw.Text('LOGO', style: subtitleStyle),
+                        ),
+                      ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('CONTRATO', style: titleStyle),
+                      pw.Text('INMOBILIARIA', style: subtitleStyle),
+                      pw.Text(
+                        DateFormat('dd/MM/yyyy').format(DateTime.now()),
+                        style: subtitleStyle,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+          footer: (context) {
+            final font = PdfFontHelper.getCachedFont();
+            if (font == null) {
+              return pw.Container(height: 0);
+            }
 
-                // Datos del vendedor (la inmobiliaria)
-                pw.Paragraph(
-                  text:
-                      'Por una parte, LA EMPRESA INMOBILIARIA, representada legalmente por ___________________, en adelante denominado "EL VENDEDOR".',
-                  style: const pw.TextStyle(fontSize: 11),
+            final footerStyle = pw.TextStyle(font: font, fontSize: 8);
+
+            return pw.Container(
+              padding: const pw.EdgeInsets.only(top: 10),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  top: pw.BorderSide(width: 1, color: PdfColors.grey300),
                 ),
-                pw.SizedBox(height: 10),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Documento legal - Inmobiliaria', style: footerStyle),
+                  pw.Text(
+                    'Página ${context.pageNumber} de ${context.pagesCount}',
+                    style: footerStyle,
+                  ),
+                ],
+              ),
+            );
+          },
+          build: (context) {
+            // Verificar que la fuente esté disponible
+            final font = PdfFontHelper.getCachedFont();
+            if (font == null) {
+              return [pw.Text('Error: Fuente no disponible')];
+            }
 
-                // Datos del cliente
-                pw.Paragraph(
-                  text:
-                      'Por otra parte, ${cliente.nombre} ${cliente.apellidoPaterno} ${cliente.apellidoMaterno ?? ""}, '
-                      'con identificación ${cliente.rfc ?? "___________"}, '
-                      'con domicilio en ${cliente.direccionCompleta}, '
-                      'en adelante denominado "EL COMPRADOR".',
-                  style: const pw.TextStyle(fontSize: 11),
+            final titleStyle = pw.TextStyle(
+              font: font,
+              fontSize: 18,
+              fontWeight: pw.FontWeight.bold,
+            );
+            final bodyStyle = pw.TextStyle(font: font);
+            final clauseTitleStyle = pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            );
+            final signatureStyle = pw.TextStyle(font: font, fontSize: 10);
+
+            return [
+              // Título
+              pw.Container(
+                alignment: pw.Alignment.center,
+                child: pw.Text(
+                  'CONTRATO DE COMPRAVENTA',
+                  style: titleStyle,
+                  textAlign: pw.TextAlign.center,
                 ),
-                pw.SizedBox(height: 10),
+              ),
+              pw.SizedBox(height: 20),
 
-                // Declaración de capacidad
-                pw.Paragraph(
-                  text:
-                      'Ambas partes declaran tener la capacidad legal necesaria para contratar y obligarse, y libre y voluntariamente convienen celebrar el presente CONTRATO DE COMPRAVENTA al tenor de las siguientes cláusulas:',
-                  style: const pw.TextStyle(fontSize: 11),
-                ),
-                pw.SizedBox(height: 20),
+              // Introducción
+              pw.Paragraph(
+                text:
+                    'En la ciudad de ${inmueble.ciudad ?? "---"}, a los ${contrato.day} días del mes de ${_getNombreMes(contrato.month)} del año ${contrato.year}, celebran el presente contrato de compraventa:',
+                style: bodyStyle,
+              ),
+              pw.SizedBox(height: 10),
 
-                // Cláusula primera - Objeto de la compraventa
-                _buildClause(
-                  'PRIMERA - OBJETO DE LA COMPRAVENTA',
-                  'EL VENDEDOR transfiere a título de venta real y efectiva a favor de EL COMPRADOR, el inmueble de su propiedad ubicado en: '
-                      '${inmueble.calle ?? ""} ${inmueble.numero ?? ""}, ${inmueble.colonia ?? ""}, '
-                      '${inmueble.ciudad ?? ""}, ${inmueble.estadoGeografico ?? ""}, '
-                      'C.P. ${inmueble.codigoPostal ?? ""}, con las siguientes características: '
-                      '${inmueble.caracteristicas ?? ""}.',
-                ),
+              // Cláusulas
+              _buildClauseSynchronous(
+                'VENDEDOR',
+                'La empresa INMOBILIARIA, representada en este acto por su representante legal, en adelante "EL VENDEDOR".',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'COMPRADOR',
+                '${cliente.nombreCompleto}, con domicilio en ${cliente.direccionCompleta}, en adelante "EL COMPRADOR".',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'INMUEBLE OBJETO DE VENTA',
+                '''
+                El inmueble ubicado en ${inmueble.direccionCompleta ?? "---"}, con las siguientes características:
+                - Tipo: ${inmueble.tipoInmueble}
+                - Características: ${inmueble.caracteristicas ?? "No especificado"}
+                ''',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'PRECIO Y FORMA DE PAGO',
+                'El precio pactado por la venta es de ${NumberFormat.currency(locale: "es_MX", symbol: "\$").format(montoVenta)} (${_convertirNumeroALetras(montoVenta)} PESOS MXN), que EL COMPRADOR se compromete a pagar en los términos establecidos en este contrato.',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'ENTREGA DEL INMUEBLE',
+                'EL VENDEDOR se compromete a entregar el inmueble libre de todo gravamen y al corriente en el pago de impuestos y servicios.',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
 
-                // Cláusula segunda - Precio y forma de pago
-                _buildClause(
-                  'SEGUNDA - PRECIO Y FORMA DE PAGO',
-                  'El precio pactado por las partes para la presente compraventa es de ${formatoMoneda.format(montoVenta)}, '
-                      'que EL COMPRADOR pagará a EL VENDEDOR de la siguiente manera: [DETALLAR FORMA DE PAGO].',
-                ),
-
-                // Cláusula tercera - Entrega del bien
-                _buildClause(
-                  'TERCERA - ENTREGA DEL BIEN',
-                  'EL VENDEDOR se obliga a entregar el bien inmueble objeto de este contrato a EL COMPRADOR en un plazo máximo de '
-                      '30 días calendario contados a partir de la firma del presente contrato, libre de todo gravamen, carga, ocupante o cualquier '
-                      'restricción que pudiera limitar su uso y goce.',
-                ),
-
-                // Cláusula cuarta - Estado del inmueble
-                _buildClause(
-                  'CUARTA - ESTADO DEL INMUEBLE',
-                  'EL COMPRADOR declara conocer el estado físico y jurídico del inmueble objeto del presente contrato y manifestando expresamente '
-                      'su conformidad respecto del mismo.',
-                ),
-
-                // Cláusula quinta - Gastos y honorarios
-                _buildClause(
-                  'QUINTA - GASTOS Y HONORARIOS',
-                  'Los gastos, impuestos, honorarios notariales y registrales que generen la formalización de la presente compraventa '
-                      'serán asumidos por EL COMPRADOR.',
-                ),
-
-                // Cláusula sexta - Saneamiento
-                _buildClause(
-                  'SEXTA - SANEAMIENTO',
-                  'EL VENDEDOR garantiza que el inmueble no tiene ningún gravamen ni restricción que pueda limitar su dominio, posesión, uso o goce, '
-                      'comprometiéndose al saneamiento en caso de evicción conforme a la ley.',
-                ),
-
-                // Cláusula séptima - Resolución de controversias
-                _buildClause(
-                  'SÉPTIMA - RESOLUCIÓN DE CONTROVERSIAS',
-                  'Cualquier controversia derivada de la interpretación o ejecución del presente contrato será resuelta mediante negociación '
-                      'directa entre las partes. De no llegar a un acuerdo, las partes se someten a la jurisdicción y competencia de los tribunales de '
-                      '${inmueble.ciudad ?? "la ciudad"}, renunciando expresamente a cualquier otra jurisdicción que pudiera corresponderles.',
-                ),
-
-                pw.SizedBox(height: 60),
-
-                // Firmas
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildSignatureLine('EL VENDEDOR'),
-                    _buildSignatureLine('EL COMPRADOR'),
-                  ],
-                ),
-              ],
+              // Firmas
+              pw.SizedBox(height: 30),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  _buildSignatureLineSynchronous('EL VENDEDOR', signatureStyle),
+                  _buildSignatureLineSynchronous(
+                    'EL COMPRADOR',
+                    signatureStyle,
+                  ),
+                ],
+              ),
+            ];
+          },
         ),
       );
 
-      // Guardar el PDF
-      final output = await getTemporaryDirectory();
-      final file = File(
-        '${output.path}/contrato_venta_${inmueble.id}_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      await file.writeAsBytes(await pdf.save());
-
-      return file.path;
+      final fileName =
+          'contrato_venta_${inmueble.id}_${DateFormat('yyyyMMdd').format(DateTime.now())}';
+      final filePath = await PdfService.guardarDocumento(pdf, fileName);
+      return filePath;
     } catch (e, stackTrace) {
       AppLogger.error('Error al generar contrato de venta PDF', e, stackTrace);
-      rethrow;
+      throw Exception('Error al generar PDF: $e');
     }
   }
 
@@ -168,266 +221,292 @@ class ContratoPdfService {
   Future<String> generarContratoRentaPDF({
     required Inmueble inmueble,
     required Cliente cliente,
-    required double montoMensual,
+    required double montoRenta,
     required DateTime fechaInicio,
     required DateTime fechaFin,
     String? condicionesAdicionales,
   }) async {
     try {
-      final pdf = pw.Document();
-      final formatoFecha = DateFormat('dd/MM/yyyy');
-      final formatoMoneda = NumberFormat.currency(
-        symbol: '\$',
-        locale: 'es_MX',
-      );
+      // Usar PdfService en lugar de crear el documento directamente
+      final pdf = await PdfService.crearDocumento();
 
-      // Obtener el logo desde assets si existe
+      // Cargar logo (opcional)
+      Uint8List? logoData;
       pw.MemoryImage? logoImage;
       try {
-        final logoData = await rootBundle.load('assets/logo.png');
-        logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+        logoData = await rootBundle
+            .load('assets/logo.png')
+            .then((data) => data.buffer.asUint8List());
+        if (logoData != null) {
+          logoImage = pw.MemoryImage(logoData);
+        }
       } catch (e) {
-        AppLogger.info('No se pudo cargar el logo: $e');
+        AppLogger.warning('No se pudo cargar el logo: $e');
       }
 
-      // Calcular duración del contrato en meses
-      final meses =
-          (fechaFin.year - fechaInicio.year) * 12 +
-          fechaFin.month -
-          fechaInicio.month;
-
-      // Crear el PDF
       pdf.addPage(
         pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(30),
-          header: (context) => _buildHeader(logoImage),
-          footer:
-              (context) => _buildFooter(context.pageNumber, context.pagesCount),
-          build:
-              (context) => [
-                _buildTitle('CONTRATO DE ARRENDAMIENTO DE BIEN INMUEBLE'),
-                pw.SizedBox(height: 20),
+          header: (context) {
+            // Cargamos la fuente de manera síncrona aquí
+            final font = PdfFontHelper.getCachedFont();
+            if (font == null) {
+              return pw.Container(
+                height: 0,
+              ); // Fallback si la fuente no está disponible
+            }
 
-                // Introducción/preámbulo
-                pw.Paragraph(
-                  text:
-                      'En ${inmueble.ciudad ?? "la ciudad"}, a ${formatoFecha.format(DateTime.now())}, comparecen:',
-                  style: const pw.TextStyle(fontSize: 11),
+            final titleStyle = pw.TextStyle(
+              font: font,
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            );
+            final subtitleStyle = pw.TextStyle(font: font, fontSize: 10);
+
+            return pw.Container(
+              padding: const pw.EdgeInsets.only(bottom: 10),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(width: 1, color: PdfColors.grey300),
                 ),
-                pw.SizedBox(height: 10),
-
-                // Datos del arrendador (la inmobiliaria)
-                pw.Paragraph(
-                  text:
-                      'Por una parte, LA EMPRESA INMOBILIARIA, representada legalmente por ___________________, en adelante denominado "EL ARRENDADOR".',
-                  style: const pw.TextStyle(fontSize: 11),
-                ),
-                pw.SizedBox(height: 10),
-
-                // Datos del cliente
-                pw.Paragraph(
-                  text:
-                      'Por otra parte, ${cliente.nombre} ${cliente.apellidoPaterno} ${cliente.apellidoMaterno ?? ""}, '
-                      'con identificación ${cliente.rfc ?? "___________"}, '
-                      'con domicilio en ${cliente.direccionCompleta}, '
-                      'en adelante denominado "EL ARRENDATARIO".',
-                  style: const pw.TextStyle(fontSize: 11),
-                ),
-                pw.SizedBox(height: 10),
-
-                // Declaración de capacidad
-                pw.Paragraph(
-                  text:
-                      'Ambas partes declaran tener la capacidad legal necesaria para contratar y obligarse, y libre y voluntariamente convienen celebrar el presente CONTRATO DE ARRENDAMIENTO al tenor de las siguientes cláusulas:',
-                  style: const pw.TextStyle(fontSize: 11),
-                ),
-                pw.SizedBox(height: 20),
-
-                // Cláusula primera - Objeto del arrendamiento
-                _buildClause(
-                  'PRIMERA - OBJETO DEL ARRENDAMIENTO',
-                  'EL ARRENDADOR da en arrendamiento a EL ARRENDATARIO, el inmueble ubicado en: '
-                      '${inmueble.calle ?? ""} ${inmueble.numero ?? ""}, ${inmueble.colonia ?? ""}, '
-                      '${inmueble.ciudad ?? ""}, ${inmueble.estadoGeografico ?? ""}, '
-                      'C.P. ${inmueble.codigoPostal ?? ""}, con las siguientes características: '
-                      '${inmueble.caracteristicas ?? ""}.',
-                ),
-
-                // Cláusula segunda - Duración del contrato
-                _buildClause(
-                  'SEGUNDA - DURACIÓN DEL CONTRATO',
-                  'El presente contrato tendrá una vigencia de $meses meses, iniciando el ${formatoFecha.format(fechaInicio)} '
-                      'y finalizando el ${formatoFecha.format(fechaFin)}, sin necesidad de requerimiento previo.',
-                ),
-
-                // Cláusula tercera - Renta y forma de pago
-                _buildClause(
-                  'TERCERA - RENTA Y FORMA DE PAGO',
-                  'EL ARRENDATARIO se obliga a pagar a EL ARRENDADOR por concepto de renta mensual la cantidad de '
-                      '${formatoMoneda.format(montoMensual)}, que deberá ser pagada dentro de los primeros 5 días de cada mes, '
-                      'mediante depósito o transferencia bancaria a la cuenta que designe EL ARRENDADOR.',
-                ),
-
-                // Cláusula cuarta - Garantía / Depósito
-                _buildClause(
-                  'CUARTA - GARANTÍA',
-                  'EL ARRENDATARIO entrega a EL ARRENDADOR en este acto, por concepto de garantía, la cantidad equivalente a '
-                      'un mes de renta, es decir la suma de ${formatoMoneda.format(montoMensual)}, que será devuelta al finalizar el '
-                      'contrato, siempre y cuando EL ARRENDATARIO haya cumplido con todas sus obligaciones y el inmueble se encuentre '
-                      'en las mismas condiciones en que fue recibido, salvo el deterioro normal por el uso.',
-                ),
-
-                // Cláusula quinta - Servicios y mantenimiento
-                _buildClause(
-                  'QUINTA - SERVICIOS Y MANTENIMIENTO',
-                  'EL ARRENDATARIO se obliga a pagar por su cuenta los servicios de agua, luz, gas, teléfono y cualquier otro servicio '
-                      'que utilice en el inmueble arrendado. Asimismo, se obliga a mantener el inmueble en buen estado de uso, conservación '
-                      'y limpieza.',
-                ),
-
-                // Cláusula sexta - Prohibiciones
-                _buildClause(
-                  'SEXTA - PROHIBICIONES',
-                  'Queda expresamente prohibido a EL ARRENDATARIO subarrendar o ceder total o parcialmente los derechos derivados del '
-                      'presente contrato, así como destinar el inmueble a un uso distinto al habitacional, salvo autorización expresa y por '
-                      'escrito de EL ARRENDADOR.',
-                ),
-
-                // Condiciones adicionales (si existen)
-                if (condicionesAdicionales != null &&
-                    condicionesAdicionales.isNotEmpty)
-                  _buildClause(
-                    'SÉPTIMA - CONDICIONES ADICIONALES',
-                    condicionesAdicionales,
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  logoImage != null
+                      ? pw.Image(logoImage, width: 60)
+                      : pw.Container(
+                        width: 60,
+                        height: 60,
+                        child: pw.Center(
+                          child: pw.Text('LOGO', style: subtitleStyle),
+                        ),
+                      ),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text('CONTRATO', style: titleStyle),
+                      pw.Text('INMOBILIARIA', style: subtitleStyle),
+                      pw.Text(
+                        DateFormat('dd/MM/yyyy').format(DateTime.now()),
+                        style: subtitleStyle,
+                      ),
+                    ],
                   ),
+                ],
+              ),
+            );
+          },
+          footer: (context) {
+            final font = PdfFontHelper.getCachedFont();
+            if (font == null) {
+              return pw.Container(height: 0);
+            }
 
-                // Cláusula de resolución de controversias
-                _buildClause(
-                  condicionesAdicionales != null &&
-                          condicionesAdicionales.isNotEmpty
-                      ? 'OCTAVA - RESOLUCIÓN DE CONTROVERSIAS'
-                      : 'SÉPTIMA - RESOLUCIÓN DE CONTROVERSIAS',
-                  'Cualquier controversia derivada de la interpretación o ejecución del presente contrato será resuelta mediante negociación '
-                  'directa entre las partes. De no llegar a un acuerdo, las partes se someten a la jurisdicción y competencia de los tribunales de '
-                  '${inmueble.ciudad ?? "la ciudad"}, renunciando expresamente a cualquier otra jurisdicción que pudiera corresponderles.',
+            final footerStyle = pw.TextStyle(font: font, fontSize: 8);
+
+            return pw.Container(
+              padding: const pw.EdgeInsets.only(top: 10),
+              decoration: const pw.BoxDecoration(
+                border: pw.Border(
+                  top: pw.BorderSide(width: 1, color: PdfColors.grey300),
+                ),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Documento legal - Inmobiliaria', style: footerStyle),
+                  pw.Text(
+                    'Página ${context.pageNumber} de ${context.pagesCount}',
+                    style: footerStyle,
+                  ),
+                ],
+              ),
+            );
+          },
+          build: (context) {
+            // Verificar que la fuente esté disponible
+            final font = PdfFontHelper.getCachedFont();
+            if (font == null) {
+              return [pw.Text('Error: Fuente no disponible')];
+            }
+
+            final titleStyle = pw.TextStyle(
+              font: font,
+              fontSize: 18,
+              fontWeight: pw.FontWeight.bold,
+            );
+            final bodyStyle = pw.TextStyle(font: font);
+            final clauseTitleStyle = pw.TextStyle(
+              font: font,
+              fontWeight: pw.FontWeight.bold,
+            );
+            final signatureStyle = pw.TextStyle(font: font, fontSize: 10);
+
+            return [
+              // Título
+              pw.Container(
+                alignment: pw.Alignment.center,
+                child: pw.Text(
+                  'CONTRATO DE ARRENDAMIENTO',
+                  style: titleStyle,
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.SizedBox(height: 20),
+
+              // Introducción
+              pw.Paragraph(
+                text:
+                    'En la ciudad de ${inmueble.ciudad ?? "---"}, a los ${fechaInicio.day} días del mes de ${_getNombreMes(fechaInicio.month)} del año ${fechaInicio.year}, celebran el presente contrato de arrendamiento:',
+                style: bodyStyle,
+              ),
+              pw.SizedBox(height: 10),
+
+              // Cláusulas
+              _buildClauseSynchronous(
+                'ARRENDADOR',
+                'La empresa INMOBILIARIA, representada en este acto por su representante legal, en adelante "EL ARRENDADOR".',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'ARRENDATARIO',
+                '${cliente.nombreCompleto}, con domicilio en ${cliente.direccionCompleta}, en adelante "EL ARRENDATARIO".',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'INMUEBLE OBJETO DEL ARRENDAMIENTO',
+                '''
+                El inmueble ubicado en ${inmueble.direccionCompleta ?? "---"}, con las siguientes características:
+                - Tipo: ${inmueble.tipoInmueble}
+                - Características: ${inmueble.caracteristicas ?? "No especificado"}
+                ''',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'DURACIÓN DEL CONTRATO',
+                'El presente contrato tendrá una vigencia de ${_calcularDuracionContrato(fechaInicio, fechaFin)} meses, iniciando el día ${DateFormat('dd/MM/yyyy').format(fechaInicio)} y concluyendo el día ${DateFormat('dd/MM/yyyy').format(fechaFin)}.',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              _buildClauseSynchronous(
+                'RENTA MENSUAL',
+                'El precio pactado por la renta mensual es de ${NumberFormat.currency(locale: "es_MX", symbol: "\$").format(montoRenta)} (${_convertirNumeroALetras(montoRenta)} PESOS MXN), que EL ARRENDATARIO se compromete a pagar los primeros 5 días de cada mes.',
+                clauseTitleStyle,
+                bodyStyle,
+              ),
+              if (condicionesAdicionales != null &&
+                  condicionesAdicionales.isNotEmpty)
+                _buildClauseSynchronous(
+                  'CONDICIONES ADICIONALES',
+                  condicionesAdicionales,
+                  clauseTitleStyle,
+                  bodyStyle,
                 ),
 
-                pw.SizedBox(height: 60),
-
-                // Firmas
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildSignatureLine('EL ARRENDADOR'),
-                    _buildSignatureLine('EL ARRENDATARIO'),
-                  ],
-                ),
-              ],
+              // Firmas
+              pw.SizedBox(height: 30),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  _buildSignatureLineSynchronous(
+                    'EL ARRENDADOR',
+                    signatureStyle,
+                  ),
+                  _buildSignatureLineSynchronous(
+                    'EL ARRENDATARIO',
+                    signatureStyle,
+                  ),
+                ],
+              ),
+            ];
+          },
         ),
       );
 
-      // Guardar el PDF
-      final output = await getTemporaryDirectory();
-      final file = File(
-        '${output.path}/contrato_renta_${inmueble.id}_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
-      await file.writeAsBytes(await pdf.save());
-
-      return file.path;
+      final fileName =
+          'contrato_renta_${inmueble.id}_${DateFormat('yyyyMMdd').format(DateTime.now())}';
+      final filePath = await PdfService.guardarDocumento(pdf, fileName);
+      return filePath;
     } catch (e, stackTrace) {
       AppLogger.error('Error al generar contrato de renta PDF', e, stackTrace);
-      rethrow;
+      throw Exception('Error al generar PDF: $e');
     }
   }
 
-  // Funciones auxiliares para construir el PDF
-  pw.Widget _buildHeader(pw.MemoryImage? logoImage) {
-    return pw.Container(
-      alignment: pw.Alignment.center,
-      margin: const pw.EdgeInsets.only(bottom: 20),
-      child: pw.Column(
-        children: [
-          if (logoImage != null)
-            pw.Container(
-              height: 60,
-              width: 120,
-              child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-            ),
-          pw.SizedBox(height: 5),
-          pw.Text(
-            'INMOBILIARIA',
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 5),
-          pw.Text(
-            'Dirección de la Inmobiliaria - Teléfono - Correo electrónico',
-            style: const pw.TextStyle(fontSize: 9),
-          ),
-        ],
-      ),
-    );
+  // Funciones auxiliares
+  String _getNombreMes(int mes) {
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+    return meses[mes - 1];
   }
 
-  pw.Widget _buildFooter(int pageNumber, int pageCount) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(top: 20),
-      alignment: pw.Alignment.centerRight,
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            'Contrato generado el ${DateFormat('dd/MM/yyyy').format(DateTime.now())}',
-            style: const pw.TextStyle(fontSize: 8),
-          ),
-          pw.Text(
-            'Página $pageNumber de $pageCount',
-            style: const pw.TextStyle(fontSize: 8),
-          ),
-        ],
-      ),
-    );
+  String _convertirNumeroALetras(double numero) {
+    // Implementación básica para convertir números a letras
+    // Esta función puede ser expandida con una implementación completa
+    final entero = numero.toInt();
+    return entero.toString();
   }
 
-  pw.Widget _buildTitle(String title) {
-    return pw.Container(
-      alignment: pw.Alignment.center,
-      child: pw.Text(
-        title,
-        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-      ),
-    );
+  int _calcularDuracionContrato(DateTime inicio, DateTime fin) {
+    return ((fin.difference(inicio).inDays) / 30).round();
   }
 
-  pw.Widget _buildClause(String title, String content) {
+  pw.Widget _buildClauseSynchronous(
+    String title,
+    String content,
+    pw.TextStyle titleStyle,
+    pw.TextStyle contentStyle,
+  ) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 12),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(
-            title,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11),
-          ),
+          pw.Text(title, style: titleStyle),
           pw.SizedBox(height: 4),
-          pw.Text(content, style: const pw.TextStyle(fontSize: 10)),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.grey100,
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+            ),
+            child: pw.Text(content, style: contentStyle),
+          ),
         ],
       ),
     );
   }
 
-  pw.Widget _buildSignatureLine(String title) {
+  pw.Widget _buildSignatureLineSynchronous(
+    String title,
+    pw.TextStyle textStyle,
+  ) {
     return pw.Container(
-      width: 200,
+      width: 150,
       child: pw.Column(
         children: [
           pw.Container(
-            width: 150,
+            width: 120,
             height: 1,
-            color: PdfColors.black,
             margin: const pw.EdgeInsets.only(bottom: 5),
+            color: PdfColors.black,
           ),
-          pw.Text(title, style: const pw.TextStyle(fontSize: 10)),
+          pw.Text(title, style: textStyle),
         ],
       ),
     );

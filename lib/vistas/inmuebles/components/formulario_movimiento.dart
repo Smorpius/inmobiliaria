@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
 import 'package:path/path.dart' as path;
 import '../../../models/inmueble_model.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../models/movimiento_renta_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,11 +35,40 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
   final _conceptoController = TextEditingController();
   final _montoController = TextEditingController();
   final _comentariosController = TextEditingController();
+  final _numeroReferenciaController = TextEditingController();
+  final _emisorController = TextEditingController();
+  final _receptorController = TextEditingController();
 
   DateTime _fechaMovimiento = DateTime.now();
   String _tipoMovimiento = 'ingreso';
   bool _isLoading = false;
   bool _archivoSubiendo = false;
+
+  // Concepto seleccionado
+  String? _conceptoSeleccionado;
+
+  // Listas de conceptos predefinidos
+  final List<String> _conceptosIngreso = [
+    'Pago de renta',
+    'Depósito de garantía',
+    'Indemnización',
+    'Factura',
+    'Reembolso',
+    'Otro ingreso',
+  ];
+
+  final List<String> _conceptosEgreso = [
+    'Mantenimiento',
+    'Reparación',
+    'Servicios',
+    'Impuestos',
+    'Factura',
+    'Comisión',
+    'Otro egreso',
+  ];
+
+  // Indica si se ha seleccionado factura como concepto
+  bool get _esFactura => _conceptoSeleccionado?.toLowerCase() == 'factura';
 
   // Para los archivos/comprobantes - modificado para soportar PDF e imágenes
   List<Map<String, dynamic>> _archivosTemporal = [];
@@ -50,6 +79,9 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
     _conceptoController.dispose();
     _montoController.dispose();
     _comentariosController.dispose();
+    _numeroReferenciaController.dispose();
+    _emisorController.dispose();
+    _receptorController.dispose();
     super.dispose();
   }
 
@@ -209,19 +241,96 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
 
                     const SizedBox(height: 16),
 
-                    // Concepto
-                    TextFormField(
-                      controller: _conceptoController,
+                    // Concepto (lista desplegable)
+                    DropdownButtonFormField<String>(
+                      value: _conceptoSeleccionado,
                       decoration: const InputDecoration(
                         labelText: 'Concepto',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.description),
-                        hintText: 'Ej: Pago de renta, Mantenimiento...',
                       ),
-                      validator: _validarConcepto,
+                      hint: const Text('Seleccione un concepto'),
+                      items:
+                          (_tipoMovimiento == 'ingreso'
+                                  ? _conceptosIngreso
+                                  : _conceptosEgreso)
+                              .map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              })
+                              .toList(),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor seleccione un concepto';
+                        }
+                        return null;
+                      },
+                      onChanged: (newValue) {
+                        setState(() {
+                          _conceptoSeleccionado = newValue;
+                          _conceptoController.text = newValue ?? '';
+                        });
+                      },
                     ),
 
                     const SizedBox(height: 16),
+
+                    // Número de referencia (solo visible cuando es factura)
+                    if (_esFactura) ...[
+                      TextFormField(
+                        controller: _numeroReferenciaController,
+                        decoration: const InputDecoration(
+                          labelText: 'Número de Referencia (Factura)',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.numbers),
+                          hintText: 'Ej: FACT-123456',
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'El número de referencia es requerido para facturas';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Campos específicos para facturas (emisor y receptor)
+                      TextFormField(
+                        controller: _emisorController,
+                        decoration: const InputDecoration(
+                          labelText: 'Emisor de la Factura',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.business),
+                          hintText: 'Ej: Proveedor de servicios',
+                        ),
+                        validator: (value) {
+                          if (_esFactura && (value == null || value.isEmpty)) {
+                            return 'El emisor es requerido para facturas';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: _receptorController,
+                        decoration: const InputDecoration(
+                          labelText: 'Receptor de la Factura',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person),
+                          hintText: 'Ej: Inmobiliaria',
+                        ),
+                        validator: (value) {
+                          if (_esFactura && (value == null || value.isEmpty)) {
+                            return 'El receptor es requerido para facturas';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Monto
                     TextFormField(
@@ -474,6 +583,28 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
               },
             ),
           ),
+
+        // Campo para notas adicionales del comprobante
+        if (_archivosTemporal.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          TextFormField(
+            decoration: const InputDecoration(
+              labelText: 'Notas adicionales para el comprobante',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.note_add),
+              hintText: 'Información adicional sobre el comprobante...',
+            ),
+            maxLines: 2,
+            onChanged: (value) {
+              // Almacenar las notas para usar al crear el comprobante
+              if (_archivoPrincipalIndex != null &&
+                  _archivosTemporal.isNotEmpty) {
+                _archivosTemporal[_archivoPrincipalIndex!]['notasAdicionales'] =
+                    value;
+              }
+            },
+          ),
+        ],
       ],
     );
   }
@@ -493,16 +624,6 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
   }
 
   // Validaciones
-  String? _validarConcepto(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Por favor ingrese un concepto';
-    }
-    if (value.length < 3) {
-      return 'El concepto debe tener al menos 3 caracteres';
-    }
-    return null;
-  }
-
   String? _validarMonto(String? value) {
     if (value == null || value.isEmpty) {
       return 'Por favor ingrese un monto';
@@ -588,23 +709,20 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
     });
 
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-      );
+      final typeGroup = XTypeGroup(label: 'PDF', extensions: ['pdf']);
+      final file = await openFile(acceptedTypeGroups: [typeGroup]);
 
-      if (result == null || result.files.isEmpty) {
+      if (file == null) {
         setState(() {
           _archivoSubiendo = false;
         });
         return;
       }
 
-      final file = File(result.files.first.path!);
       final filename = path.basename(file.path);
 
       // Validar tamaño del archivo (máximo 10MB)
-      final fileSize = await file.length();
+      final fileSize = await File(file.path).length();
       if (fileSize > 10 * 1024 * 1024) {
         // 10MB
         throw Exception('El archivo excede el tamaño máximo permitido (10MB)');
@@ -612,7 +730,7 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
 
       final nuevoPdf = {
         'tempPath': file.path,
-        'file': file,
+        'file': File(file.path),
         'esPDF': true,
         'filename': filename,
         'fileSize': fileSize, // Almacenar el tamaño para referencia
@@ -667,11 +785,26 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
   ) async {
     try {
       // Usar la utilidad centralizada para guardar archivos de forma consistente
-      return await ArchivoUtils.guardarArchivoPermanente(
+      String ruta = await ArchivoUtils.guardarArchivoPermanente(
         archivoTemporal,
         nombreBase,
         subDirectorio: 'movimientos',
       );
+
+      // Normalización completa de rutas
+      ruta = ruta.replaceAll('\\', '/');
+
+      // Asegurar formato correcto para la ruta
+      if (!ruta.startsWith('/') &&
+          !ruta.startsWith('comprobantes/') &&
+          ruta.isNotEmpty) {
+        ruta = 'comprobantes/$ruta';
+      }
+
+      // Eliminar duplicados de "comprobantes/comprobantes/"
+      ruta = ruta.replaceAll('comprobantes/comprobantes/', 'comprobantes/');
+
+      return ruta;
     } catch (e, stack) {
       AppLogger.error('Error al guardar archivo permanente', e, stack);
       throw Exception('No se pudo guardar el comprobante: $e');
@@ -701,14 +834,38 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
                 .toList() ??
             [];
 
+        // Revisar si hay contratos activos para este inmueble
         if (contratosActivos.isNotEmpty) {
+          // Tomar el cliente del primer contrato activo
           idCliente = contratosActivos.first.idCliente;
+        } else {
+          // Si no hay contratos, mostrar error
+          // Verificar que el widget aún esté montado
+          if (!mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No se encontró un cliente asociado al inmueble'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
         }
       }
 
-      // Si no encontramos cliente, mostrar error y salir
-      if (idCliente == null || idCliente <= 0) {
-        throw Exception('No se encontró un cliente asociado a este inmueble');
+      if (idCliente == null) {
+        // Verificar que el widget aún esté montado
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo determinar el cliente para el movimiento',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
       }
     } catch (e) {
       // Verificar si el widget sigue montado
@@ -739,7 +896,8 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
       // Crear el objeto MovimientoRenta con el idCliente obtenido
       final movimiento = MovimientoRenta(
         idInmueble: widget.inmueble.id!,
-        idCliente: idCliente, // Usamos el ID del cliente que encontramos
+        idCliente:
+            idCliente, // Eliminado el operador ! ya que ya está garantizado que no es nulo
         tipoMovimiento: _tipoMovimiento,
         concepto: _conceptoController.text,
         monto: monto,
@@ -781,12 +939,44 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
       List<String> erroresComprobantes = [];
       List<int> comprobantesRegistrados = [];
 
+      // Si es una factura, validar el formato del número de referencia
+      if (_esFactura) {
+        final referenciaRegex = RegExp(r'^[A-Za-z0-9\-\/]{5,30}$');
+        if (_numeroReferenciaController.text.isEmpty ||
+            !referenciaRegex.hasMatch(_numeroReferenciaController.text)) {
+          throw Exception(
+            'Número de referencia inválido. Debe tener entre 5 y 30 caracteres y contener solo letras, números, guiones o barras.',
+          );
+        }
+      }
+
       if (_archivosTemporal.isNotEmpty) {
         for (int i = 0; i < _archivosTemporal.length; i++) {
           try {
             final archivo = _archivosTemporal[i];
             final esArchivoPrincipal = _archivoPrincipalIndex == i;
             final esPDF = archivo['esPDF'] ?? false;
+
+            // Validaciones previas para comprobantes tipo factura
+            if (_esFactura) {
+              // Validar emisor (mínimo 3 caracteres)
+              if (_emisorController.text.trim().length < 3) {
+                errorComprobantes = true;
+                erroresComprobantes.add(
+                  'El emisor debe tener al menos 3 caracteres para facturas',
+                );
+                continue;
+              }
+
+              // Validar receptor (mínimo 3 caracteres)
+              if (_receptorController.text.trim().length < 3) {
+                errorComprobantes = true;
+                erroresComprobantes.add(
+                  'El receptor debe tener al menos 3 caracteres para facturas',
+                );
+                continue;
+              }
+            }
 
             // Guardar el archivo en una ubicación permanente
             final rutaPermanente = await _guardarArchivoPermanente(
@@ -807,14 +997,31 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
               tipoArchivo: esPDF ? 'pdf' : 'imagen',
               fechaCarga: DateTime.now(),
               metodoPago:
-                  movimiento.tipoMovimiento == 'ingreso' ? 'efectivo' : null,
+                  _esFactura
+                      ? 'efectivo' // Para facturas usamos valores de la lista de métodos válidos
+                      : movimiento.tipoMovimiento == 'ingreso'
+                      ? 'efectivo'
+                      : 'otro',
               emisor:
-                  movimiento.tipoMovimiento == 'ingreso'
+                  _esFactura
+                      ? _emisorController
+                          .text // Personalizado para facturas
+                      : movimiento.tipoMovimiento == 'ingreso'
                       ? widget.inmueble.nombre
-                      : null,
-              receptor: null,
+                      : 'Proveedor de servicios',
+              receptor:
+                  _esFactura
+                      ? _receptorController
+                          .text // Personalizado para facturas
+                      : movimiento.tipoMovimiento == 'ingreso'
+                      ? 'Inmobiliaria'
+                      : widget.inmueble.nombre,
               conceptoMovimiento: movimiento.concepto,
               montoMovimiento: movimiento.monto,
+              numeroReferencia:
+                  _esFactura ? _numeroReferenciaController.text : null,
+              fechaEmision:
+                  _fechaMovimiento, // Asegurarse de incluir la fecha de emisión
             );
 
             // Registrar el comprobante usando el notifier en lugar del controlador directamente
@@ -865,6 +1072,22 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
         ref.invalidate(comprobantesPorMovimientoProvider(idMovimiento));
         AppLogger.info('Lista de comprobantes actualizada');
       }
+
+      // IMPORTANTE: Invalidar aquí todos los providers relacionados para forzar la actualización
+      // de los datos en todas las partes de la aplicación
+      ref.invalidate(movimientosRentaStateProvider(widget.inmueble.id!));
+      ref.invalidate(movimientosPorInmuebleProvider(widget.inmueble.id!));
+
+      // Si existe un provider de resumen, también invalidarlo
+      final resumenParams = ResumenRentaParams(
+        idInmueble: widget.inmueble.id!,
+        anio: _fechaMovimiento.year,
+        mes: _fechaMovimiento.month,
+      );
+      ref.invalidate(resumenRentaPorMesProvider(resumenParams));
+
+      // Forzar la recarga de los contratos si también están relacionados
+      ref.invalidate(contratosRentaProvider);
 
       // Verificar que el widget aún esté montado después de operaciones asíncronas
       if (mounted) {
@@ -932,10 +1155,15 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
       _conceptoController.clear();
       _montoController.clear();
       _comentariosController.clear();
+      _numeroReferenciaController.clear();
+      _emisorController.clear();
+      _receptorController.clear();
+
       setState(() {
         _fechaMovimiento = DateTime.now();
         _archivosTemporal = [];
         _archivoPrincipalIndex = null;
+        _conceptoSeleccionado = null;
       });
 
       // Llamar al callback de éxito
@@ -967,7 +1195,8 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
 
   // Determina el tipo de comprobante basado en el movimiento y el tipo de archivo
   String _determinarTipoComprobante(MovimientoRenta movimiento, bool esPDF) {
-    if (movimiento.concepto.toLowerCase().contains('factura')) {
+    // Si es una factura según el concepto seleccionado
+    if (_esFactura) {
       return 'factura';
     }
 
