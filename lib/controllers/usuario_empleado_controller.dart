@@ -14,10 +14,10 @@ class UsuarioEmpleadoController {
 
   // Control para evitar errores duplicados en consola
   bool _procesandoError = false;
-  
+
   // Nueva propiedad para rastrear cuando se completó la última actualización
   DateTime? _ultimaActualizacion;
-  
+
   // Nueva propiedad para rastrear si hay una actualización en progreso
   bool _actualizacionEnProgreso = false;
 
@@ -28,13 +28,14 @@ class UsuarioEmpleadoController {
 
   // Stream para manejo reactivo de la lista de empleados
   Stream<List<UsuarioEmpleado>> get empleados => _empleadosController.stream;
-  
+
   // Acceso directo a la última lista actualizada
-  List<UsuarioEmpleado> get empleadosActuales => List.unmodifiable(_empleadosList);
-  
+  List<UsuarioEmpleado> get empleadosActuales =>
+      List.unmodifiable(_empleadosList);
+
   // Estado de última actualización
   DateTime? get ultimaActualizacion => _ultimaActualizacion;
-  
+
   // Indicador si hay una actualización en progreso
   bool get actualizandoEmpleados => _actualizacionEnProgreso;
 
@@ -190,7 +191,7 @@ class UsuarioEmpleadoController {
   Future<void> cargarEmpleadosConRefresco() async {
     return _ejecutarOperacion('cargar empleados con refresco', () async {
       AppLogger.info('[Controller] Iniciando carga con refresco forzado...');
-      
+
       // Marcar que hay una actualización en progreso
       _actualizacionEnProgreso = true;
 
@@ -198,16 +199,20 @@ class UsuarioEmpleadoController {
         // Solo un refresco en vez de múltiples llamadas
         final empleados = await _service.obtenerEmpleadosRefrescados();
         _empleadosList = empleados;
-        AppLogger.info('[Controller] Refresco: Empleados recibidos del servicio: ${empleados.length}');
-        
+        AppLogger.info(
+          '[Controller] Refresco: Empleados recibidos del servicio: ${empleados.length}',
+        );
+
         // Crear una nueva lista para asegurar que el stream detecte el cambio
         final nuevaLista = List<UsuarioEmpleado>.from(empleados);
         _empleadosController.sink.add(nuevaLista);
-        
+
         // Registrar cuando se completó la actualización
         _ultimaActualizacion = DateTime.now();
-        
-        AppLogger.info('[Controller] Refresco: Stream actualizado con ${nuevaLista.length} empleados.');
+
+        AppLogger.info(
+          '[Controller] Refresco: Stream actualizado con ${nuevaLista.length} empleados.',
+        );
         return;
       } finally {
         // Asegurar que se marca como completado incluso en caso de error

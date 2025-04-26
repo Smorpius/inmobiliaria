@@ -106,9 +106,9 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
   }
 
   Future<void> cargarEmpleados() async {
-    developer.log('[Screen] Iniciando cargarEmpleados (forzando refresco)...');
+    // developer.log('[Screen] Iniciando cargarEmpleados (forzando refresco)...');
     if (!mounted) {
-       developer.log('[Screen] cargarEmpleados abortado: Widget no montado.');
+       // developer.log('[Screen] cargarEmpleados abortado: Widget no montado.');
        return;
     }
 
@@ -118,7 +118,7 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
     try {
       // Siempre llamar al método que fuerza el refresco desde el servicio
       await ref.read(usuarioEmpleadoControllerProvider).cargarEmpleadosConRefresco();
-      developer.log('[Screen] cargarEmpleados completado exitosamente.');
+      // developer.log('[Screen] cargarEmpleados completado exitosamente.');
 
       // Limpiar error global si existía
       ref.read(empleadosErrorProvider.notifier).state = null;
@@ -134,7 +134,7 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
       if (mounted) {
          ref.read(empleadosLoadingProvider.notifier).state = false;
       }
-       developer.log('[Screen] cargarEmpleados finalizado.');
+       // developer.log('[Screen] cargarEmpleados finalizado.');
     }
   }
 
@@ -210,14 +210,14 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
     final isLoadingGlobal = ref.watch(empleadosLoadingProvider);
     final errorMessageGlobal = ref.watch(empleadosErrorProvider);
 
-    developer.log('[Screen] _buildBody rebuild: isLoadingGlobal=$isLoadingGlobal, errorMessageGlobal=$errorMessageGlobal');
+    // developer.log('[Screen] _buildBody rebuild: isLoadingGlobal=$isLoadingGlobal, errorMessageGlobal=$errorMessageGlobal');
 
     // Obtener directamente la lista de empleados del controlador
     final controller = ref.read(usuarioEmpleadoControllerProvider);
 
     // Mostrar indicador de carga global si está activo
     if (isLoadingGlobal) {
-      developer.log('[Screen] _buildBody: Mostrando indicador de carga global.');
+      // developer.log('[Screen] _buildBody: Mostrando indicador de carga global.');
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -232,25 +232,23 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
 
     // Mostrar vista de error global si existe
     if (errorMessageGlobal != null) {
-      developer.log('[Screen] _buildBody: Mostrando vista de error global: $errorMessageGlobal');
+      // developer.log('[Screen] _buildBody: Mostrando vista de error global: $errorMessageGlobal');
       return EmpleadosErrorView(
         errorMessage: errorMessageGlobal,
         onRetry: cargarEmpleados,
       );
     }
 
-    // CAMBIO IMPORTANTE: Usar un ValueListenableBuilder como intermediario
-    // que siempre mostrará los datos más recientes del stream o de la propiedad
     return StreamBuilder<List<UsuarioEmpleado>>(
       stream: _empleadosStream,
       builder: (context, snapshot) {
-        developer.log(
+        /* developer.log(
           '[Screen] StreamBuilder rebuild: connectionState=${snapshot.connectionState}, hasData=${snapshot.hasData}, hasError=${snapshot.hasError}, dataLength=${snapshot.data?.length}',
-        );
+        ); */
 
         // Manejar error del stream
         if (snapshot.hasError) {
-          developer.log('[Screen] StreamBuilder: Error recibido: ${snapshot.error}');
+          // developer.log('[Screen] StreamBuilder: Error recibido: ${snapshot.error}');
           return EmpleadosErrorView(
             errorMessage: snapshot.error.toString(),
             onRetry: cargarEmpleados,
@@ -260,12 +258,12 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
         // NUEVA LÓGICA: Si estamos en ConnectionState.waiting después de una actualización, 
         // usar los datos almacenados en el controlador en vez de mostrar un indicador
         if (snapshot.connectionState == ConnectionState.waiting) {
-          developer.log('[Screen] StreamBuilder: Esperando datos (ConnectionState.waiting).');
+          // developer.log('[Screen] StreamBuilder: Esperando datos (ConnectionState.waiting).');
           
           // Verificar si tenemos datos disponibles en el controlador
           final empleadosActuales = controller.empleadosActuales;
           if (empleadosActuales.isNotEmpty) {
-            developer.log('[Screen] Usando datos del controlador mientras esperamos stream: ${empleadosActuales.length} empleados');
+            // developer.log('[Screen] Usando datos del controlador mientras esperamos stream: ${empleadosActuales.length} empleados');
             return _buildEmpleadosList(empleadosActuales, mostrarInactivos);
           }
           
@@ -275,7 +273,7 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
 
         // Si no hay datos después de esperar (y no hay error) -> Lista vacía
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          developer.log('[Screen] StreamBuilder: No hay datos o lista vacía. Mostrando EmpleadosEmptyView.');
+          // developer.log('[Screen] StreamBuilder: No hay datos o lista vacía. Mostrando EmpleadosEmptyView.');
           return EmpleadosEmptyView(
             mostrandoInactivos: mostrarInactivos,
             onNuevoEmpleado: _navegarANuevoEmpleado,
@@ -290,24 +288,24 @@ class _ListaEmpleadosScreenState extends ConsumerState<ListaEmpleadosScreen>
   
   // Método extraído para construir la lista de empleados
   Widget _buildEmpleadosList(List<UsuarioEmpleado> empleados, bool mostrarInactivos) {
-    developer.log('[Screen] Construyendo lista filtrada de ${empleados.length} empleados totales.');
+    // developer.log('[Screen] Construyendo lista filtrada de ${empleados.length} empleados totales.');
     
     // Corregimos la lógica del filtrado: Si mostrarInactivos es true, solo mostramos los inactivos
     final empleadosFiltrados = mostrarInactivos
         ? empleados.where((e) => e.empleado.idEstado != 1).toList()  // SOLO inactivos (idEstado != 1)
         : empleados.where((e) => e.empleado.idEstado == 1).toList();  // SOLO activos (idEstado == 1)
     
-    developer.log('[Screen] Empleados filtrados (${mostrarInactivos ? "inactivos" : "activos"} solamente): ${empleadosFiltrados.length}');
+    // developer.log('[Screen] Empleados filtrados (${mostrarInactivos ? "inactivos" : "activos"} solamente): ${empleadosFiltrados.length}');
     
     if (empleadosFiltrados.isEmpty) {
-      developer.log('[Screen] Lista filtrada vacía. Mostrando EmpleadosEmptyView.');
+      // developer.log('[Screen] Lista filtrada vacía. Mostrando EmpleadosEmptyView.');
       return EmpleadosEmptyView(
         mostrandoInactivos: mostrarInactivos,
         onNuevoEmpleado: _navegarANuevoEmpleado,
       );
     }
     
-    developer.log('[Screen] Mostrando EmpleadosListView con ${empleadosFiltrados.length} empleados.');
+    // developer.log('[Screen] Mostrando EmpleadosListView con ${empleadosFiltrados.length} empleados.');
     return RefreshIndicator(
       onRefresh: cargarEmpleados,
       child: EmpleadosListView(
