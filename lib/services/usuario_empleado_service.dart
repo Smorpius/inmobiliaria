@@ -159,107 +159,71 @@ class UsuarioEmpleadoService {
   }) async {
     try {
       AppLogger.info(
-        'Iniciando obtenerEmpleados() ${forzarRefresco ? "con refresco forzado" : ""}',
+        '[Service] Obteniendo empleados (forzarRefresco=$forzarRefresco)'
       );
 
       return await _db.withConnection((conn) async {
-        if (forzarRefresco) {
-          AppLogger.info(
-            'Esperando para estabilización por refresco forzado...',
-          );
-          await Future.delayed(const Duration(milliseconds: 1000));
-        } else if (_db.reconectadoRecientemente) {
-          AppLogger.info(
-            'Detectada reconexión reciente, esperando estabilización...',
-          );
-          await Future.delayed(const Duration(milliseconds: 1500));
+        AppLogger.info('[Service] Ejecutando CALL LeerEmpleadosConUsuarios()');
+        final results = await conn.query('CALL LeerEmpleadosConUsuarios()');
+        AppLogger.info('[Service] Query ejecutada. Número de filas: ${results.length}');
+
+        if (results.isEmpty) {
+          AppLogger.info('[Service] No se encontraron empleados en la BD.');
+          return [];
         }
 
-        int intentos = 0;
-        Exception? lastError;
-
-        while (intentos < 3) {
+        // Procesar los resultados
+        final List<UsuarioEmpleado> usuariosEmpleados = [];
+        int index = 0;
+        for (var row in results) {
+          AppLogger.debug('[Service] Procesando fila ${index++}: ${row.fields}');
           try {
-            intentos++;
-            // Usar siempre procedimiento almacenado
-            final results = await conn.query('CALL LeerEmpleadosConUsuarios()');
-
-            AppLogger.info(
-              'Procedimiento devolvió ${results.length} resultados',
+            // Crear objetos Usuario y Empleado a partir de los datos
+            final usuario = Usuario(
+              id: row.fields['id_usuario'] as int,
+              nombre: row.fields['nombre'] as String,
+              apellido: row.fields['apellido_paterno'] as String, // Asumiendo que apellido_paterno es el apellido principal en Usuario
+              nombreUsuario: row.fields['nombre_usuario'] as String,
+              contrasena: '', // No se carga la contraseña por seguridad
+              correo: row.fields['correo_cliente'] as String?, // Ajustar si el nombre del campo es diferente
+              imagenPerfil: row.fields['imagen_perfil'] as String?,
+              idEstado: row.fields['usuario_estado'] as int, // Asegúrate que este campo exista en el SP
             );
 
-            if (results.isEmpty) {
-              AppLogger.info('No se encontraron empleados');
-              return [];
-            }
-
-            List<UsuarioEmpleado> empleados = [];
-            for (var row in results) {
-              try {
-                var datos = Map<String, dynamic>.from(row.fields);
-
-                // Asegurar que fecha_contratacion sea un DateTime
-                if (datos['fecha_contratacion'] != null) {
-                  var fechaValue = datos['fecha_contratacion'];
-                  if (fechaValue is! DateTime) {
-                    try {
-                      datos['fecha_contratacion'] = DateTime.parse(
-                        fechaValue.toString(),
-                      );
-                      AppLogger.info(
-                        'Fecha convertida exitosamente: ${datos['fecha_contratacion']}',
-                      );
-                    } catch (e) {
-                      AppLogger.warning('Error al convertir fecha: $e');
-                      datos['fecha_contratacion'] = DateTime.now();
-                    }
-                  }
-                } else {
-                  datos['fecha_contratacion'] = DateTime.now();
-                }
-
-                empleados.add(UsuarioEmpleado.fromMap(datos));
-              } catch (e) {
-                AppLogger.error(
-                  'Error al convertir empleado',
-                  e,
-                  StackTrace.current,
-                );
-                AppLogger.debug('Datos de la fila: ${row.fields}');
-              }
-            }
-
-            AppLogger.info(
-              'Retornando ${empleados.length} empleados procesados',
+            final empleado = Empleado(
+              id: row.fields['id_empleado'] as int,
+              idUsuario: row.fields['id_usuario'] as int,
+              claveSistema: row.fields['clave_sistema'] as String,
+              nombre: row.fields['nombre'] as String, // Nombre del empleado
+              apellidoPaterno: row.fields['apellido_paterno'] as String,
+              apellidoMaterno: row.fields['apellido_materno'] as String?,
+              telefono: row.fields['telefono'] as String,
+              correo: row.fields['correo'] as String, // Correo del empleado
+              direccion: row.fields['direccion'] as String,
+              cargo: row.fields['cargo'] as String,
+              sueldoActual: double.parse(row.fields['sueldo_actual'].toString()),
+              fechaContratacion: row.fields['fecha_contratacion'] as DateTime,
+              imagenEmpleado: row.fields['imagen_empleado'] as String?,
+              idEstado: row.fields['id_estado'] as int, // Estado del empleado
             );
-            return empleados;
-          } catch (e) {
-            if (intentos >= 3) {
-              lastError = Exception('Error al ejecutar la consulta: $e');
-              break;
-            }
 
+            // Agregar el par Usuario-Empleado a la lista
+            usuariosEmpleados.add(UsuarioEmpleado(usuario: usuario, empleado: empleado));
+            AppLogger.debug('[Service] Fila ${index-1} mapeada correctamente.');
+          } catch (e, s) {
             AppLogger.warning(
-              'Error en obtenerEmpleados() (intento $intentos/3): $e',
-            );
-
-            int espera = forzarRefresco ? 800 * intentos : 500 * intentos;
-            await Future.delayed(Duration(milliseconds: espera));
-            AppLogger.info(
-              'Reintentando obtener empleados (intento $intentos)',
+              '[Service] Error al procesar datos de empleado ID:${row.fields['id_empleado']}: $e\nStackTrace: $s',
             );
           }
         }
 
-        throw lastError ??
-            Exception(
-              'Error al obtener empleados después de múltiples intentos',
-            );
+        AppLogger.info('[Service] ${usuariosEmpleados.length} empleados mapeados con éxito.');
+        return usuariosEmpleados;
       });
-    } catch (e) {
+    } catch (e, s) {
       if (!_procesandoError) {
         _procesandoError = true;
-        AppLogger.error('Error en obtenerEmpleados()', e, StackTrace.current);
+        AppLogger.error('[Service] Error al obtener empleados', e, s);
         _procesandoError = false;
       }
       throw Exception('Error al obtener empleados: $e');

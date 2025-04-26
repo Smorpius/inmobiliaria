@@ -172,8 +172,8 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
       // Mostrar mensaje de éxito
       UIHelpers.mostrarExito(context, "Empleado creado exitosamente");
 
-      // Navegar hacia atrás
-      Navigator.of(context).pop();
+      // Navegar hacia atrás indicando éxito con 'true'
+      Navigator.of(context).pop(true);
     } catch (e) {
       developer.log('Error al crear empleado: $e', error: e);
       if (!mounted) return;

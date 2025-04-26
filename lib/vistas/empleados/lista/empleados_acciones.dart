@@ -149,34 +149,19 @@ mixin EmpleadosAcciones<T extends StatefulWidget> on State<T> {
         developer.log('Regresando de agregar empleado. Recargando lista...');
         setState(() => (this as dynamic).estado.iniciarCarga());
 
-        int intentos = 0;
-        const maxIntentos = 2;
+        // Llamar a cargarEmpleadosConRefresco para asegurar la actualización
+        await _controller.cargarEmpleadosConRefresco();
 
-        while (intentos < maxIntentos) {
-          try {
-            await Future.delayed(Duration(milliseconds: 300 + intentos * 300));
-            if (!mounted) return;
+        if (mounted) {
+          setState(() => (this as dynamic).estado.finalizarCarga());
 
-            await _controller.cargarEmpleados();
-            if (!mounted) return;
-
-            setState(() => (this as dynamic).estado.finalizarCarga());
-
-            ScaffoldMessenger.of(_context).showSnackBar(
-              const SnackBar(
-                content: Text('Empleado agregado correctamente'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-            break;
-          } catch (e) {
-            intentos++;
-            if (intentos >= maxIntentos && mounted) {
-              setState(() => (this as dynamic).estado.finalizarCarga());
-              (this as dynamic).manejarError(e);
-            }
-          }
+          // Mostrar mensaje de éxito
+          ScaffoldMessenger.of(_context).showSnackBar(
+            const SnackBar(
+              content: Text('Empleado agregado correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
         }
       }
     } catch (e) {

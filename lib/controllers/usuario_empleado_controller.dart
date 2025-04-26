@@ -14,6 +14,12 @@ class UsuarioEmpleadoController {
 
   // Control para evitar errores duplicados en consola
   bool _procesandoError = false;
+  
+  // Nueva propiedad para rastrear cuando se completó la última actualización
+  DateTime? _ultimaActualizacion;
+  
+  // Nueva propiedad para rastrear si hay una actualización en progreso
+  bool _actualizacionEnProgreso = false;
 
   UsuarioEmpleadoController(this._service) {
     // Inicializar el stream con una lista vacía para evitar estado nulo
@@ -22,6 +28,15 @@ class UsuarioEmpleadoController {
 
   // Stream para manejo reactivo de la lista de empleados
   Stream<List<UsuarioEmpleado>> get empleados => _empleadosController.stream;
+  
+  // Acceso directo a la última lista actualizada
+  List<UsuarioEmpleado> get empleadosActuales => List.unmodifiable(_empleadosList);
+  
+  // Estado de última actualización
+  DateTime? get ultimaActualizacion => _ultimaActualizacion;
+  
+  // Indicador si hay una actualización en progreso
+  bool get actualizandoEmpleados => _actualizacionEnProgreso;
 
   // Verifica si ya se inicializó
   bool get isInitialized => _isInitialized;
@@ -174,18 +189,30 @@ class UsuarioEmpleadoController {
   // Cargar empleados con refresco forzado
   Future<void> cargarEmpleadosConRefresco() async {
     return _ejecutarOperacion('cargar empleados con refresco', () async {
-      AppLogger.info('Iniciando carga con refresco forzado');
+      AppLogger.info('[Controller] Iniciando carga con refresco forzado...');
+      
+      // Marcar que hay una actualización en progreso
+      _actualizacionEnProgreso = true;
 
-      // Se reduce el tiempo de espera para agilizar la actualización
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      // Solo un refresco en vez de múltiples llamadas
-      final empleados = await _service.obtenerEmpleadosRefrescados();
-      _empleadosList = empleados;
-      AppLogger.info('Refresco: Empleados cargados: ${empleados.length}');
-      _empleadosController.sink.add([...empleados]);
-      AppLogger.info('Refresco de lista de empleados completado con éxito');
-      return;
+      try {
+        // Solo un refresco en vez de múltiples llamadas
+        final empleados = await _service.obtenerEmpleadosRefrescados();
+        _empleadosList = empleados;
+        AppLogger.info('[Controller] Refresco: Empleados recibidos del servicio: ${empleados.length}');
+        
+        // Crear una nueva lista para asegurar que el stream detecte el cambio
+        final nuevaLista = List<UsuarioEmpleado>.from(empleados);
+        _empleadosController.sink.add(nuevaLista);
+        
+        // Registrar cuando se completó la actualización
+        _ultimaActualizacion = DateTime.now();
+        
+        AppLogger.info('[Controller] Refresco: Stream actualizado con ${nuevaLista.length} empleados.');
+        return;
+      } finally {
+        // Asegurar que se marca como completado incluso en caso de error
+        _actualizacionEnProgreso = false;
+      }
     });
   }
 

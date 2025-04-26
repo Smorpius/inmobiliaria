@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:pdf/pdf.dart';
+import 'directory_service.dart';
 import '../utils/applogger.dart';
 import '../utils/pdf_font_helper.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -22,19 +23,42 @@ class PdfService {
     }
   }
 
-  /// Guarda un documento PDF en el almacenamiento del dispositivo y devuelve la ruta
+  /// Guarda un documento PDF en el almacenamiento del dispositivo
   static Future<String> guardarDocumento(
     pw.Document pdf,
-    String nombreArchivo,
-  ) async {
+    String nombreArchivo, {
+    String? tipoDocumento,
+  }) async {
     try {
-      final output = await getApplicationDocumentsDirectory();
-      final file = File('${output.path}/$nombreArchivo.pdf');
+      final directorios = await DirectoryService.crearEstructuraDirectorios();
+      String? directorio = directorios['base'];
+      if (tipoDocumento != null && directorios.containsKey(tipoDocumento)) {
+        directorio = directorios[tipoDocumento] ?? directorio;
+      }
+      if (directorio == null) {
+        throw Exception('No se pudo obtener un directorio válido');
+      }
+      AppLogger.info('Guardando PDF en: $directorio/$nombreArchivo.pdf');
+      final file = File('$directorio/$nombreArchivo.pdf');
       await file.writeAsBytes(await pdf.save());
-      return file.path;
+      if (await file.exists()) {
+        AppLogger.info('PDF guardado correctamente: ${file.path}');
+        return file.path;
+      } else {
+        throw Exception('El archivo no se creó correctamente');
+      }
     } catch (e, stack) {
       AppLogger.error('Error al guardar documento PDF', e, stack);
-      throw Exception('Error al guardar documento PDF: $e');
+      try {
+        final output = await getApplicationDocumentsDirectory();
+        final file = File('${output.path}/$nombreArchivo.pdf');
+        await file.writeAsBytes(await pdf.save());
+        AppLogger.info('PDF recuperado y guardado en: ${file.path}');
+        return file.path;
+      } catch (fallbackError) {
+        AppLogger.error('Error en recuperación al guardar PDF', fallbackError);
+        throw Exception('Error al guardar documento PDF: $e');
+      }
     }
   }
 

@@ -209,7 +209,12 @@ class ContratoPdfService {
 
       final fileName =
           'contrato_venta_${inmueble.id}_${DateFormat('yyyyMMdd').format(DateTime.now())}';
-      final filePath = await PdfService.guardarDocumento(pdf, fileName);
+      final filePath = await PdfService.guardarDocumento(
+        pdf,
+        fileName,
+        tipoDocumento: 'contratos_venta',
+      );
+      AppLogger.info('Contrato de venta generado: $filePath');
       return filePath;
     } catch (e, stackTrace) {
       AppLogger.error('Error al generar contrato de venta PDF', e, stackTrace);
@@ -428,7 +433,12 @@ class ContratoPdfService {
 
       final fileName =
           'contrato_renta_${inmueble.id}_${DateFormat('yyyyMMdd').format(DateTime.now())}';
-      final filePath = await PdfService.guardarDocumento(pdf, fileName);
+      final filePath = await PdfService.guardarDocumento(
+        pdf,
+        fileName,
+        tipoDocumento: 'contratos_renta',
+      );
+      AppLogger.info('Contrato de renta generado: $filePath');
       return filePath;
     } catch (e, stackTrace) {
       AppLogger.error('Error al generar contrato de renta PDF', e, stackTrace);
@@ -472,15 +482,28 @@ class ContratoPdfService {
     pw.TextStyle titleStyle,
     pw.TextStyle contentStyle,
   ) {
+    // Verificar que la fuente esté disponible
+    final font = PdfFontHelper.getCachedFont();
+    if (font == null) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          color: PdfColors.red50,
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+        ),
+        child: pw.Text('Error: Fuente no disponible'),
+      );
+    }
+
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 12),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(title, style: titleStyle),
-          pw.SizedBox(height: 4),
+          pw.SizedBox(height: 6), // Aumentar ligeramente el espaciado
           pw.Container(
-            padding: const pw.EdgeInsets.all(8),
+            padding: const pw.EdgeInsets.all(10), // Aumentar el padding
             decoration: pw.BoxDecoration(
               color: PdfColors.grey100,
               borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),

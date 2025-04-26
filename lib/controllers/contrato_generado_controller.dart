@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/inmueble_model.dart';
 import '../services/mysql_helper.dart';
 import 'package:printing/printing.dart';
+import '../services/directory_service.dart';
 import '../services/contrato_pdf_service.dart';
 import '../models/contrato_generado_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -57,6 +58,15 @@ class ContratoGeneradoController {
 
       if (rutaArchivo.isEmpty) {
         throw Exception('La ruta del archivo no puede estar vacía');
+      }
+
+      // Verificar que el archivo existe en el sistema de archivos
+      final archivoExiste = await File(rutaArchivo).exists();
+      if (!archivoExiste) {
+        AppLogger.error(
+          'El archivo no existe en la ruta especificada: $rutaArchivo',
+        );
+        throw Exception('El archivo del contrato no fue encontrado');
       }
 
       if (!['venta', 'renta'].contains(tipoContrato.toLowerCase())) {
@@ -306,12 +316,21 @@ class ContratoGeneradoController {
     DateTime? fechaContrato,
   }) async {
     try {
+      // Verificar y crear directorios necesarios
+      final directorios = await DirectoryService.ensureDirectoriesExist();
+      if (directorios['contratos_venta'] == null) {
+        throw Exception('No se pudo acceder al directorio de contratos');
+      }
+
       // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (context) => const Center(child: CircularProgressIndicator()),
+        );
+      }
 
       // Generar el PDF
       final pdfPath = await _pdfService.generarContratoVentaPDF(
@@ -361,12 +380,21 @@ class ContratoGeneradoController {
     String? condicionesAdicionales,
   }) async {
     try {
+      // Verificar y crear directorios necesarios
+      final directorios = await DirectoryService.ensureDirectoriesExist();
+      if (directorios['contratos_renta'] == null) {
+        throw Exception('No se pudo acceder al directorio de contratos');
+      }
+
       // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (context) => const Center(child: CircularProgressIndicator()),
+        );
+      }
 
       // Generar el PDF
       final pdfPath = await _pdfService.generarContratoRentaPDF(
