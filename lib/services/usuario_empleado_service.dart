@@ -159,13 +159,15 @@ class UsuarioEmpleadoService {
   }) async {
     try {
       AppLogger.info(
-        '[Service] Obteniendo empleados (forzarRefresco=$forzarRefresco)'
+        '[Service] Obteniendo empleados (forzarRefresco=$forzarRefresco)',
       );
 
       return await _db.withConnection((conn) async {
         AppLogger.info('[Service] Ejecutando CALL LeerEmpleadosConUsuarios()');
         final results = await conn.query('CALL LeerEmpleadosConUsuarios()');
-        AppLogger.info('[Service] Query ejecutada. Número de filas: ${results.length}');
+        AppLogger.info(
+          '[Service] Query ejecutada. Número de filas: ${results.length}',
+        );
 
         if (results.isEmpty) {
           AppLogger.info('[Service] No se encontraron empleados en la BD.');
@@ -176,18 +178,26 @@ class UsuarioEmpleadoService {
         final List<UsuarioEmpleado> usuariosEmpleados = [];
         int index = 0;
         for (var row in results) {
-          AppLogger.debug('[Service] Procesando fila ${index++}: ${row.fields}');
+          AppLogger.debug(
+            '[Service] Procesando fila ${index++}: ${row.fields}',
+          );
           try {
             // Crear objetos Usuario y Empleado a partir de los datos
             final usuario = Usuario(
               id: row.fields['id_usuario'] as int,
               nombre: row.fields['nombre'] as String,
-              apellido: row.fields['apellido_paterno'] as String, // Asumiendo que apellido_paterno es el apellido principal en Usuario
+              apellido:
+                  row.fields['apellido_paterno']
+                      as String, // Asumiendo que apellido_paterno es el apellido principal en Usuario
               nombreUsuario: row.fields['nombre_usuario'] as String,
               contrasena: '', // No se carga la contraseña por seguridad
-              correo: row.fields['correo_cliente'] as String?, // Ajustar si el nombre del campo es diferente
+              correo:
+                  row.fields['correo_cliente']
+                      as String?, // Ajustar si el nombre del campo es diferente
               imagenPerfil: row.fields['imagen_perfil'] as String?,
-              idEstado: row.fields['usuario_estado'] as int, // Asegúrate que este campo exista en el SP
+              idEstado:
+                  row.fields['usuario_estado']
+                      as int, // Asegúrate que este campo exista en el SP
             );
 
             final empleado = Empleado(
@@ -201,15 +211,21 @@ class UsuarioEmpleadoService {
               correo: row.fields['correo'] as String, // Correo del empleado
               direccion: row.fields['direccion'] as String,
               cargo: row.fields['cargo'] as String,
-              sueldoActual: double.parse(row.fields['sueldo_actual'].toString()),
+              sueldoActual: double.parse(
+                row.fields['sueldo_actual'].toString(),
+              ),
               fechaContratacion: row.fields['fecha_contratacion'] as DateTime,
               imagenEmpleado: row.fields['imagen_empleado'] as String?,
               idEstado: row.fields['id_estado'] as int, // Estado del empleado
             );
 
             // Agregar el par Usuario-Empleado a la lista
-            usuariosEmpleados.add(UsuarioEmpleado(usuario: usuario, empleado: empleado));
-            AppLogger.debug('[Service] Fila ${index-1} mapeada correctamente.');
+            usuariosEmpleados.add(
+              UsuarioEmpleado(usuario: usuario, empleado: empleado),
+            );
+            AppLogger.debug(
+              '[Service] Fila ${index - 1} mapeada correctamente.',
+            );
           } catch (e, s) {
             AppLogger.warning(
               '[Service] Error al procesar datos de empleado ID:${row.fields['id_empleado']}: $e\nStackTrace: $s',
@@ -217,7 +233,9 @@ class UsuarioEmpleadoService {
           }
         }
 
-        AppLogger.info('[Service] ${usuariosEmpleados.length} empleados mapeados con éxito.');
+        AppLogger.info(
+          '[Service] ${usuariosEmpleados.length} empleados mapeados con éxito.',
+        );
         return usuariosEmpleados;
       });
     } catch (e, s) {

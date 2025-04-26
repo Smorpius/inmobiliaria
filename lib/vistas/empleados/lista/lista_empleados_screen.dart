@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 import '../nuevo_empleado_screen.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../models/usuario_empleado.dart';
+import '../../../providers/providers_global.dart';
 import '../../../providers/empleado_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../providers/providers_global.dart';
 
 // Provider para manejar la actualización automática
 final empleadosAutoRefreshProvider = Provider.autoDispose<void>((ref) {
