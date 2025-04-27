@@ -165,6 +165,7 @@ class MovimientosRentaService {
   }
 
   /// Agrega un comprobante a un movimiento
+  /// Agrega un comprobante a un movimiento
   Future<int> agregarComprobante(ComprobanteMovimiento comprobante) async {
     return await _db.withConnection((conn) async {
       await conn.query('START TRANSACTION');
@@ -192,9 +193,9 @@ class MovimientosRentaService {
           );
         }
 
-        // Utilizar versión completa con todos los parámetros necesarios
+        // Utilizar versión completa con todos los parámetros necesarios (13 + 1 de salida)
         await conn.query(
-          'CALL AgregarComprobanteMovimiento(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_comprobante_out)',
+          'CALL AgregarComprobanteMovimiento(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, @id_comprobante_out)',
           [
             comprobante.idMovimiento,
             comprobante.rutaArchivo,
@@ -212,10 +213,11 @@ class MovimientosRentaService {
             comprobante.fechaEmision?.toIso8601String().split('T')[0] ??
                 DateTime.now().toIso8601String().split('T')[0],
             comprobante.notasAdicionales ?? '',
+            0, // Parámetro adicional p_id_usuario (valor por defecto)
           ],
         );
 
-        // Validación más robusta del resultado con manejo de errores específicos
+        // Recuperar el ID generado
         final result = await conn.query('SELECT @id_comprobante_out as id');
         if (result.isEmpty) {
           await conn.query('ROLLBACK');

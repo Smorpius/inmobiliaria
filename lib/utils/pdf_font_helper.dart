@@ -18,16 +18,61 @@ class PdfFontHelper {
     if (!_isInitialized && !_isLoading) {
       try {
         _isLoading = true;
+        AppLogger.info('Intentando inicializar PdfFontHelper...');
+
+        // Verificar si el directorio de assets existe
+        try {
+          final assetManifest = await rootBundle.loadString(
+            'AssetManifest.json',
+          );
+          if (!assetManifest.contains('fonts/Roboto-Regular.ttf')) {
+            AppLogger.warning(
+              'No se encontró la fuente Roboto en el manifest de assets',
+            );
+          }
+        } catch (e) {
+          AppLogger.warning('No se pudo verificar el manifest de assets: $e');
+        }
+
         await getFont().timeout(
-          Duration(seconds: 5),
-          onTimeout: () => throw TimeoutException('Timeout loading PDF fonts'),
+          Duration(seconds: 10), // Incrementar tiempo de timeout
+          onTimeout: () {
+            AppLogger.warning(
+              'Timeout al cargar fuentes para PDF, usando alternativa',
+            );
+            _cachedFont = pw.Font.helvetica();
+            _isInitialized = true;
+            _isLoading = false;
+            if (!_fontCompleter.isCompleted) {
+              _fontCompleter.complete(_cachedFont!);
+            }
+            return _cachedFont!;
+          },
         );
+
         _isInitialized = true;
         _isLoading = false;
         AppLogger.info('PdfFontHelper inicializado correctamente');
       } catch (e, stackTrace) {
         _isLoading = false;
         AppLogger.error('Error al inicializar PdfFontHelper', e, stackTrace);
+
+        // Intentar inicialización alternativa con fuente básica
+        try {
+          _cachedFont = pw.Font.helvetica();
+          _isInitialized = true;
+          if (!_fontCompleter.isCompleted) {
+            _fontCompleter.complete(_cachedFont!);
+          }
+          AppLogger.info('PdfFontHelper inicializado con fuente alternativa');
+        } catch (e2, stackTrace2) {
+          AppLogger.error(
+            'Error crítico al inicializar fuente alternativa',
+            e2,
+            stackTrace2,
+          );
+          // No propagar la excepción, permitir que la app continúe con funcionalidad limitada
+        }
       }
     }
     return;

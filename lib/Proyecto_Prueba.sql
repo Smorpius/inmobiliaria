@@ -3210,7 +3210,6 @@ END //
 -- Procedimiento para agregar comprobante a un movimiento
 CREATE PROCEDURE AgregarComprobanteMovimiento(
     IN p_id_movimiento INT,
-    IN p_ruta_imagen VARCHAR(255),
     IN p_ruta_archivo VARCHAR(255),
     IN p_tipo_archivo ENUM('imagen', 'pdf', 'documento'),
     IN p_descripcion TEXT,
@@ -3222,6 +3221,7 @@ CREATE PROCEDURE AgregarComprobanteMovimiento(
     IN p_metodo_pago ENUM('efectivo', 'transferencia', 'cheque', 'tarjeta', 'otro'),
     IN p_fecha_emision DATE,
     IN p_notas_adicionales TEXT,
+    IN p_id_usuario INT,
     OUT p_id_comprobante_out INT
 )
 BEGIN
@@ -3241,11 +3241,6 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Una factura debe tener un número de referencia';
     END IF;
     
-    -- Validación de fecha futura comentada para permitir fechas futuras
-    -- IF p_fecha_emision > CURDATE() THEN
-    --    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La fecha de emisión no puede ser futura';
-    -- END IF;
-    
     START TRANSACTION;
 
     IF p_es_principal = 1 THEN
@@ -3257,7 +3252,7 @@ BEGIN
     -- Insertar el nuevo comprobante
     INSERT INTO comprobantes_movimientos (
         id_movimiento, 
-        ruta_imagen, 
+        ruta_archivo, 
         tipo_archivo, 
         descripcion, 
         es_principal,
@@ -3270,7 +3265,7 @@ BEGIN
         notas_adicionales
     ) VALUES (
         p_id_movimiento, 
-        p_ruta_archivo,  -- Usar p_ruta_archivo en lugar de p_ruta_imagen
+        p_ruta_archivo,
         COALESCE(p_tipo_archivo, 'imagen'), 
         p_descripcion, 
         p_es_principal,
@@ -3303,7 +3298,8 @@ BEGIN
 SELECT 
 id_comprobante,
 id_movimiento,
-ruta_imagen,
+ruta_archivo, -- Cambiado de ruta_imagen a ruta_archivo
+tipo_archivo,
 descripcion,
 es_principal,
 tipo_comprobante,

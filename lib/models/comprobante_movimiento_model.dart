@@ -61,6 +61,22 @@ class ComprobanteMovimiento extends ComprobanteBase {
   /// Crea un objeto ComprobanteMovimiento desde un mapa (para deserialización desde BD)
   factory ComprobanteMovimiento.fromMap(Map<String, dynamic> map) {
     try {
+      // Función auxiliar para convertir Blob a String
+      String? blobToString(dynamic value) {
+        if (value == null) return null;
+        if (value is String) return value;
+        // Detectar si es un Blob usando el tipo en runtime
+        if (value.runtimeType.toString().contains('Blob')) {
+          try {
+            return String.fromCharCodes(value.toBytes());
+          } catch (e) {
+            _logger.warning('Error al convertir Blob a String: $e');
+            return null;
+          }
+        }
+        return value.toString();
+      }
+
       // Manejar fechas adecuadamente
       DateTime? parseFecha(dynamic fecha) {
         if (fecha == null) return null;
@@ -79,11 +95,11 @@ class ComprobanteMovimiento extends ComprobanteBase {
 
         // Primero intentar con el campo esperado
         if (map.containsKey('ruta_archivo') && map['ruta_archivo'] != null) {
-          rutaArchivo = map['ruta_archivo'].toString();
+          rutaArchivo = blobToString(map['ruta_archivo']) ?? '';
         }
         // Luego probar con campo alternativo usado en algunas versiones
         else if (map.containsKey('ruta_imagen') && map['ruta_imagen'] != null) {
-          rutaArchivo = map['ruta_imagen'].toString();
+          rutaArchivo = blobToString(map['ruta_imagen']) ?? '';
         }
 
         // Normalizar la ruta para evitar problemas con separadores de directorios
@@ -122,30 +138,34 @@ class ComprobanteMovimiento extends ComprobanteBase {
         idMovimiento: map['id_movimiento'],
         rutaArchivo: obtenerRutaArchivo(),
         tipoArchivo:
-            map['tipo_archivo'] ??
+            blobToString(map['tipo_archivo']) ??
             (obtenerRutaArchivo().toLowerCase().endsWith('.pdf')
                 ? 'pdf'
                 : 'imagen'),
-        descripcion: map['descripcion'],
+        descripcion: blobToString(map['descripcion']),
         esPrincipal: obtenerBooleano(map['es_principal']),
-        tipoComprobante: map['tipo_comprobante'] ?? 'otro',
-        numeroReferencia: map['numero_referencia'],
-        emisor: map['emisor'],
-        receptor: map['receptor'],
-        metodoPago: map['metodo_pago'],
+        tipoComprobante: blobToString(map['tipo_comprobante']) ?? 'otro',
+        numeroReferencia: blobToString(map['numero_referencia']),
+        emisor: blobToString(map['emisor']),
+        receptor: blobToString(map['receptor']),
+        metodoPago: blobToString(map['metodo_pago']),
         fechaEmision: parseFecha(map['fecha_emision']),
-        notasAdicionales: map['notas_adicionales'],
+        notasAdicionales: blobToString(map['notas_adicionales']),
         fechaCarga: parseFecha(map['fecha_carga']) ?? DateTime.now(),
-        conceptoMovimiento: map['concepto_movimiento'] ?? map['concepto'],
+        conceptoMovimiento: blobToString(
+          map['concepto_movimiento'] ?? map['concepto'],
+        ),
         montoMovimiento:
             map['monto_movimiento'] != null
                 ? double.tryParse(map['monto_movimiento'].toString())
                 : map['monto'] != null
                 ? double.tryParse(map['monto'].toString())
                 : null,
-        nombreCliente: map['nombre_cliente'],
-        apellidoCliente: map['apellido_cliente'] ?? map['apellido_paterno'],
-        nombreInmueble: map['nombre_inmueble'],
+        nombreCliente: blobToString(map['nombre_cliente']),
+        apellidoCliente: blobToString(
+          map['apellido_cliente'] ?? map['apellido_paterno'],
+        ),
+        nombreInmueble: blobToString(map['nombre_inmueble']),
       );
     } catch (e, stackTrace) {
       _logger.severe(

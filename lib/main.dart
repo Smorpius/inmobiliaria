@@ -18,7 +18,7 @@ Future<void> main() async {
   try {
     WidgetsFlutterBinding.ensureInitialized();
     AppLogger.init(
-      level: LogLevel.info,
+      level: LogLevel.error,
     ); // Cambiado a "info" para mostrar solo información importante
 
     // Inicializar y precargar fuentes para PDFs con timeout

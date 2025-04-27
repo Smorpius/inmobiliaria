@@ -88,9 +88,19 @@ class ComprobanteMovimientoController {
           return [];
         }
 
-        return results
-            .map((row) => ComprobanteMovimiento.fromMap(row.fields))
-            .toList();
+        return results.map((row) {
+          // Asegúrate de que el modelo ComprobanteMovimiento maneje correctamente
+          // la propiedad rutaArchivo en lugar de rutaImagen
+          final Map<String, dynamic> fields = Map.from(row.fields);
+
+          // Si existe ruta_imagen pero no existe ruta_archivo, renombrar el campo
+          if (fields.containsKey('ruta_imagen') &&
+              !fields.containsKey('ruta_archivo')) {
+            fields['ruta_archivo'] = fields['ruta_imagen'];
+          }
+
+          return ComprobanteMovimiento.fromMap(fields);
+        }).toList();
       });
     });
   }
