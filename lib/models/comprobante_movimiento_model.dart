@@ -65,7 +65,7 @@ class ComprobanteMovimiento extends ComprobanteBase {
       String? blobToString(dynamic value) {
         if (value == null) return null;
         if (value is String) return value;
-        
+
         // Detectar si es un Blob del paquete MySQL de Dart
         if (value.runtimeType.toString().contains('Blob')) {
           try {
@@ -108,7 +108,8 @@ class ComprobanteMovimiento extends ComprobanteBase {
         rutaArchivo = rutaArchivo.replaceAll('\\', '/');
 
         // Si la ruta ya es absoluta (Windows o Unix), dejarla tal cual
-        final esAbsoluta = rutaArchivo.startsWith('/') ||
+        final esAbsoluta =
+            rutaArchivo.startsWith('/') ||
             RegExp(r'^[A-Za-z]:/').hasMatch(rutaArchivo);
         if (esAbsoluta) {
           return rutaArchivo;

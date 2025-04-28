@@ -21,7 +21,8 @@ class DocumentoUtils {
   static const int tamanoMaximoBytes = 10 * 1024 * 1024;
 
   /// Ruta base absoluta para documentos (ajustar según tu entorno)
-  static const String _rutaBaseDocumentos = r'C:/Ingenieria de Software/inmobiliaria/assets/documentos';
+  static const String _rutaBaseDocumentos =
+      r'C:/Ingenieria de Software/inmobiliaria/assets/documentos';
 
   /// Guarda un archivo de documento y devuelve la ruta relativa donde se guardó
   ///
@@ -284,10 +285,7 @@ class DocumentoUtils {
 
   /// Genera una ruta para almacenar comprobantes de movimientos
   static String generarRutaRelativaComprobantesMovimiento(int idMovimiento) {
-    return path.join(
-      'comprobantes_movimiento',
-      idMovimiento.toString(),
-    );
+    return path.join('comprobantes_movimiento', idMovimiento.toString());
   }
 
   /// Genera una ruta para almacenar comprobantes de ventas
