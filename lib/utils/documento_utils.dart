@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import '../utils/applogger.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 /// Utilidad para manejar archivos de documentación como comprobantes y contratos
 class DocumentoUtils {
@@ -21,8 +20,8 @@ class DocumentoUtils {
   /// Tamaño máximo de archivo permitido (en bytes) - 10 MB
   static const int tamanoMaximoBytes = 10 * 1024 * 1024;
 
-  /// Directorio base para almacenar documentos
-  static const String _directorioBase = 'documentos';
+  /// Ruta base absoluta para documentos (ajustar según tu entorno)
+  static const String _rutaBaseDocumentos = r'C:/Ingenieria de Software/inmobiliaria/assets/documentos';
 
   /// Guarda un archivo de documento y devuelve la ruta relativa donde se guardó
   ///
@@ -64,7 +63,6 @@ class DocumentoUtils {
       final dirBase = await _obtenerDirectorioDocumentos();
       final directorioFinal = path.join(
         dirBase.path,
-        _directorioBase,
         subcarpeta,
         idReferencia.toString(),
       );
@@ -84,7 +82,6 @@ class DocumentoUtils {
 
       // Devolver la ruta relativa para almacenar en la base de datos
       final rutaRelativa = path.join(
-        _directorioBase,
         subcarpeta,
         idReferencia.toString(),
         nombreCompleto,
@@ -276,21 +273,18 @@ class DocumentoUtils {
         ); // Solo mantener alfanuméricos, guiones y puntos
   }
 
-  /// Obtiene el directorio base para documentos (application documents directory)
+  /// Obtiene el directorio base para documentos (ya no usa getApplicationDocumentsDirectory)
   static Future<Directory> _obtenerDirectorioDocumentos() async {
-    if (kIsWeb) {
-      throw UnsupportedError(
-        'La funcionalidad de archivos no está soportada en web',
-      );
+    final dir = Directory(_rutaBaseDocumentos);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
     }
-
-    return await getApplicationDocumentsDirectory();
+    return dir;
   }
 
   /// Genera una ruta para almacenar comprobantes de movimientos
   static String generarRutaRelativaComprobantesMovimiento(int idMovimiento) {
     return path.join(
-      _directorioBase,
       'comprobantes_movimiento',
       idMovimiento.toString(),
     );
@@ -298,17 +292,17 @@ class DocumentoUtils {
 
   /// Genera una ruta para almacenar comprobantes de ventas
   static String generarRutaRelativaComprobantesVenta(int idVenta) {
-    return path.join(_directorioBase, 'comprobantes_venta', idVenta.toString());
+    return path.join('comprobantes_venta', idVenta.toString());
   }
 
   /// Genera una ruta para almacenar contratos de renta
   static String generarRutaRelativaContratosRenta(int idContrato) {
-    return path.join(_directorioBase, 'contratos_renta', idContrato.toString());
+    return path.join('contratos_renta', idContrato.toString());
   }
 
   /// Genera una ruta para almacenar contratos de venta
   static String generarRutaRelativaContratosVenta(int idVenta) {
-    return path.join(_directorioBase, 'contratos_venta', idVenta.toString());
+    return path.join('contratos_venta', idVenta.toString());
   }
 
   /// Mueve un archivo de una ubicación temporal a la ubicación final de documentos

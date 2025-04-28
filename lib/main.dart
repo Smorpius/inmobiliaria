@@ -12,6 +12,7 @@ import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
 import 'utils/pdf_font_helper.dart'; // Importación de PdfFontHelper
 import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Importar
 import 'vistas/documentos/documentos_screen.dart'; // Importar la nueva pantalla
 
 Future<void> main() async {
@@ -62,6 +63,22 @@ class MyApp extends ConsumerWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
         useMaterial3: true,
       ),
+      // Añadir configuración de localización
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'), // Español de España
+        Locale('es', 'MX'), // Español de México (si lo necesitas)
+        Locale('en', ''), // Inglés (opcional)
+        // ... otros locales que necesites
+      ],
+      locale: const Locale(
+        'es',
+        'ES',
+      ), // Establecer español como idioma por defecto
       // Mostrar errores globales
       builder: (context, child) {
         return Stack(

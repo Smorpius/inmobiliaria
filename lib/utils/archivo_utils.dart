@@ -1,13 +1,16 @@
 import 'dart:io';
 import '../utils/applogger.dart';
 import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 
 /// Clase de utilidades para manejo de archivos y rutas
 class ArchivoUtils {
   static const String _dirComprobantes = 'comprobantes';
   static const String _dirContratos = 'contratos';
   static const String _dirTemp = 'temp';
+
+  /// Ruta base absoluta para documentos (ajustar según tu entorno)
+  static const String _rutaBaseDocumentos =
+      r'C:/Ingenieria de Software/inmobiliaria/assets/documentos';
 
   /// Normaliza una ruta de archivo para garantizar consistencia
   static String normalizarRuta(String rutaArchivo) {
@@ -53,35 +56,48 @@ class ArchivoUtils {
 
   /// Obtiene la ruta completa de un archivo desde una ruta relativa
   static Future<String> obtenerRutaCompleta(String rutaRelativa) async {
-    final baseDir = await getApplicationDocumentsDirectory();
     final rutaNormalizada = normalizarRuta(rutaRelativa);
-    return path.join(baseDir.path, rutaNormalizada);
+    return path.join(_rutaBaseDocumentos, rutaNormalizada);
   }
 
   /// Verifica la existencia de un archivo, intentando múltiples ubicaciones si es necesario
   static Future<bool> verificarExistenciaArchivo(String rutaRelativa) async {
     try {
-      final baseDir = await getApplicationDocumentsDirectory();
       final rutaNormalizada = normalizarRuta(rutaRelativa);
       final nombreArchivo = path.basename(rutaRelativa);
 
       // Lista de posibles ubicaciones a probar en orden de prioridad
       final ubicaciones = [
         // 1. Ruta normalizada completa
-        path.join(baseDir.path, rutaNormalizada),
+        path.join(_rutaBaseDocumentos, rutaNormalizada),
 
         // 2. Solo el nombre del archivo en la raíz
-        path.join(baseDir.path, nombreArchivo),
+        path.join(_rutaBaseDocumentos, nombreArchivo),
 
         // 3. El nombre del archivo en cada directorio conocido
-        path.join(baseDir.path, _dirComprobantes, nombreArchivo),
-        path.join(baseDir.path, _dirContratos, nombreArchivo),
-        path.join(baseDir.path, _dirTemp, nombreArchivo),
+        path.join(_rutaBaseDocumentos, _dirComprobantes, nombreArchivo),
+        path.join(_rutaBaseDocumentos, _dirContratos, nombreArchivo),
+        path.join(_rutaBaseDocumentos, _dirTemp, nombreArchivo),
 
         // 4. Buscar en subdirectorios comunes
-        path.join(baseDir.path, _dirComprobantes, 'movimientos', nombreArchivo),
-        path.join(baseDir.path, _dirComprobantes, 'ventas', nombreArchivo),
-        path.join(baseDir.path, _dirComprobantes, 'rentas', nombreArchivo),
+        path.join(
+          _rutaBaseDocumentos,
+          _dirComprobantes,
+          'movimientos',
+          nombreArchivo,
+        ),
+        path.join(
+          _rutaBaseDocumentos,
+          _dirComprobantes,
+          'ventas',
+          nombreArchivo,
+        ),
+        path.join(
+          _rutaBaseDocumentos,
+          _dirComprobantes,
+          'rentas',
+          nombreArchivo,
+        ),
       ];
 
       // Registrar para depuración con nivel detalle disminuido
@@ -115,17 +131,15 @@ class ArchivoUtils {
   /// Busca un archivo por su nombre en múltiples ubicaciones y devuelve la ruta completa
   static Future<String?> buscarArchivoPorNombre(String nombreArchivo) async {
     try {
-      final baseDir = await getApplicationDocumentsDirectory();
-
       // Lista de posibles directorios donde buscar
       final directorios = [
-        baseDir.path,
-        path.join(baseDir.path, _dirComprobantes),
-        path.join(baseDir.path, _dirContratos),
-        path.join(baseDir.path, _dirTemp),
-        path.join(baseDir.path, _dirComprobantes, 'movimientos'),
-        path.join(baseDir.path, _dirComprobantes, 'ventas'),
-        path.join(baseDir.path, _dirComprobantes, 'rentas'),
+        _rutaBaseDocumentos,
+        path.join(_rutaBaseDocumentos, _dirComprobantes),
+        path.join(_rutaBaseDocumentos, _dirContratos),
+        path.join(_rutaBaseDocumentos, _dirTemp),
+        path.join(_rutaBaseDocumentos, _dirComprobantes, 'movimientos'),
+        path.join(_rutaBaseDocumentos, _dirComprobantes, 'ventas'),
+        path.join(_rutaBaseDocumentos, _dirComprobantes, 'rentas'),
       ];
 
       // Buscar en todos los directorios
@@ -155,8 +169,6 @@ class ArchivoUtils {
     String? subDirectorio,
   }) async {
     try {
-      // Obtener directorio base
-      final appDir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final extension = path.extension(archivoTemporal.path).toLowerCase();
 
@@ -172,12 +184,12 @@ class ArchivoUtils {
       String directorioDestino;
       if (subDirectorio != null && subDirectorio.isNotEmpty) {
         directorioDestino = path.join(
-          appDir.path,
+          _rutaBaseDocumentos,
           _dirComprobantes,
           subDirectorio,
         );
       } else {
-        directorioDestino = path.join(appDir.path, _dirComprobantes);
+        directorioDestino = path.join(_rutaBaseDocumentos, _dirComprobantes);
       }
 
       // Asegurar que el directorio exista

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../providers/venta_providers.dart';
 import '../../models/venta_reporte_model.dart';
+import '../../widgets/filtro_periodo_widget.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Constantes para colores usados en los gráficos y tarjetas
@@ -34,37 +35,32 @@ class ReportesVentasScreen extends ConsumerStatefulWidget {
 
 class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
   DateTimeRange? _rangoFechas;
+  TipoPeriodo _tipoPeriodoActual = TipoPeriodo.mes;
+
+  void _actualizarPeriodo(TipoPeriodo tipo, DateTimeRange rango) {
+    setState(() {
+      _tipoPeriodoActual = tipo;
+      _rangoFechas = rango;
+      ref.invalidate(ventasEstadisticasProvider);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Usando el provider de estadísticas con el rango de fechas como parámetro
     final estadisticasAsyncValue = ref.watch(
       ventasEstadisticasProvider(_rangoFechas),
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reportes de Ventas'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.date_range),
-            tooltip: 'Seleccionar rango de fechas',
-            onPressed: () => _seleccionarRangoFechas(context),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Reportes de Ventas')),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header con período y botones
               _construirHeader(),
-
               const SizedBox(height: 16),
-
-              // Estadísticas principales
               estadisticasAsyncValue.when(
                 data: (estadisticas) => _construirEstadisticas(estadisticas),
                 loading:
@@ -78,10 +74,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                       child: Text('Error al cargar estadísticas: $error'),
                     ),
               ),
-
               const SizedBox(height: 24),
-
-              // Gráficos de ventas
               estadisticasAsyncValue.when(
                 data: (estadisticas) => _construirGraficos(estadisticas),
                 loading:
@@ -98,7 +91,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye el encabezado con información del período seleccionado
   Widget _construirHeader() {
     return Card(
       elevation: 2,
@@ -111,34 +103,10 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
               'Reportes de Ventas',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _rangoFechas != null
-                  ? 'Período: ${DateFormat('dd/MM/yyyy').format(_rangoFechas!.start)} - '
-                      '${DateFormat('dd/MM/yyyy').format(_rangoFechas!.end)}'
-                  : 'Mostrando estadísticas de todas las ventas',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _seleccionarRangoFechas(context),
-                  icon: const Icon(Icons.date_range),
-                  label: const Text('Cambiar período'),
-                ),
-                const SizedBox(width: 16),
-                if (_rangoFechas != null)
-                  TextButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _rangoFechas = null;
-                      });
-                    },
-                    icon: const Icon(Icons.clear),
-                    label: const Text('Limpiar filtro'),
-                  ),
-              ],
+            FiltroPeriodoWidget(
+              initialPeriodo: _tipoPeriodoActual,
+              onPeriodoChanged: _actualizarPeriodo,
             ),
           ],
         ),
@@ -152,7 +120,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Tarjetas de estadísticas principales
         Row(
           children: [
             Expanded(
@@ -196,8 +163,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
             ),
           ],
         ),
-
-        // Mostrar mensaje si no hay ventas
         if (estadisticas.totalVentas == 0)
           Padding(
             padding: const EdgeInsets.only(top: 32.0),
@@ -231,45 +196,81 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye la sección de gráficos con los datos de ventas
   Widget _construirGraficos(VentaReporte estadisticas) {
-    // No mostrar gráficos si no hay datos
     if (estadisticas.totalVentas == 0) {
-      return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: 32.0),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.info_outline, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text(
+                'No hay ventas registradas en este período',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Intenta seleccionar otro período o registra nuevas ventas.',
+                style: TextStyle(color: Colors.grey.shade500),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Gráfico de ventas por mes
         if (estadisticas.ventasMensuales.isNotEmpty)
           _construirGraficoVentasMensuales(estadisticas.ventasMensuales),
-
         const SizedBox(height: 24),
-
-        // Gráfico de ventas por tipo de inmueble
         if (estadisticas.ventasPorTipo.isNotEmpty)
           _construirGraficoVentasPorTipo(estadisticas.ventasPorTipo),
       ],
     );
   }
 
-  /// Construye un gráfico de líneas con las ventas mensuales
   Widget _construirGraficoVentasMensuales(
     List<Map<String, dynamic>> ventasMensuales,
   ) {
-    // Preparar datos para el gráfico
     final ingresos = <FlSpot>[];
     final utilidades = <FlSpot>[];
     final labels = <String>[];
 
+    ventasMensuales.sort((a, b) {
+      int compareAnio = a['anio'].compareTo(b['anio']);
+      if (compareAnio != 0) return compareAnio;
+      return a['mes'].compareTo(b['mes']);
+    });
+
     for (int i = 0; i < ventasMensuales.length; i++) {
       final venta = ventasMensuales[i];
-      ingresos.add(FlSpot(i.toDouble(), venta['ingreso'] / 1000)); // En miles
-      utilidades.add(
-        FlSpot(i.toDouble(), venta['utilidad'] / 1000),
-      ); // En miles
-      labels.add('${_getNombreMes(venta['mes'])} ${venta['anio']}');
+      final double ingreso = (venta['ingreso'] ?? 0.0).toDouble();
+      final double utilidad = (venta['utilidad'] ?? 0.0).toDouble();
+
+      ingresos.add(FlSpot(i.toDouble(), ingreso / 1000));
+      utilidades.add(FlSpot(i.toDouble(), utilidad / 1000));
+
+      try {
+        final fecha = DateTime(venta['anio'], venta['mes']);
+        labels.add(DateFormat('MMM yy', 'es_ES').format(fecha));
+      } catch (e) {
+        labels.add('${venta['mes']}/${venta['anio']}');
+      }
+    }
+
+    if (ingresos.isEmpty && utilidades.isEmpty) {
+      return _construirPlaceholderGrafico(
+        'No hay datos mensuales para este período.',
+      );
     }
 
     return Card(
@@ -280,12 +281,12 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Ventas Mensuales',
+              'Evolución de Ventas',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Ingresos y utilidades por mes (en miles de \$)',
+              'Ingresos y utilidades (en miles de \$)',
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -299,13 +300,14 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
-                          if (value >= 0 &&
-                              value < labels.length &&
-                              value % 2 == 0) {
+                          final index = value.toInt();
+                          if (index >= 0 &&
+                              index < labels.length &&
+                              index % (labels.length > 12 ? 2 : 1) == 0) {
                             return Padding(
                               padding: const EdgeInsets.only(top: 8.0),
                               child: Text(
-                                labels[value.toInt()],
+                                labels[index],
                                 style: const TextStyle(fontSize: 10),
                               ),
                             );
@@ -313,12 +315,19 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                           return const SizedBox();
                         },
                         reservedSize: 30,
+                        interval: 1,
                       ),
                     ),
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 40,
+                        reservedSize: 45,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            '${value.toInt()}k',
+                            style: const TextStyle(fontSize: 10),
+                          );
+                        },
                       ),
                     ),
                     topTitles: const AxisTitles(
@@ -330,7 +339,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                   ),
                   borderData: FlBorderData(show: true),
                   lineBarsData: [
-                    // Línea de ingresos
                     LineChartBarData(
                       spots: ingresos,
                       isCurved: true,
@@ -344,7 +352,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                         ),
                       ),
                     ),
-                    // Línea de utilidades
                     LineChartBarData(
                       spots: utilidades,
                       isCurved: true,
@@ -359,6 +366,46 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                       ),
                     ),
                   ],
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((spot) {
+                          final barData = spot.bar;
+                          final labelIndex = spot.spotIndex;
+                          String label = '';
+                          if (labelIndex >= 0 && labelIndex < labels.length) {
+                            label = labels[labelIndex];
+                          }
+                          final value = spot.y * 1000;
+                          final formatter = NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          );
+
+                          return LineTooltipItem(
+                            '${barData.color == ReporteColors.ingresos ? 'Ingreso' : 'Utilidad'}\n',
+                            TextStyle(
+                              color: barData.color,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            children: [
+                              TextSpan(
+                                text: '${formatter.format(value)}\n',
+                                style: const TextStyle(color: Colors.black),
+                              ),
+                              TextSpan(
+                                text: label,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -377,16 +424,13 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye un gráfico circular con las ventas por tipo de inmueble
   Widget _construirGraficoVentasPorTipo(Map<String, double> ventasPorTipo) {
-    // Preparar datos para el gráfico
     final List<PieChartSectionData> sections = [];
     final colores = ReporteColors.tiposInmuebles;
 
     double total = ventasPorTipo.values.fold(0, (sum, item) => sum + item);
     int i = 0;
 
-    // Protección contra división por cero
     if (total > 0) {
       ventasPorTipo.forEach((tipo, monto) {
         final porcentaje = (monto / total) * 100;
@@ -442,12 +486,10 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye la leyenda para el gráfico circular
   Widget _construirLeyendaPieChart(
     Map<String, double> data,
     List<Color> colores,
   ) {
-    // Convertimos las keys a lista una sola vez para optimizar el rendimiento
     final listaKeys = data.keys.toList();
 
     return Column(
@@ -482,7 +524,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye un elemento de leyenda para los gráficos
   Widget _legendItem(String label, Color color) {
     return Row(
       children: [
@@ -497,7 +538,6 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Construye una tarjeta de estadística
   Widget _buildStatCard(
     String title,
     String value,
@@ -533,73 +573,11 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
     );
   }
 
-  /// Muestra un selector de rango de fechas
-  Future<void> _seleccionarRangoFechas(BuildContext context) async {
-    final fechaActual = DateTime.now();
-    final rangoInicial =
-        _rangoFechas ??
-        DateTimeRange(
-          start: DateTime(fechaActual.year, fechaActual.month - 6, 1),
-          end: fechaActual,
-        );
-
-    final rango = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: fechaActual,
-      initialDateRange: rangoInicial,
-      saveText: 'APLICAR',
-      cancelText: 'CANCELAR',
-      confirmText: 'ACEPTAR',
-      helpText: 'SELECCIONAR PERÍODO',
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Colors.teal, // Color primario para fechas seleccionadas
-              onPrimary: Colors.white, // Color del texto en días seleccionados
-              surface: Colors.teal.shade50, // Color de fondo
-              onSurface: Colors.black, // Color del texto
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (rango != null) {
-      setState(() {
-        _rangoFechas = rango;
-      });
-    }
-  }
-
-  /// Obtiene el nombre abreviado del mes
-  String _getNombreMes(int mes) {
-    const meses = [
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic',
-    ];
-    return meses[mes - 1];
-  }
-
-  /// Capitaliza la primera letra de una palabra
   String _capitalizarPalabra(String texto) {
     if (texto.isEmpty) return texto;
     return texto[0].toUpperCase() + texto.substring(1);
   }
 
-  /// Construye un placeholder para gráficos vacíos
   Widget _construirPlaceholderGrafico(String mensaje) {
     return SizedBox(
       height: 200,

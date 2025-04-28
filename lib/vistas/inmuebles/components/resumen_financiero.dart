@@ -4,18 +4,23 @@ import '../../../models/resumen_renta_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/inmueble_renta_provider.dart';
 import 'package:inmobiliaria/models/movimiento_renta_model.dart';
+import 'package:intl/intl.dart'; // Importar intl para formatear fechas
 
 class ResumenFinanciero extends ConsumerWidget {
   final Inmueble inmueble;
   final int anio;
   final int mes;
 
-  const ResumenFinanciero({
+  ResumenFinanciero({
     super.key,
     required this.inmueble,
     required this.anio,
     required this.mes,
   });
+
+  // Formateadores
+  final formatCurrency = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
+  final formatDate = DateFormat('dd/MM/yyyy');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -249,6 +254,7 @@ class ResumenFinanciero extends ConsumerWidget {
                       fontSize: 16,
                     ),
                   ),
+                  onTap: () => _mostrarDetallesMovimiento(context, movimiento),
                 );
               },
             ),
@@ -256,5 +262,98 @@ class ResumenFinanciero extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  // Nuevo método para mostrar detalles del movimiento
+  void _mostrarDetallesMovimiento(
+    BuildContext context,
+    MovimientoRenta movimiento,
+  ) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(
+                  movimiento.esIngreso
+                      ? Icons.arrow_circle_down
+                      : Icons.arrow_circle_up,
+                  color: movimiento.esIngreso ? Colors.green : Colors.red,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    movimiento.concepto,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetalleMovimientoRow('Monto', movimiento.montoFormateado),
+                _buildDetalleMovimientoRow('Fecha', movimiento.fechaFormateada),
+                _buildDetalleMovimientoRow(
+                  'Tipo',
+                  movimiento.esIngreso ? 'Ingreso' : 'Egreso',
+                ),
+                if (movimiento.mesCorrespondiente.isNotEmpty)
+                  _buildDetalleMovimientoRow(
+                    'Mes correspondiente',
+                    _formatMesCorrespondiente(movimiento.mesCorrespondiente),
+                  ),
+                if (movimiento.comentarios != null &&
+                    movimiento.comentarios!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Comentarios:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(movimiento.comentarios!),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  // Método auxiliar para construir filas en el detalle de movimiento
+  Widget _buildDetalleMovimientoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
+          Flexible(child: Text(value, textAlign: TextAlign.end)),
+        ],
+      ),
+    );
+  }
+
+  // Método para formatear el mes correspondiente de YYYY-MM a un formato legible
+  String _formatMesCorrespondiente(String mesCorrespondiente) {
+    try {
+      final parts = mesCorrespondiente.split('-');
+      if (parts.length == 2) {
+        final year = int.parse(parts[0]);
+        final month = int.parse(parts[1]);
+        return DateFormat('MMMM yyyy', 'es_ES').format(DateTime(year, month));
+      }
+      return mesCorrespondiente;
+    } catch (e) {
+      return mesCorrespondiente;
+    }
   }
 }

@@ -65,19 +65,21 @@ class ComprobanteMovimiento extends ComprobanteBase {
       String? blobToString(dynamic value) {
         if (value == null) return null;
         if (value is String) return value;
-        // Detectar si es un Blob usando el tipo en runtime
+        
+        // Detectar si es un Blob del paquete MySQL de Dart
         if (value.runtimeType.toString().contains('Blob')) {
           try {
-            return String.fromCharCodes(value.toBytes());
+            // Intenta obtener los bytes del Blob y convertirlos a String
+            final bytes = value.toBytes();
+            return String.fromCharCodes(bytes);
           } catch (e) {
             _logger.warning('Error al convertir Blob a String: $e');
-            return null;
+            return value.toString();
           }
         }
         return value.toString();
       }
 
-      // Manejar fechas adecuadamente
       DateTime? parseFecha(dynamic fecha) {
         if (fecha == null) return null;
         if (fecha is DateTime) return fecha;
@@ -105,10 +107,20 @@ class ComprobanteMovimiento extends ComprobanteBase {
         // Normalizar la ruta para evitar problemas con separadores de directorios
         rutaArchivo = rutaArchivo.replaceAll('\\', '/');
 
-        // Asegurar que la ruta inicia correctamente
-        if (!rutaArchivo.startsWith('/') &&
-            !rutaArchivo.startsWith('comprobantes/') &&
-            rutaArchivo.isNotEmpty) {
+        // Si la ruta ya es absoluta (Windows o Unix), dejarla tal cual
+        final esAbsoluta = rutaArchivo.startsWith('/') ||
+            RegExp(r'^[A-Za-z]:/').hasMatch(rutaArchivo);
+        if (esAbsoluta) {
+          return rutaArchivo;
+        }
+
+        // Si la ruta contiene un separador de directorio, dejarla tal cual
+        if (rutaArchivo.contains('/')) {
+          return rutaArchivo;
+        }
+
+        // Si es solo un nombre de archivo, anteponer comprobantes/
+        if (rutaArchivo.isNotEmpty) {
           rutaArchivo = 'comprobantes/$rutaArchivo';
         }
 
@@ -122,7 +134,7 @@ class ComprobanteMovimiento extends ComprobanteBase {
         return rutaArchivo;
       }
 
-      // Obtener valor booleano manejo de diferentes formatos (0/1, true/false, "0"/"1")
+      // Obtener valor booleano manejo de diferentes formatos
       bool obtenerBooleano(dynamic valor, {bool valorPorDefecto = false}) {
         if (valor == null) return valorPorDefecto;
         if (valor is bool) return valor;

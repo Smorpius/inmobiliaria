@@ -4,9 +4,12 @@ import 'galeria_comprobantes.dart';
 import 'formulario_movimiento.dart';
 import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
+import '../../../models/venta_model.dart';
 import '../../../models/cliente_model.dart';
 import '../../../models/inmueble_model.dart';
+import '../../../models/contrato_renta_model.dart';
 import '../../../providers/cliente_providers.dart';
+import '../../../widgets/filtro_periodo_widget.dart';
 import '../../../controllers/inmueble_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/inmueble_renta_provider.dart';
@@ -101,121 +104,133 @@ class RegistroMovimientosRentaScreen extends ConsumerStatefulWidget {
 }
 
 class _RegistroMovimientosRentaScreenState
-    extends ConsumerState<RegistroMovimientosRentaScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  int _anioSeleccionado = DateTime.now().year;
-  int _mesSeleccionado = DateTime.now().month;
+    extends ConsumerState<RegistroMovimientosRentaScreen> {
   final formatCurrency = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
+  final formatDate = DateFormat('dd/MM/yyyy');
+
+  // Variables de estado para el filtro de período
+  TipoPeriodo _tipoPeriodoActual = TipoPeriodo.mes;
+  DateTime _fechaInicio = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  );
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    // En lugar de llamar directamente, usamos Future.microtask para programar
-    // la carga después de que se complete la construcción del widget
-    Future.microtask(() => _cargarDatos());
+    // El widget FiltroPeriodoWidget notificará el período inicial por callback
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _cargarDatos() async {
-    try {
-      if (widget.inmueble.id != null) {
-        // Retrasamos la actualización del estado para evitar conflictos
-        // con la construcción del árbol de widgets
-        Future.microtask(() {
-          ref
-              .read(movimientosRentaStateProvider(widget.inmueble.id!).notifier)
-              .cargarMovimientos(widget.inmueble.id!);
-        });
-      }
-    } catch (e, stack) {
-      AppLogger.error('Error al cargar movimientos', e, stack);
+  // Método para manejar cambios desde el FiltroPeriodoWidget
+  void _onPeriodoChanged(TipoPeriodo nuevoPeriodo, DateTimeRange nuevoRango) {
+    // Validación básica del año
+    if (nuevoRango.start.year < 2000 || nuevoRango.start.year > 2100) {
+      AppLogger.warning(
+        'Rango de fechas inválido recibido: $nuevoRango. No se actualizará el estado.',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al procesar el rango de fechas seleccionado.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
     }
+
+    setState(() {
+      _tipoPeriodoActual = nuevoPeriodo;
+      _fechaInicio =
+          nuevoRango.start; // Actualizar la fecha de inicio localmente
+
+      // Invalidar el provider del resumen con los parámetros correctos
+      final params = ResumenRentaParams(
+        idInmueble: widget.inmueble.id!,
+        anio: nuevoRango.start.year, // Usar el año del nuevo rango
+        mes: nuevoRango.start.month, // Usar el mes del nuevo rango
+      );
+      ref.invalidate(resumenRentaPorMesProvider(params));
+
+      // Puedes mantener o quitar la invalidación del otro provider según sea necesario
+      // ref.invalidate(movimientosPorInmuebleProvider(widget.inmueble.id!));
+    });
+    AppLogger.info('Período cambiado a: $nuevoPeriodo, Rango: $nuevoRango');
   }
 
   @override
   Widget build(BuildContext context) {
-    final esPantallaPequena = MediaQuery.of(context).size.width < 600;
-    // Obtener el cliente asociado al inmueble usando el nuevo provider
     final clienteAsync = ref.watch(
       clientePorInmuebleProvider(widget.inmueble.id!),
     );
+    final contratoAsync = const AsyncValue.data(null); // Ajuste temporal
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          esPantallaPequena
-              ? widget.inmueble.nombre.length > 15
-                  ? '${widget.inmueble.nombre.substring(0, 15)}...'
-                  : widget.inmueble.nombre
-              : 'Registro de Renta: ${widget.inmueble.nombre}',
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.add_box), text: 'Registrar'),
-            Tab(icon: Icon(Icons.receipt_long), text: 'Resumen'),
-            Tab(icon: Icon(Icons.image), text: 'Comprobantes'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        physics: const NeverScrollableScrollPhysics(),
-        children: [
-          // Pestaña 1: Formulario de registro con información del cliente
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                // Widget de información del cliente sólo en la primera pestaña
-                _construirInfoGeneral(clienteAsync),
-                // Formulario de registro
-                FormularioMovimiento(
-                  inmueble: widget.inmueble,
-                  onSuccess: () {
-                    // Después de un registro exitoso, cambiamos a la pestaña de resumen
-                    _tabController.animateTo(1);
-                    // Refrescamos los datos
-                    _cargarDatos();
-                  },
+        title: Text('Movimientos: ${widget.inmueble.nombre}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'Ver Comprobantes',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) =>
+                          GaleriaComprobantes(inmueble: widget.inmueble),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-
-          // Pestaña 2: Resumen financiero (sin información del cliente)
-          SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _construirSelectorMes(),
-                  const SizedBox(height: 16),
-                  ResumenFinanciero(
-                    inmueble: widget.inmueble,
-                    anio: _anioSeleccionado,
-                    mes: _mesSeleccionado,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Pestaña 3: Galería de comprobantes (sin información del cliente)
-          GaleriaComprobantes(inmueble: widget.inmueble),
         ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(movimientosPorInmuebleProvider(widget.inmueble.id!));
+          ref.invalidate(clientePorInmuebleProvider(widget.inmueble.id!));
+          await Future.delayed(const Duration(milliseconds: 500));
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildInfoSection(clienteAsync, contratoAsync),
+              const SizedBox(height: 16),
+              FiltroPeriodoWidget(
+                initialPeriodo: _tipoPeriodoActual,
+                onPeriodoChanged: _onPeriodoChanged,
+              ),
+              const SizedBox(height: 16),
+              ResumenFinanciero(
+                inmueble: widget.inmueble,
+                anio: _fechaInicio.year, // Se pasa el año actualizado
+                mes: _fechaInicio.month, // Se pasa el mes actualizado
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Registrar Nuevo Movimiento'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: () => _mostrarFormularioMovimiento(context),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _construirSelectorMes() {
+  Widget _buildInfoSection(
+    AsyncValue<Cliente?> clienteAsync,
+    AsyncValue<dynamic> contratoAsync, // Puede ser ContratoRenta o Venta
+  ) {
     return Card(
       elevation: 2,
       child: Padding(
@@ -223,61 +238,94 @@ class _RegistroMovimientosRentaScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Selecciona periodo',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              widget.inmueble.nombre,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Mes',
-                      border: OutlineInputBorder(),
-                    ),
-                    value: _mesSeleccionado,
-                    items: List.generate(12, (index) {
-                      final mes = index + 1;
-                      return DropdownMenuItem(
-                        value: mes,
-                        child: Text(_obtenerNombreMes(mes)),
-                      );
-                    }),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _mesSeleccionado = value;
-                        });
-                      }
-                    },
+            const SizedBox(height: 4),
+            clienteAsync.when(
+              data:
+                  (cliente) =>
+                      cliente != null
+                          ? _buildInfoRow(
+                            Icons.person,
+                            'Cliente Asociado',
+                            '${cliente.nombre} ${cliente.apellidoPaterno}',
+                          )
+                          : _buildInfoRow(
+                            Icons.person_off,
+                            'Cliente Asociado',
+                            'No asignado',
+                            color: Colors.orange,
+                          ),
+              loading:
+                  () => const Row(
+                    children: [
+                      Icon(Icons.person, color: Colors.grey),
+                      SizedBox(width: 8),
+                      Text('Cargando cliente...'),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    decoration: const InputDecoration(
-                      labelText: 'Año',
-                      border: OutlineInputBorder(),
-                    ),
-                    value: _anioSeleccionado,
-                    items: List.generate(5, (index) {
-                      final anio = DateTime.now().year - 2 + index;
-                      return DropdownMenuItem(
-                        value: anio,
-                        child: Text(anio.toString()),
-                      );
-                    }),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _anioSeleccionado = value;
-                        });
-                      }
-                    },
+              error:
+                  (e, _) => _buildInfoRow(
+                    Icons.error,
+                    'Cliente Asociado',
+                    'Error al cargar',
+                    color: Colors.red,
                   ),
-                ),
-              ],
+            ),
+            const SizedBox(height: 8),
+            contratoAsync.when(
+              data: (contrato) {
+                if (contrato != null) {
+                  if (contrato is ContratoRenta) {
+                    return _buildInfoRow(
+                      Icons.description,
+                      'Contrato Renta',
+                      'Activo hasta ${formatDate.format(contrato.fechaFin)}',
+                    );
+                  } else if (contrato is Venta) {
+                    return _buildInfoRow(
+                      Icons.sell,
+                      'Venta',
+                      'Realizada el ${formatDate.format(contrato.fechaVenta)}',
+                    );
+                  }
+                }
+                return _buildInfoRow(
+                  Icons.description_outlined,
+                  'Operación',
+                  'Sin contrato/venta activa',
+                  color: Colors.grey,
+                );
+              },
+              loading:
+                  () => const Row(
+                    children: [
+                      Icon(Icons.description, color: Colors.grey),
+                      SizedBox(width: 8),
+                      Text('Cargando operación...'),
+                      SizedBox(width: 8),
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ],
+                  ),
+              error:
+                  (e, _) => _buildInfoRow(
+                    Icons.error,
+                    'Operación',
+                    'Error al cargar',
+                    color: Colors.red,
+                  ),
             ),
           ],
         ),
@@ -285,388 +333,53 @@ class _RegistroMovimientosRentaScreenState
     );
   }
 
-  String _obtenerNombreMes(int mes) {
-    const meses = [
-      'Enero',
-      'Febrero',
-      'Marzo',
-      'Abril',
-      'Mayo',
-      'Junio',
-      'Julio',
-      'Agosto',
-      'Septiembre',
-      'Octubre',
-      'Noviembre',
-      'Diciembre',
-    ];
-    return meses[mes - 1];
-  }
-
-  String _obtenerNombreEstado(int estado) {
-    const estados = {
-      2: 'No Disponible',
-      3: 'Disponible',
-      4: 'Vendido',
-      5: 'Rentado',
-      6: 'En Negociación',
-    };
-    return estados[estado] ?? 'Desconocido';
-  }
-
-  Widget _construirInfoGeneral(AsyncValue<Cliente?> clienteAsync) {
-    // Verificar el estado del inmueble antes de mostrar cualquier información
-    final inmuebleEstado = widget.inmueble.idEstado;
-    final esRentado = inmuebleEstado == 5; // 5 = estado rentado
-
-    if (!esRentado) {
-      // Si el inmueble no está rentado, mostrar una advertencia
-      return Card(
-        elevation: 2,
-        margin: const EdgeInsets.all(16.0),
-        color: Colors.orange.shade50,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Colors.orange.shade300, width: 1),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.warning, color: Colors.orange.shade700),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Advertencia',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade800,
-                    ),
-                  ),
-                ],
-              ),
-              const Divider(),
-              const SizedBox(height: 8),
-              Text(
-                'Este inmueble no está actualmente en estado "Rentado".',
-                style: TextStyle(
-                  color: Colors.orange.shade900,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Estado actual: ${_obtenerNombreEstado(inmuebleEstado ?? 0)}',
-                style: const TextStyle(fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.done),
-                label: const Text("Verificar"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-              ),
-            ],
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? color,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color ?? Colors.grey[700]),
+        const SizedBox(width: 8),
+        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500)),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(color: color ?? Colors.black87),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
-      );
-    }
-
-    return clienteAsync.when(
-      data: (cliente) {
-        if (cliente == null) {
-          return Card(
-            elevation: 2,
-            margin: const EdgeInsets.all(16.0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: Colors.grey.shade300, width: 1),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.person_outline, color: Colors.grey.shade700),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Información del Cliente',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 12),
-
-                  // Reemplazar el texto simple con una presentación más informativa
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.blue.shade400,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'Este inmueble no tiene un cliente asignado o un contrato activo.',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.add),
-                          label: const Text('Asignar Cliente'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: () {
-                            // Navegar a pantalla de asignación de cliente
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Funcionalidad de asignar cliente próximamente',
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: const Icon(Icons.description),
-                          label: const Text('Crear Contrato'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: () {
-                            // Navegar a pantalla de creación de contrato
-                            Navigator.pushNamed(context, '/registrar_contrato');
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // Formatear nombre completo con apellidos
-        final nombreCompleto =
-            '${cliente.nombre} ${cliente.apellidoPaterno} ${cliente.apellidoMaterno ?? ''}';
-
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.all(16.0),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.blue.shade100, width: 1),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.person, color: Colors.blue.shade700),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Información del Cliente',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade800,
-                      ),
-                    ),
-                  ],
-                ),
-                const Divider(),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _construirFilaInfo(
-                        'Nombre',
-                        nombreCompleto.trim(),
-                        Icons.person_outline,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _construirFilaInfo(
-                        'Teléfono',
-                        cliente.telefono ?? 'No disponible',
-                        Icons.phone,
-                      ),
-                    ),
-                    Expanded(
-                      child: _construirFilaInfo(
-                        'Correo',
-                        cliente.correo ?? 'No disponible',
-                        Icons.email,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _construirFilaInfo(
-                        'RFC',
-                        cliente.rfc ?? 'No disponible',
-                        Icons.badge,
-                      ),
-                    ),
-                    Expanded(
-                      child: _construirFilaInfo(
-                        'CURP',
-                        cliente.curp ?? 'No disponible',
-                        Icons.account_balance_wallet,
-                        isBold: true,
-                      ),
-                    ),
-                  ],
-                ),
-                if (cliente.direccionCompleta != 'Dirección no disponible')
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: _construirFilaInfo(
-                      'Dirección',
-                      cliente.direccionCompleta,
-                      Icons.home,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-      loading:
-          () => const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 8),
-                  Text('Cargando información del cliente...'),
-                ],
-              ),
-            ),
-          ),
-      error:
-          (error, stack) => Card(
-            elevation: 2,
-            margin: const EdgeInsets.all(16.0),
-            color: Colors.red.shade50,
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text(
-                        'Error al cargar información del cliente',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  Text('No se pudo cargar la información del cliente'),
-                ],
-              ),
-            ),
-          ),
+      ],
     );
   }
 
-  // Widget auxiliar para mostrar filas de información
-  Widget _construirFilaInfo(
-    String label,
-    String value,
-    IconData icon, {
-    bool isBold = false,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: Colors.grey.shade700),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500,
+  void _mostrarFormularioMovimiento(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (context) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: FormularioMovimiento(
+              inmueble: widget.inmueble,
+              onSuccess: () {
+                ref.invalidate(
+                  movimientosPorInmuebleProvider(widget.inmueble.id!),
+                );
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Movimiento registrado correctamente.'),
+                    backgroundColor: Colors.green,
                   ),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                    fontSize: isBold ? 15 : 14,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                ),
-              ],
+                );
+              },
             ),
           ),
-        ],
-      ),
     );
   }
 }

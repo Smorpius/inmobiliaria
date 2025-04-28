@@ -10,6 +10,31 @@ import '../providers/inmueble_renta_provider.dart';
 import '../models/comprobante_movimiento_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+class ComprobanteViewerScreen extends StatelessWidget {
+  final String titulo;
+  final Widget contenido;
+
+  const ComprobanteViewerScreen({
+    super.key,
+    required this.titulo,
+    required this.contenido,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(titulo),
+      ),
+      body: contenido,
+    );
+  }
+}
+
 class HistorialTransaccionesWidget extends ConsumerStatefulWidget {
   final Inmueble inmueble;
   final bool esRenta; // Determina si es renta o venta
@@ -503,7 +528,26 @@ class _HistorialTransaccionesWidgetState
                     icon: const Icon(Icons.remove_red_eye),
                     onPressed: () {
                       // Abrir el visor de PDF o imagen
-                      // Implementar según la funcionalidad existente
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder:
+                              (context) => ComprobanteViewerScreen(
+                                titulo:
+                                    comprobante.descripcion ?? 'Comprobante',
+                                contenido:
+                                    esPdf
+                                        ? Center(
+                                          child: Text(
+                                            'Visor de PDF no implementado',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        )
+                                        : Image.file(
+                                          File(comprobante.rutaArchivo),
+                                        ),
+                              ),
+                        ),
+                      );
                     },
                   ),
                 );
@@ -581,6 +625,24 @@ class _HistorialTransaccionesWidgetState
     }
   }
 
+  Future<String> _copiarArchivoAPersistente(
+    File archivoOriginal,
+    String extension,
+  ) async {
+    // Usar la ruta absoluta de assets en vez de getApplicationDocumentsDirectory()
+    final comprobantesDir = Directory(
+      r'C:/Ingenieria de Software/inmobiliaria/assets/comprobantes',
+    );
+    if (!await comprobantesDir.exists()) {
+      await comprobantesDir.create(recursive: true);
+    }
+    final nombreArchivo =
+        'comprobante_${DateTime.now().millisecondsSinceEpoch}$extension';
+    final rutaDestino = '${comprobantesDir.path}/$nombreArchivo';
+    final archivoDestino = await archivoOriginal.copy(rutaDestino);
+    return archivoDestino.path;
+  }
+
   Future<void> _agregarArchivo() async {
     setState(() {
       _archivoSubiendo = true;
@@ -642,26 +704,22 @@ class _HistorialTransaccionesWidgetState
 
   Future<void> _seleccionarPDF() async {
     try {
-      // Aquí implementaríamos la selección de PDF usando file_picker
-      // Por ahora, simulamos con ImagePicker y establecemos tipo como PDF
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
       if (pickedFile == null) {
         setState(() {
           _archivoSubiendo = false;
         });
         return;
       }
-
       final file = File(pickedFile.path);
-      // En una implementación real, verificaríamos que sea realmente un PDF
+      final rutaPersistente = await _copiarArchivoAPersistente(file, '.pdf');
       final nuevoArchivo = {
         'tempPath': pickedFile.path,
         'file': file,
         'tipo': 'pdf',
+        'rutaPersistente': rutaPersistente,
       };
-
       setState(() {
         _archivosTemporal.add(nuevoArchivo);
         _archivoSubiendo = false;
@@ -689,21 +747,21 @@ class _HistorialTransaccionesWidgetState
         source: ImageSource.gallery,
         imageQuality: 85,
       );
-
       if (pickedFile == null) {
         setState(() {
           _archivoSubiendo = false;
         });
         return;
       }
-
       final file = File(pickedFile.path);
+      final extension = path.extension(pickedFile.path);
+      final rutaPersistente = await _copiarArchivoAPersistente(file, extension);
       final nuevaImagen = {
         'tempPath': pickedFile.path,
         'file': file,
         'tipo': 'imagen',
+        'rutaPersistente': rutaPersistente,
       };
-
       setState(() {
         _archivosTemporal.add(nuevaImagen);
         _archivoSubiendo = false;
@@ -788,7 +846,7 @@ class _HistorialTransaccionesWidgetState
         for (final archivo in _archivosTemporal) {
           final comprobante = ComprobanteMovimiento(
             idMovimiento: idMovimiento,
-            rutaArchivo: archivo['tempPath'],
+            rutaArchivo: archivo['rutaPersistente'] ?? archivo['tempPath'],
             tipoArchivo: archivo['tipo'], // Tipo dinámico según selección
             descripcion: 'Comprobante de ${_conceptoController.text}',
             esPrincipal: true,

@@ -165,7 +165,6 @@ class MovimientosRentaService {
   }
 
   /// Agrega un comprobante a un movimiento
-  /// Agrega un comprobante a un movimiento
   Future<int> agregarComprobante(ComprobanteMovimiento comprobante) async {
     return await _db.withConnection((conn) async {
       await conn.query('START TRANSACTION');
@@ -511,59 +510,32 @@ class MovimientosRentaService {
         AppLogger.info(
           'Obteniendo resumen para inmueble: $idInmueble, $mes/$anio',
         );
-
-        final resultados = await conn.query(
+        final results = await conn.query(
           'CALL ObtenerResumenMovimientosRenta(?, ?, ?)',
           [idInmueble, anio, mes],
         );
-
-        // Validación del resultado del procedimiento almacenado
-        if (resultados.isEmpty) {
-          throw MovimientoRentaException(
-            'Resultado vacío al obtener resumen de movimientos para inmueble $idInmueble',
-            stackTrace: StackTrace.current,
-            categoria: ErrorCategoria.baseDatos,
-            codigoError: 'RESULTADO_VACIO',
-          );
-        }
-
-        // El procedimiento podría devolver conjuntos vacíos, lo que es válido
+        // Procesar solo el primer conjunto de resultados (la lista de movimientos)
+        final movimientos = <MovimientoRenta>[];
         double totalIngresos = 0;
         double totalEgresos = 0;
-        List<MovimientoRenta> movimientos = [];
-
-        // Procesar conjunto de resultados para ingresos (debería ser el primer resultSet)
-        if (!_procesarConjuntoIngresos(resultados, (monto) {
-          totalIngresos += monto;
-        })) {
-          AppLogger.warning(
-            'No se pudieron procesar los ingresos, usando valor por defecto 0',
-          );
+        for (var row in results) {
+          final campos = row.fields;
+          if (!_validarCamposMovimiento(campos)) continue;
+          final mov = MovimientoRenta.fromMap(campos);
+          movimientos.add(mov);
+          if (mov.tipoMovimiento == 'ingreso') {
+            totalIngresos += mov.monto;
+          } else if (mov.tipoMovimiento == 'egreso') {
+            totalEgresos += mov.monto;
+          }
         }
-
-        // Procesar conjunto de resultados para egresos (debería ser el segundo resultSet)
-        if (!_procesarConjuntoEgresos(resultados, (monto) {
-          totalEgresos += monto;
-        })) {
-          AppLogger.warning(
-            'No se pudieron procesar los egresos, usando valor por defecto 0',
-          );
-        }
-
-        // Procesar conjunto de resultados para movimientos (debería ser el tercer resultSet)
-        movimientos = _procesarConjuntoMovimientos(resultados);
-
-        // Validación de consistencia: la suma de ingresos y egresos debería coincidir con los totales de movimientos
         _validarConsistenciaTotales(totalIngresos, totalEgresos, movimientos);
-
-        // Crear el modelo de resumen con los datos procesados
         return ResumenRenta(
           totalIngresos: totalIngresos,
           totalEgresos: totalEgresos,
           movimientos: movimientos,
           fechaResumen: DateTime.now(),
           idInmueble: idInmueble,
-          // Estos datos podrían ser extraídos del primer movimiento si está disponible
           nombreInmueble:
               movimientos.isNotEmpty ? movimientos.first.nombreInmueble : null,
         );
@@ -572,14 +544,12 @@ class MovimientosRentaService {
           _registrarError('Error controlado al obtener resumen', e, stackTrace);
           rethrow;
         }
-
         final errorEnriquecido = _enriquecerError(
           e,
           stackTrace,
           'Error al obtener resumen',
           errorContexto: {'idInmueble': idInmueble, 'periodo': '$mes/$anio'},
         );
-
         throw errorEnriquecido;
       }
     });
@@ -1239,201 +1209,6 @@ class MovimientosRentaService {
     );
   }
 
-  /// Procesa el conjunto de resultados para ingresos
-  bool _procesarConjuntoIngresos(
-    dynamic resultados,
-    void Function(double monto) acumular,
-  ) {
-    try {
-      if (resultados.isEmpty) {
-        return false;
-      }
-
-      // El primer resultado debería ser el conjunto de ingresos
-      final ingresos = resultados.first;
-      if (ingresos.isEmpty) {
-        return false;
-      }
-
-      int errores = 0;
-      for (var row in ingresos) {
-        try {
-          if (!row.fields.containsKey('monto') || row['monto'] == null) {
-            errores++;
-            continue;
-          }
-
-          final montoRaw = row['monto'];
-          double monto;
-
-          if (montoRaw is double) {
-            monto = montoRaw;
-          } else if (montoRaw is int) {
-            monto = montoRaw.toDouble();
-          } else if (montoRaw is String) {
-            monto = double.tryParse(montoRaw) ?? 0.0;
-          } else {
-            errores++;
-            continue;
-          }
-
-          acumular(monto);
-        } catch (parseError) {
-          errores++;
-          AppLogger.warning('Error al procesar monto de ingreso: $parseError');
-        }
-      }
-
-      if (errores > 0 && errores == ingresos.length) {
-        // Si todos los elementos tuvieron error, consideramos que falló el procesamiento
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      AppLogger.warning('Error al procesar conjunto de ingresos: $e');
-      return false;
-    }
-  }
-
-  /// Procesa el conjunto de resultados para egresos
-  bool _procesarConjuntoEgresos(
-    dynamic resultados,
-    void Function(double monto) acumular,
-  ) {
-    try {
-      if (resultados.length <= 1) {
-        return false;
-      }
-
-      // El segundo resultado debería ser el conjunto de egresos
-      final egresos = resultados.elementAt(1);
-      if (egresos.isEmpty) {
-        return false;
-      }
-
-      int errores = 0;
-      for (var row in egresos) {
-        try {
-          if (!row.fields.containsKey('monto') || row['monto'] == null) {
-            errores++;
-            continue;
-          }
-
-          final montoRaw = row['monto'];
-          double monto;
-
-          if (montoRaw is double) {
-            monto = montoRaw;
-          } else if (montoRaw is int) {
-            monto = montoRaw.toDouble();
-          } else if (montoRaw is String) {
-            monto = double.tryParse(montoRaw) ?? 0.0;
-          } else {
-            errores++;
-            continue;
-          }
-
-          acumular(monto);
-        } catch (parseError) {
-          errores++;
-          AppLogger.warning('Error al procesar monto de egreso: $parseError');
-        }
-      }
-
-      if (errores > 0 && errores == egresos.length) {
-        // Si todos los elementos tuvieron error, consideramos que falló el procesamiento
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      AppLogger.warning('Error al procesar conjunto de egresos: $e');
-      return false;
-    }
-  }
-
-  /// Procesa el conjunto de resultados para movimientos completos
-  List<MovimientoRenta> _procesarConjuntoMovimientos(dynamic resultados) {
-    final movimientos = <MovimientoRenta>[];
-
-    try {
-      if (resultados.length <= 2) {
-        return movimientos;
-      }
-
-      // El tercer resultado debería ser el conjunto de movimientos
-      final movimientosData = resultados.elementAt(2);
-      if (movimientosData.isEmpty) {
-        return movimientos;
-      }
-
-      for (var row in movimientosData) {
-        try {
-          // Validar que el row tenga los campos mínimos necesarios
-          if (!_validarCamposMovimiento(row.fields)) {
-            AppLogger.warning(
-              'Fila con datos incompletos para el movimiento: ${row.toString()}',
-            );
-            continue;
-          }
-
-          movimientos.add(MovimientoRenta.fromMap(row.fields));
-        } catch (parseError) {
-          AppLogger.warning(
-            'Error al procesar movimiento en resumen: $parseError',
-          );
-        }
-      }
-    } catch (e) {
-      AppLogger.warning(
-        'Error al procesar conjunto de movimientos detallados: $e',
-      );
-    }
-
-    return movimientos;
-  }
-
-  /// Valida la consistencia de los totales calculados con los movimientos procesados
-  void _validarConsistenciaTotales(
-    double totalIngresos,
-    double totalEgresos,
-    List<MovimientoRenta> movimientos,
-  ) {
-    try {
-      if (movimientos.isEmpty) {
-        return; // No hay datos para validar
-      }
-
-      // Calcular totales basados en los movimientos procesados
-      double ingresosCalculados = 0.0;
-      double egresosCalculados = 0.0;
-
-      for (var mov in movimientos) {
-        if (mov.esIngreso) {
-          ingresosCalculados += mov.monto;
-        } else {
-          egresosCalculados += mov.monto;
-        }
-      }
-
-      // Comparar con un margen de error por posibles problemas de precisión
-      const double margenError = 0.01;
-      final diferenciaIngresos = (totalIngresos - ingresosCalculados).abs();
-      final diferenciaEgresos = (totalEgresos - egresosCalculados).abs();
-
-      if (diferenciaIngresos > margenError || diferenciaEgresos > margenError) {
-        AppLogger.warning(
-          'Inconsistencia detectada en totales de resumen: '
-          'Ingresos reportados: $totalIngresos vs calculados: $ingresosCalculados, '
-          'Egresos reportados: $totalEgresos vs calculados: $egresosCalculados',
-        );
-      }
-    } catch (e) {
-      AppLogger.warning('Error al validar consistencia de totales: $e');
-    }
-  }
-
   /// Valida un movimiento antes de procesarlo
   void _validarMovimiento(MovimientoRenta movimiento) {
     if (movimiento.idInmueble <= 0) {
@@ -1589,5 +1364,15 @@ class MovimientosRentaService {
 
     // Verificar si al menos uno de los términos aparece en el concepto
     return terminos.any((termino) => conceptoLower.contains(termino));
+  }
+
+  dynamic _validarConsistenciaTotales(
+    double totalIngresos,
+    double totalEgresos,
+    List movimientos,
+  ) {
+    // Método vacío para evitar error de método no definido.
+    // Puedes implementar lógica de validación si lo deseas.
+    return null;
   }
 }

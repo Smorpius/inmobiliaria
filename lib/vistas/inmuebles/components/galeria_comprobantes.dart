@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../utils/applogger.dart';
+import '../../../utils/archivo_utils.dart';
 import '../../../models/inmueble_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/inmueble_renta_provider.dart';
@@ -23,109 +26,120 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
       movimientosPorInmuebleProvider(widget.inmueble.id!),
     );
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Selector de movimiento
-          movimientosAsyncValue.when(
-            data: (movimientos) {
-              if (movimientos.isEmpty) {
-                return const Center(
+    // Envolver el contenido con Scaffold y agregar AppBar
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Galería de Comprobantes'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Selector de movimiento
+            movimientosAsyncValue.when(
+              data: (movimientos) {
+                if (movimientos.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32.0),
+                      child: Text(
+                        'No hay movimientos registrados',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ),
+                  );
+                }
+
+                return Card(
+                  elevation: 2,
                   child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Text(
-                      'No hay movimientos registrados',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Selecciona un movimiento',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<int>(
+                          decoration: const InputDecoration(
+                            labelText: 'Movimiento',
+                            border: OutlineInputBorder(),
+                          ),
+                          value: _movimientoSeleccionado,
+                          items:
+                              movimientos.map((movimiento) {
+                                final icono =
+                                    movimiento.tipoMovimiento == 'ingreso'
+                                        ? Icons.arrow_circle_up
+                                        : Icons.arrow_circle_down;
+                                final color =
+                                    movimiento.tipoMovimiento == 'ingreso'
+                                        ? Colors.green
+                                        : Colors.red;
+
+                                return DropdownMenuItem<int>(
+                                  value: movimiento.id,
+                                  child: Row(
+                                    // Cambiar esto
+                                    mainAxisSize:
+                                        MainAxisSize
+                                            .min, // Añade esta línea para limitar el ancho del Row
+                                    children: [
+                                      Icon(icono, color: color),
+                                      const SizedBox(width: 8),
+                                      // Cambiar Expanded por Flexible para evitar el problema de layout
+                                      Flexible(
+                                        child: Text(
+                                          '${movimiento.fechaFormateada} - ${movimiento.concepto}',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Text(
+                                        movimiento.montoFormateado,
+                                        style: TextStyle(
+                                          color: color,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _movimientoSeleccionado = value;
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 );
-              }
-
-              return Card(
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Selecciona un movimiento',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<int>(
-                        decoration: const InputDecoration(
-                          labelText: 'Movimiento',
-                          border: OutlineInputBorder(),
-                        ),
-                        value: _movimientoSeleccionado,
-                        items:
-                            movimientos.map((movimiento) {
-                              final icono =
-                                  movimiento.tipoMovimiento == 'ingreso'
-                                      ? Icons.arrow_circle_up
-                                      : Icons.arrow_circle_down;
-                              final color =
-                                  movimiento.tipoMovimiento == 'ingreso'
-                                      ? Colors.green
-                                      : Colors.red;
-
-                              return DropdownMenuItem<int>(
-                                value: movimiento.id,
-                                child: Row(
-                                  // Cambiar esto
-                                  mainAxisSize:
-                                      MainAxisSize
-                                          .min, // Añade esta línea para limitar el ancho del Row
-                                  children: [
-                                    Icon(icono, color: color),
-                                    const SizedBox(width: 8),
-                                    // Cambiar Expanded por Flexible para evitar el problema de layout
-                                    Flexible(
-                                      child: Text(
-                                        '${movimiento.fechaFormateada} - ${movimiento.concepto}',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    Text(
-                                      movimiento.montoFormateado,
-                                      style: TextStyle(
-                                        color: color,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _movimientoSeleccionado = value;
-                          });
-                        },
-                      ),
-                    ],
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error:
+                  (error, _) => Center(
+                    child: Text('Error al cargar movimientos: $error'),
                   ),
-                ),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error:
-                (error, _) =>
-                    Center(child: Text('Error al cargar movimientos: $error')),
-          ),
+            ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Comprobantes del movimiento seleccionado
-          if (_movimientoSeleccionado != null)
-            Expanded(child: _buildComprobantes(_movimientoSeleccionado!)),
-        ],
+            // Comprobantes del movimiento seleccionado
+            if (_movimientoSeleccionado != null)
+              Expanded(child: _buildComprobantes(_movimientoSeleccionado!)),
+          ],
+        ),
       ),
     );
   }
@@ -175,12 +189,29 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
         fit: StackFit.expand,
         children: [
           // Imagen
-          Image.network(
-            comprobante.rutaArchivo,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return const Center(
-                child: Icon(Icons.broken_image, size: 48, color: Colors.grey),
+          FutureBuilder<String>(
+            future: ArchivoUtils.obtenerRutaCompleta(comprobante.rutaArchivo),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final rutaAbsoluta = snapshot.data!;
+              final existe = File(rutaAbsoluta).existsSync();
+              AppLogger.info(
+                'Ruta comprobante: $rutaAbsoluta, ¿Existe?: $existe',
+              );
+              return Image.file(
+                File(rutaAbsoluta),
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Text(
+                      'No se encontró la imagen\n$rutaAbsoluta',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  );
+                },
               );
             },
           ),
@@ -237,8 +268,14 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
     );
   }
 
-  void _verComprobanteCompleto(ComprobanteMovimiento comprobante) {
-    final rutaArchivo = comprobante.rutaArchivo;
+  void _verComprobanteCompleto(ComprobanteMovimiento comprobante) async {
+    final rutaAbsoluta = await ArchivoUtils.obtenerRutaCompleta(
+      comprobante.rutaArchivo,
+    );
+
+    // Check if widget is still mounted before using context
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder:
@@ -258,8 +295,8 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
                   child: InteractiveViewer(
                     minScale: 0.5,
                     maxScale: 4.0,
-                    child: Image.network(
-                      rutaArchivo,
+                    child: Image.file(
+                      File(rutaAbsoluta),
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
                         return const Center(

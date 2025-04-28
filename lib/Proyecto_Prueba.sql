@@ -3357,43 +3357,29 @@ END //
 
 -- Procedimiento para obtener resumen de movimientos por mes
 CREATE PROCEDURE ObtenerResumenMovimientosRenta(
-IN p_id_inmueble INT,
-IN p_anio INT,
-IN p_mes INT
+  IN p_id_inmueble INT,
+  IN p_anio INT,
+  IN p_mes INT
 )
 BEGIN
-DECLARE v_mes_correspondiente VARCHAR(7);
+  DECLARE v_mes_correspondiente VARCHAR(7);
 
--- Crear formato YYYY-MM para filtrar
-SET v_mes_correspondiente = CONCAT(
-LPAD(CAST(p_anio AS CHAR), 4, '0'), '-',
-LPAD(CAST(p_mes AS CHAR), 2, '0')
-);
+  -- Crear formato YYYY-MM para filtrar
+  SET v_mes_correspondiente = CONCAT(
+    LPAD(CAST(p_anio AS CHAR), 4, '0'), '-',
+    LPAD(CAST(p_mes AS CHAR), 2, '0')
+  );
 
--- Ingresos totales
-SELECT SUM(monto) AS total_ingresos
-FROM movimientos_renta
-WHERE id_inmueble = p_id_inmueble 
-AND tipo_movimiento = 'ingreso'
-AND mes_correspondiente = v_mes_correspondiente;
-
--- Egresos totales
-SELECT SUM(monto) AS total_egresos
-FROM movimientos_renta
-WHERE id_inmueble = p_id_inmueble 
-AND tipo_movimiento = 'egreso'
-AND mes_correspondiente = v_mes_correspondiente;
-
--- Detalles de movimientos
-SELECT 
-mr.*,
-c.nombre AS nombre_cliente,
-c.apellido_paterno AS apellido_cliente
-FROM movimientos_renta mr
-JOIN clientes c ON mr.id_cliente = c.id_cliente
-WHERE mr.id_inmueble = p_id_inmueble
-AND mr.mes_correspondiente = v_mes_correspondiente
-ORDER BY mr.fecha_movimiento;
+  -- Solo devuelve la lista de movimientos, los totales se calculan en Dart
+  SELECT 
+    mr.*,
+    c.nombre AS nombre_cliente,
+    c.apellido_paterno AS apellido_cliente
+  FROM movimientos_renta mr
+  JOIN clientes c ON mr.id_cliente = c.id_cliente
+  WHERE mr.id_inmueble = p_id_inmueble
+    AND mr.mes_correspondiente = v_mes_correspondiente
+  ORDER BY mr.fecha_movimiento;
 END //
 
 CREATE PROCEDURE ActualizarComprobanteMovimiento(
