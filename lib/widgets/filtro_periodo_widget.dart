@@ -47,84 +47,53 @@ class FiltroPeriodoWidget extends StatefulWidget {
     switch (tipo) {
       case TipoPeriodo.dia:
         inicio = today;
-        fin = today
-            .add(const Duration(days: 1))
-            .subtract(
-              const Duration(microseconds: 1),
-            ); // Hasta el final del día
+        fin = DateTime(today.year, today.month, today.day, 23, 59, 59);
         break;
       case TipoPeriodo.semana:
-        // El inicio de la semana es Lunes (weekday == 1)
-        inicio = today.subtract(Duration(days: today.weekday - 1));
-        // El fin de la semana es Domingo (weekday == 7)
-        fin = inicio
-            .add(const Duration(days: 7))
-            .subtract(const Duration(microseconds: 1));
+        // Encontrar el lunes de la semana actual (primer día de la semana)
+        final weekday = today.weekday;
+        inicio = today.subtract(Duration(days: weekday - 1));
+        fin = inicio.add(
+          Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+        );
         break;
       case TipoPeriodo.mes:
+        // Primer día del mes actual
         inicio = DateTime(today.year, today.month, 1);
-        // Fin es el último día del mes actual
-        fin = DateTime(
-          today.year,
-          today.month + 1,
-          1,
-        ).subtract(const Duration(microseconds: 1));
+        // Último día del mes actual
+        fin = DateTime(today.year, today.month + 1, 0, 23, 59, 59);
         break;
       case TipoPeriodo.bimestre:
-        int currentMonth = today.month;
-        int startMonth = ((currentMonth - 1) ~/ 2) * 2 + 1;
-        inicio = DateTime(today.year, startMonth, 1);
-        fin = DateTime(
-          today.year,
-          startMonth + 2,
-          1,
-        ).subtract(const Duration(microseconds: 1));
+        // Calcula el bimestre (1-2, 3-4, 5-6, etc.)
+        final mesInicio = ((today.month - 1) ~/ 2) * 2 + 1;
+        inicio = DateTime(today.year, mesInicio, 1);
+        fin = DateTime(today.year, mesInicio + 2, 0, 23, 59, 59);
         break;
       case TipoPeriodo.trimestre:
-        int currentMonth = today.month;
-        int startMonth = ((currentMonth - 1) ~/ 3) * 3 + 1;
-        inicio = DateTime(today.year, startMonth, 1);
-        fin = DateTime(
-          today.year,
-          startMonth + 3,
-          1,
-        ).subtract(const Duration(microseconds: 1));
+        // Calcula el trimestre (1-3, 4-6, 7-9, 10-12)
+        final mesInicio = ((today.month - 1) ~/ 3) * 3 + 1;
+        inicio = DateTime(today.year, mesInicio, 1);
+        fin = DateTime(today.year, mesInicio + 3, 0, 23, 59, 59);
         break;
       case TipoPeriodo.semestre:
-        int currentMonth = today.month;
-        int startMonth = ((currentMonth - 1) ~/ 6) * 6 + 1;
-        inicio = DateTime(today.year, startMonth, 1);
-        fin = DateTime(
-          today.year,
-          startMonth + 6,
-          1,
-        ).subtract(const Duration(microseconds: 1));
+        // Primer o segundo semestre
+        final mesInicio = today.month <= 6 ? 1 : 7;
+        inicio = DateTime(today.year, mesInicio, 1);
+        fin = DateTime(today.year, mesInicio + 6, 0, 23, 59, 59);
         break;
       case TipoPeriodo.anio:
         inicio = DateTime(today.year, 1, 1);
-        fin = DateTime(
-          today.year + 1,
-          1,
-          1,
-        ).subtract(const Duration(microseconds: 1));
+        fin = DateTime(today.year, 12, 31, 23, 59, 59);
         break;
       case TipoPeriodo.personalizado:
-        // Para personalizado, devolvemos un rango por defecto o podríamos lanzar un error
-        // ya que este método estático no tiene acceso a _rangoFechas.
-        // Devolver el mes actual como fallback seguro.
+        // Para personalizado, usa un mes por defecto
         inicio = DateTime(today.year, today.month, 1);
-        fin = DateTime(
-          today.year,
-          today.month + 1,
-          1,
-        ).subtract(const Duration(microseconds: 1));
+        fin = DateTime(today.year, today.month + 1, 0, 23, 59, 59);
         break;
     }
     // Asegurarse de que fin sea siempre después de inicio
     if (fin.isBefore(inicio)) {
-      fin = inicio
-          .add(const Duration(days: 1))
-          .subtract(const Duration(microseconds: 1));
+      fin = inicio.add(const Duration(days: 1, seconds: -1));
     }
     return DateTimeRange(start: inicio, end: fin);
   }

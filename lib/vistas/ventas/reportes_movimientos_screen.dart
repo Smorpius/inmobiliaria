@@ -13,11 +13,13 @@ import 'package:inmobiliaria/providers/inmueble_renta_provider.dart';
 class ReportesMovimientosScreen extends ConsumerStatefulWidget {
   final int idInmueble;
   final String nombreInmueble;
+  final DateTimeRange? periodoInicial;
 
   const ReportesMovimientosScreen({
     super.key,
     required this.idInmueble,
     required this.nombreInmueble,
+    this.periodoInicial,
   });
 
   @override
@@ -27,12 +29,21 @@ class ReportesMovimientosScreen extends ConsumerStatefulWidget {
 
 class _ReportesMovimientosScreenState
     extends ConsumerState<ReportesMovimientosScreen> {
-  DateTimeRange _periodo = DateTimeRange(
-    start: DateTime.now().subtract(const Duration(days: 30)),
-    end: DateTime.now(),
-  );
+  late DateTimeRange _periodo;
   final formatCurrency = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
   bool _isGenerating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Usar el período proporcionado o uno predeterminado
+    _periodo =
+        widget.periodoInicial ??
+        DateTimeRange(
+          start: DateTime.now().subtract(const Duration(days: 30)),
+          end: DateTime.now(),
+        );
+  }
 
   Future<void> _selectDateRange() async {
     final DateTimeRange? picked = await showDateRangePicker(

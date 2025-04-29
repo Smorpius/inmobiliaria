@@ -2,8 +2,93 @@ import 'package:intl/intl.dart';
 import '../../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import '../../models/movimiento_renta_model.dart';
+import '../../widgets/filtro_periodo_widget.dart';
 import '../../providers/inmueble_renta_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Provider para filtrar movimientos por período
+final movimientosFiltradosPorPeriodoProvider = Provider.family<
+  AsyncValue<List<MovimientoRenta>>,
+  ({int idInmueble, DateTimeRange periodo})
+>((ref, params) {
+  // Obtener todos los movimientos del inmueble
+  final movimientosAsyncValue = ref.watch(
+    movimientosPorInmuebleProvider(params.idInmueble),
+  );
+
+  // Mapear el estado de los movimientos para aplicar el filtro por período
+  return movimientosAsyncValue.when(
+    data: (movimientos) {
+      // Filtrar los movimientos por el período seleccionado
+      final movimientosFiltrados =
+          movimientos.where((movimiento) {
+            final fechaMovimiento = movimiento.fechaMovimiento;
+
+            // Normalizar las fechas para comparación (sin hora, minutos, etc.)
+            final fechaInicio = DateTime(
+              params.periodo.start.year,
+              params.periodo.start.month,
+              params.periodo.start.day,
+            );
+
+            final fechaFin = DateTime(
+              params.periodo.end.year,
+              params.periodo.end.month,
+              params.periodo.end.day,
+              23,
+              59,
+              59, // Incluir todo el día final
+            );
+
+            final fechaMovimientoNormalizada = DateTime(
+              fechaMovimiento.year,
+              fechaMovimiento.month,
+              fechaMovimiento.day,
+            );
+
+            // Incluir fechas que están dentro del rango, incluyendo los límites
+            return (fechaMovimientoNormalizada.isAtSameMomentAs(fechaInicio) ||
+                    fechaMovimientoNormalizada.isAfter(fechaInicio)) &&
+                (fechaMovimientoNormalizada.isAtSameMomentAs(fechaFin) ||
+                    fechaMovimientoNormalizada.isBefore(fechaFin));
+          }).toList();
+
+      return AsyncValue.data(movimientosFiltrados);
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
+  );
+});
+
+/// Provider para calcular el balance de un período
+final balancePeriodoProvider =
+    Provider.family<Map<String, double>, AsyncValue<List<MovimientoRenta>>>((
+      ref,
+      movimientosAsyncValue,
+    ) {
+      return movimientosAsyncValue.when(
+        data: (movimientos) {
+          double ingresos = 0;
+          double egresos = 0;
+
+          for (final movimiento in movimientos) {
+            if (movimiento.tipoMovimiento == 'ingreso') {
+              ingresos += movimiento.monto;
+            } else {
+              egresos += movimiento.monto;
+            }
+          }
+
+          return {
+            'ingresos': ingresos,
+            'egresos': egresos,
+            'balance': ingresos - egresos,
+          };
+        },
+        loading: () => {'ingresos': 0, 'egresos': 0, 'balance': 0},
+        error: (_, __) => {'ingresos': 0, 'egresos': 0, 'balance': 0},
+      );
+    });
 
 class MovimientosRentaScreen extends ConsumerStatefulWidget {
   final int idInmueble;
@@ -32,22 +117,54 @@ class _MovimientosRentaScreenState
   final _comentariosController = TextEditingController();
   bool _isIngreso = true;
   DateTime _fechaMovimiento = DateTime.now();
-  int _selectedYear = 0; // Inicializado en 0 para no filtrar por defecto
-  int _selectedMonth = 0; // Inicializado en 0 para no filtrar por defecto
   bool _isRegistering = false;
 
   final formatCurrency = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
   final formatDate = DateFormat('dd/MM/yyyy');
 
+  TipoPeriodo _tipoPeriodSeleccionado = TipoPeriodo.mes;
+  late DateTimeRange _periodoSeleccionado;
+
   @override
   void initState() {
     super.initState();
-    // Cargar movimientos al iniciar
+    _periodoSeleccionado = FiltroPeriodoWidget.calcularRangoPorTipoEstatico(
+      TipoPeriodo.mes,
+    );
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
-          .cargarMovimientos(widget.idInmueble);
+      ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
     });
+  }
+
+  void _cambiarPeriodo(TipoPeriodo tipo) {
+    setState(() {
+      _tipoPeriodSeleccionado = tipo;
+      _periodoSeleccionado = FiltroPeriodoWidget.calcularRangoPorTipoEstatico(
+        tipo,
+      );
+
+      ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
+    });
+  }
+
+  void _seleccionarPeriodoPersonalizado() async {
+    final DateTimeRange? resultado = await showDateRangePicker(
+      context: context,
+      initialDateRange: _periodoSeleccionado,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      locale: const Locale('es', 'ES'),
+    );
+
+    if (resultado != null) {
+      setState(() {
+        _tipoPeriodSeleccionado = TipoPeriodo.personalizado;
+        _periodoSeleccionado = resultado;
+
+        ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
+      });
+    }
   }
 
   @override
@@ -58,7 +175,6 @@ class _MovimientosRentaScreenState
     super.dispose();
   }
 
-  // Método para limpiar el formulario después del registro exitoso
   void _limpiarFormulario() {
     _conceptoController.clear();
     _montoController.clear();
@@ -66,17 +182,14 @@ class _MovimientosRentaScreenState
     _fechaMovimiento = DateTime.now();
   }
 
-  // Método para verificar si ya existe un pago para el mes seleccionado
   Future<bool> _verificarPagoExistente(DateTime mesPagoRenta) async {
     final movimientosState = ref.read(
       movimientosRentaStateProvider(widget.idInmueble),
     );
 
-    // Formato año-mes que queremos verificar
     final mesFormateado = mesPagoRenta.month.toString().padLeft(2, '0');
     final mesCorrespondiente = '${mesPagoRenta.year}-$mesFormateado';
 
-    // Verificar si ya existe un movimiento con el mismo mes correspondiente y concepto de renta
     final pagoExistente =
         movimientosState.movimientos.where((movimiento) {
           return movimiento.mesCorrespondiente == mesCorrespondiente &&
@@ -96,7 +209,6 @@ class _MovimientosRentaScreenState
       try {
         final monto = double.parse(_montoController.text);
 
-        // Aseguramos que el mesCorrespondiente se genere correctamente
         final mesFormateado = _fechaMovimiento.month.toString().padLeft(2, '0');
         final mesCorrespondiente = '${_fechaMovimiento.year}-$mesFormateado';
 
@@ -123,44 +235,40 @@ class _MovimientosRentaScreenState
             .registrarMovimiento(movimiento);
 
         if (success && mounted) {
-          // Actualizamos aquí el año y mes seleccionados para que coincidan con el movimiento nuevo
+          // Actualizar el período seleccionado para mostrar el mes del movimiento registrado
           setState(() {
-            _selectedYear = _fechaMovimiento.year;
-            _selectedMonth = _fechaMovimiento.month;
+            _cambiarPeriodo(TipoPeriodo.mes);
+            _periodoSeleccionado =
+                FiltroPeriodoWidget.calcularRangoPorTipoEstatico(
+                  TipoPeriodo.mes,
+                  _fechaMovimiento,
+                );
           });
 
-          // IMPORTANTE: Invalidar aquí todos los providers relacionados para forzar la actualización
-          // de los datos en todas las partes de la aplicación
           ref.invalidate(movimientosRentaStateProvider(widget.idInmueble));
           ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
-          
-          // Invalidar el provider de resumen
+
           final resumenParams = ResumenRentaParams(
             idInmueble: widget.idInmueble,
             anio: _fechaMovimiento.year,
             mes: _fechaMovimiento.month,
           );
           ref.invalidate(resumenRentaPorMesProvider(resumenParams));
-          
-          // Recargamos los movimientos explícitamente
+
           await ref
               .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
               .cargarMovimientos(widget.idInmueble);
 
-          // Cerramos solo el modal de formulario, no la pantalla completa
           if (mounted) {
             Navigator.pop(context);
           }
 
-          // Limpiamos el formulario para un posible uso futuro
           _limpiarFormulario();
 
-          // Verificamos explícitamente que el movimiento aparezca en los logs
           AppLogger.info(
-            'Movimiento registrado. Actualizando vista para mostrar el período: $_selectedYear-$_selectedMonth',
+            'Movimiento registrado. Actualizando vista para mostrar el período: ${_fechaMovimiento.year}-${_fechaMovimiento.month}',
           );
 
-          // Mostramos mensaje de éxito
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -171,13 +279,9 @@ class _MovimientosRentaScreenState
               ),
             );
 
-            // Forzar un rebuild del widget después de un breve retraso
-            // para asegurar que los cambios de estado han sido procesados
             Future.delayed(const Duration(milliseconds: 300), () {
               if (mounted) {
-                setState(() {
-                  // Este setState vacío fuerza un rebuild
-                });
+                setState(() {});
               }
             });
           }
@@ -202,7 +306,6 @@ class _MovimientosRentaScreenState
         if (mounted) {
           String mensajeError = 'Error al registrar movimiento';
 
-          // Mensajes de error más amigables basados en el tipo de error
           if (e.toString().contains('connection')) {
             mensajeError =
                 'Error de conexión. Verifique su red e intente nuevamente';
@@ -230,10 +333,8 @@ class _MovimientosRentaScreenState
 
   Future<void> _registrarPagoRenta(DateTime mesPagoRenta) async {
     if (_formKey.currentState!.validate()) {
-      // Verificar primero si ya existe un pago para este mes
       final existePago = await _verificarPagoExistente(mesPagoRenta);
       if (existePago) {
-        // Mostrar diálogo de advertencia
         if (!mounted) return;
 
         final confirmarPago = await showDialog<bool>(
@@ -305,17 +406,19 @@ class _MovimientosRentaScreenState
             .registrarMovimiento(movimiento);
 
         if (success && mounted) {
+          // Actualizar el período seleccionado para que coincida con el mes del pago
           setState(() {
-            _selectedYear = mesPagoRenta.year;
-            _selectedMonth = mesPagoRenta.month;
+            _cambiarPeriodo(TipoPeriodo.mes);
+            _periodoSeleccionado =
+                FiltroPeriodoWidget.calcularRangoPorTipoEstatico(
+                  TipoPeriodo.mes,
+                  mesPagoRenta,
+                );
           });
 
-          // IMPORTANTE: Invalidar aquí todos los providers relacionados para forzar la actualización
-          // de los datos en todas las partes de la aplicación
           ref.invalidate(movimientosRentaStateProvider(widget.idInmueble));
           ref.invalidate(movimientosPorInmuebleProvider(widget.idInmueble));
-          
-          // Invalidar el provider de resumen específico para el mes del pago de renta
+
           final resumenParams = ResumenRentaParams(
             idInmueble: widget.idInmueble,
             anio: mesPagoRenta.year,
@@ -323,7 +426,6 @@ class _MovimientosRentaScreenState
           );
           ref.invalidate(resumenRentaPorMesProvider(resumenParams));
 
-          // Recargamos los movimientos explícitamente
           await ref
               .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
               .cargarMovimientos(widget.idInmueble);
@@ -333,7 +435,7 @@ class _MovimientosRentaScreenState
             _limpiarFormulario();
 
             AppLogger.info(
-              'Pago de renta registrado. Actualizando vista para mostrar el período: $_selectedYear-$_selectedMonth',
+              'Pago de renta registrado. Actualizando vista para mostrar el período: ${mesPagoRenta.year}-${mesPagoRenta.month}',
             );
 
             ScaffoldMessenger.of(context).showSnackBar(
@@ -399,7 +501,6 @@ class _MovimientosRentaScreenState
   }
 
   Future<void> _confirmarEliminarMovimiento(int idMovimiento) async {
-    // Capturar el contexto actual antes de operaciones asíncronas
     final navigatorContext = context;
 
     return showDialog(
@@ -418,10 +519,7 @@ class _MovimientosRentaScreenState
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               onPressed: () async {
-                // Usamos dialogContext para cerrar el diálogo
                 Navigator.of(dialogContext).pop();
-
-                // Para la operación asíncrona, creamos una función que será ejecutada
                 _procesarEliminacion(idMovimiento);
               },
               child: const Text('ELIMINAR'),
@@ -432,18 +530,14 @@ class _MovimientosRentaScreenState
     );
   }
 
-  // Separar la operación asíncrona a un método distinto
   Future<void> _procesarEliminacion(int idMovimiento) async {
     try {
-      // Eliminando la variable 'success' no utilizada - directamente llamamos al método
       await ref
           .read(movimientosRentaStateProvider(widget.idInmueble).notifier)
           .eliminarMovimiento(idMovimiento, widget.idInmueble);
 
-      // Verificar que el widget esté montado antes de usar el contexto
       if (!mounted) return;
 
-      // Ahora es seguro usar ScaffoldMessenger con el contexto actual
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -453,10 +547,8 @@ class _MovimientosRentaScreenState
         );
       }
     } catch (e) {
-      // Verificar que el widget esté montado antes de usar el contexto
       if (!mounted) return;
 
-      // Ahora es seguro usar ScaffoldMessenger con el contexto actual
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al eliminar movimiento: $e'),
@@ -466,414 +558,165 @@ class _MovimientosRentaScreenState
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final movimientosState = ref.watch(
-      movimientosRentaStateProvider(widget.idInmueble),
-    );
-    final resumenParams = ResumenRentaParams(
-      idInmueble: widget.idInmueble,
-      anio: _selectedYear,
-      mes: _selectedMonth,
-    );
-    ref.watch(resumenRentaPorMesProvider(resumenParams));
+  Widget _construirListaMovimientos(
+    AsyncValue<List<MovimientoRenta>> movimientos,
+  ) {
+    return movimientos.when(
+      data: (data) {
+        if (data.isEmpty) {
+          return const Center(
+            child: Text('No hay movimientos en este período'),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.nombreInmueble)),
-      body: Column(
-        children: [
-          // Selector de período
-          _buildPeriodSelector(),
+        final movimientosOrdenados = List<MovimientoRenta>.from(data)
+          ..sort((a, b) => b.fechaMovimiento.compareTo(a.fechaMovimiento));
 
-          // Lista de movimientos
-          Expanded(child: _buildMovimientosList(movimientosState)),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _mostrarFormularioMovimiento(),
-        icon: const Icon(Icons.add),
-        label: const Text('Registrar movimiento'),
-      ),
-    );
-  }
-
-  Widget _buildPeriodSelector() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      child: Row(
-        children: [
-          const Text(
-            'Período: ',
-            style: TextStyle(fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(width: 8),
-
-          // Botón "Todos"
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _selectedYear = 0;
-                _selectedMonth = 0;
-              });
-            },
-            style: TextButton.styleFrom(
-              backgroundColor:
-                  (_selectedYear == 0) ? Colors.blue.withAlpha(25) : null,
-              foregroundColor: (_selectedYear == 0) ? Colors.blue : null,
-            ),
-            child: const Text('Todos'),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Año
-          DropdownButton<int>(
-            value: _selectedYear == 0 ? DateTime.now().year : _selectedYear,
-            onChanged: (int? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _selectedYear = newValue;
-                  // Si seleccionamos año, también necesitamos un mes
-                  if (_selectedMonth == 0) {
-                    _selectedMonth = DateTime.now().month;
-                  }
-                });
-              }
-            },
-            items:
-                List.generate(
-                  5,
-                  (index) => DateTime.now().year - 2 + index,
-                ).map<DropdownMenuItem<int>>((int value) {
-                  return DropdownMenuItem<int>(
-                    value: value,
-                    child: Text(value.toString()),
-                  );
-                }).toList(),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Mes
-          DropdownButton<int>(
-            value: _selectedMonth == 0 ? DateTime.now().month : _selectedMonth,
-            onChanged: (int? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _selectedMonth = newValue;
-                  // Si seleccionamos mes, también necesitamos un año
-                  if (_selectedYear == 0) {
-                    _selectedYear = DateTime.now().year;
-                  }
-                });
-              }
-            },
-            items:
-                List.generate(
-                  12,
-                  (index) => index + 1,
-                ).map<DropdownMenuItem<int>>((int value) {
-                  final monthName = DateFormat(
-                    'MMMM',
-                    'es_ES',
-                  ).format(DateTime(2022, value, 1));
-                  return DropdownMenuItem<int>(
-                    value: value,
-                    child: Text(
-                      monthName.substring(0, 1).toUpperCase() +
-                          monthName.substring(1),
-                    ),
-                  );
-                }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMovimientosList(MovimientosRentaState state) {
-    if (state.cargando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (state.error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'Error al cargar movimientos: ${state.error}',
-              style: const TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                ref
-                    .read(
-                      movimientosRentaStateProvider(widget.idInmueble).notifier,
-                    )
-                    .cargarMovimientos(widget.idInmueble);
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (state.movimientos.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.account_balance_wallet_outlined,
-              size: 64,
-              color: Colors.grey,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No hay movimientos registrados',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Registre ingresos o gastos con el botón +',
-              style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Variable que determina si estamos filtrando por período específico
-    final bool filtrandoPorPeriodo = _selectedYear != 0 && _selectedMonth != 0;
-
-    // Si no estamos filtrando específicamente, mostrar todos los movimientos
-    // Si estamos filtrando, aplicar filtro por año y mes
-    final List<MovimientoRenta> movimientosAMostrar =
-        filtrandoPorPeriodo
-            ? state.movimientos.where((mov) {
-              final movDate = mov.fechaMovimiento;
-              return movDate.year == _selectedYear &&
-                  movDate.month == _selectedMonth;
-            }).toList()
-            : state.movimientos; // Mostrar todos los movimientos
-
-    // Si no hay movimientos después de aplicar el filtro, mostrar mensaje
-    if (movimientosAMostrar.isEmpty && filtrandoPorPeriodo) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No hay movimientos en el período seleccionado',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  // Resetear selección para mostrar todos
-                  _selectedYear = 0;
-                  _selectedMonth = 0;
-                });
-              },
-              child: const Text('Mostrar todos los movimientos'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Organizamos los movimientos por fecha (más recientes primero)
-    final sortedMovimientos = List<MovimientoRenta>.from(movimientosAMostrar)
-      ..sort((a, b) => b.fechaMovimiento.compareTo(a.fechaMovimiento));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Mostrar chip cuando está activo el filtrado
-        if (filtrandoPorPeriodo)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Wrap(
-              spacing: 8,
+        return ListView.builder(
+          itemCount: movimientosOrdenados.length,
+          itemBuilder: (context, index) {
+            final movimiento = movimientosOrdenados[index];
+            return _construirItemMovimiento(movimiento);
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (error, stack) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                FilterChip(
-                  label: Text(
-                    'Período: ${_getMonthName(_selectedMonth)} $_selectedYear',
-                  ),
-                  onSelected: (_) {
-                    setState(() {
-                      // Resetear selección para mostrar todos
-                      _selectedYear = 0;
-                      _selectedMonth = 0;
-                    });
+                const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Error al cargar movimientos: ${error.toString()}',
+                  style: const TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    ref.invalidate(
+                      movimientosPorInmuebleProvider(widget.idInmueble),
+                    );
                   },
-                  selected: true,
-                  showCheckmark: false,
-                  deleteIcon: const Icon(Icons.close, size: 18),
-                  onDeleted: () {
-                    setState(() {
-                      // Resetear selección para mostrar todos
-                      _selectedYear = 0;
-                      _selectedMonth = 0;
-                    });
-                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Reintentar'),
                 ),
               ],
             ),
           ),
-
-        // Lista de movimientos
-        Expanded(
-          child: ListView.builder(
-            itemCount: sortedMovimientos.length,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemBuilder: (context, index) {
-              final movimiento = sortedMovimientos[index];
-              return Card(
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color:
-                        movimiento.esIngreso
-                            ? Colors.green.shade100
-                            : Colors.red.shade100,
-                    width: 1,
-                  ),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(16),
-                  leading: CircleAvatar(
-                    backgroundColor:
-                        movimiento.esIngreso
-                            ? Colors.green.withAlpha(26) // 0.1 * 255 ≈ 26
-                            : Colors.red.withAlpha(26), // 0.1 * 255 ≈ 26
-                    child: Icon(
-                      // Usar icono específico para pagos de renta
-                      movimiento.concepto.startsWith('Pago de renta:')
-                          ? Icons.home
-                          : (movimiento.esIngreso
-                              ? Icons.arrow_downward
-                              : Icons.arrow_upward),
-                      color: movimiento.esIngreso ? Colors.green : Colors.red,
-                    ),
-                  ),
-                  title: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          movimiento.concepto,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      if (movimiento.concepto.startsWith('Pago de renta:'))
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Renta',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.blue.shade800,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text(
-                        movimiento.fechaFormateada,
-                        style: TextStyle(color: Colors.grey[700], fontSize: 12),
-                      ),
-                      if (movimiento.comentarios != null &&
-                          movimiento.comentarios!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            movimiento.comentarios!,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        movimiento.montoFormateado,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color:
-                              movimiento.esIngreso
-                                  ? Colors.green[700]
-                                  : Colors.red[700],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.grey,
-                        ),
-                        onPressed:
-                            () => _confirmarEliminarMovimiento(movimiento.id!),
-                        tooltip: 'Eliminar',
-                        constraints: const BoxConstraints(),
-                        padding: EdgeInsets.zero,
-                        iconSize: 20,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 
-  // Método auxiliar para obtener el nombre del mes
-  String _getMonthName(int month) {
-    final monthName = DateFormat(
-      'MMMM',
-      'es_ES',
-    ).format(DateTime(2022, month, 1));
-    return monthName.substring(0, 1).toUpperCase() + monthName.substring(1);
+  Widget _construirItemMovimiento(MovimientoRenta movimiento) {
+    final esIngreso = movimiento.tipoMovimiento == 'ingreso';
+    final color = esIngreso ? Colors.green : Colors.red;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withAlpha(
+            51,
+          ), // Equivalent to withOpacity(0.2)
+          child: Icon(
+            esIngreso ? Icons.arrow_upward : Icons.arrow_downward,
+            color: color,
+          ),
+        ),
+        title: Text(movimiento.concepto),
+        subtitle: Text(formatDate.format(movimiento.fechaMovimiento)),
+        trailing: Text(
+          formatCurrency.format(movimiento.monto),
+          style: TextStyle(fontWeight: FontWeight.bold, color: color),
+        ),
+        onTap: () => _mostrarDetalleMovimiento(movimiento),
+      ),
+    );
+  }
+
+  void _mostrarDetalleMovimiento(MovimientoRenta movimiento) {
+    showModalBottomSheet(
+      context: context,
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Detalle del Movimiento',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+                const Divider(),
+                _buildDetalleItem('Concepto', movimiento.concepto),
+                _buildDetalleItem(
+                  'Tipo',
+                  movimiento.tipoMovimiento == 'ingreso' ? 'Ingreso' : 'Egreso',
+                ),
+                _buildDetalleItem(
+                  'Monto',
+                  formatCurrency.format(movimiento.monto),
+                ),
+                _buildDetalleItem(
+                  'Fecha',
+                  formatDate.format(movimiento.fechaMovimiento),
+                ),
+                if (movimiento.comentarios != null &&
+                    movimiento.comentarios!.isNotEmpty)
+                  _buildDetalleItem('Comentarios', movimiento.comentarios!),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cerrar'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _confirmarEliminarMovimiento(movimiento.id!);
+                      },
+                      icon: const Icon(Icons.delete),
+                      label: const Text('Eliminar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildDetalleItem(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
   }
 
   void _mostrarFormularioMovimiento() {
@@ -1033,140 +876,181 @@ class _MovimientosRentaScreenState
                                   });
                                 }
                               },
-                              child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  labelText: 'Mes correspondiente',
-                                  border: OutlineInputBorder(),
-                                  suffixIcon: Icon(Icons.calendar_month),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
                                 ),
-                                child: Text(
-                                  DateFormat('MMMM yyyy', 'es_ES')
-                                      .format(mesPagoRenta)
-                                      .toLowerCase()
-                                      .replaceFirstMapped(
-                                        RegExp(r'^.'),
-                                        (match) =>
-                                            match.group(0)!.toUpperCase(),
-                                      ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      DateFormat(
+                                        'MMMM yyyy',
+                                        'es_ES',
+                                      ).format(mesPagoRenta),
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    const Icon(Icons.calendar_today),
+                                  ],
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
                           ],
                         ),
 
-                      // Concepto
+                      // Campo de concepto
                       TextFormField(
                         controller: _conceptoController,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           labelText: 'Concepto',
-                          hintText:
-                              _isIngreso
-                                  ? 'Ej: Pago de renta'
-                                  : 'Ej: Mantenimiento',
-                          border: const OutlineInputBorder(),
+                          hintText: 'Ej: Pago de renta, Reparación, etc.',
                         ),
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Debe ingresar un concepto';
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingrese un concepto';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
 
-                      // Monto
+                      // Campo de monto
                       TextFormField(
                         controller: _montoController,
                         decoration: const InputDecoration(
                           labelText: 'Monto',
-                          hintText: 'Ej: 5000.00',
-                          border: OutlineInputBorder(),
+                          hintText: 'Ej: 5000',
                           prefixText: '\$ ',
                         ),
                         keyboardType: TextInputType.number,
                         validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Debe ingresar un monto';
+                          if (value == null || value.isEmpty) {
+                            return 'Por favor ingrese un monto';
                           }
-                          if (double.tryParse(value) == null) {
-                            return 'Ingrese un valor numérico válido';
-                          }
-                          if (double.parse(value) <= 0) {
-                            return 'El monto debe ser mayor a cero';
+                          try {
+                            final monto = double.parse(value);
+                            if (monto <= 0) {
+                              return 'El monto debe ser mayor a cero';
+                            }
+                          } catch (e) {
+                            return 'Por favor ingrese un monto válido';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
 
-                      // Fecha
-                      InkWell(
-                        onTap: () async {
-                          final DateTime? picked = await showDatePicker(
-                            context: context,
-                            initialDate: _fechaMovimiento,
-                            firstDate: DateTime(_selectedYear - 1, 1),
-                            lastDate: DateTime.now().add(
-                              const Duration(days: 30),
+                      // Selector de fecha
+                      Row(
+                        children: [
+                          const Text('Fecha:'),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final DateTime? picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: _fechaMovimiento,
+                                  firstDate: DateTime(
+                                    DateTime.now().year - 2,
+                                    1,
+                                  ),
+                                  lastDate: DateTime.now(),
+                                  helpText: 'Seleccione fecha del movimiento',
+                                  cancelText: 'CANCELAR',
+                                  confirmText: 'ACEPTAR',
+                                );
+                                if (picked != null) {
+                                  setModalState(() {
+                                    _fechaMovimiento = picked;
+                                  });
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      DateFormat(
+                                        'dd/MM/yyyy',
+                                      ).format(_fechaMovimiento),
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    const Icon(Icons.calendar_today),
+                                  ],
+                                ),
+                              ),
                             ),
-                            helpText: 'Seleccione fecha del movimiento',
-                            cancelText: 'CANCELAR',
-                            confirmText: 'ACEPTAR',
-                          );
-                          if (picked != null && picked != _fechaMovimiento) {
-                            setState(() {
-                              _fechaMovimiento = picked;
-                            });
-                            setModalState(() {
-                              // Actualizar el estado del modal
-                            });
-                          }
-                        },
-                        child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'Fecha',
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today),
                           ),
-                          child: Text(formatDate.format(_fechaMovimiento)),
-                        ),
+                        ],
                       ),
                       const SizedBox(height: 16),
 
-                      // Comentarios
+                      // Campo de comentarios (opcional)
                       TextFormField(
                         controller: _comentariosController,
                         decoration: const InputDecoration(
                           labelText: 'Comentarios (opcional)',
-                          border: OutlineInputBorder(),
+                          hintText: 'Información adicional',
                         ),
-                        maxLines: 3,
+                        maxLines: 2,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
 
-                      ElevatedButton(
-                        onPressed:
-                            _isRegistering
-                                ? null
-                                : () async {
-                                  // Usamos el contexto del modal aquí
-                                  if (esPagoRenta && _isIngreso) {
-                                    await _registrarPagoRenta(mesPagoRenta);
-                                  } else {
-                                    await _registrarMovimiento();
-                                  }
-                                },
-                        child:
-                            _isRegistering
-                                ? const CircularProgressIndicator()
-                                : Text(
-                                  esPagoRenta && _isIngreso
-                                      ? 'Registrar Pago de Renta'
-                                      : 'Registrar ${_isIngreso ? "Ingreso" : "Egreso"}',
-                                ),
+                      // Botones de acción
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('CANCELAR'),
+                          ),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed:
+                                _isRegistering
+                                    ? null
+                                    : () {
+                                      if (esPagoRenta) {
+                                        _registrarPagoRenta(mesPagoRenta);
+                                      } else {
+                                        _registrarMovimiento();
+                                      }
+                                    },
+                            child:
+                                _isRegistering
+                                    ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : Text(
+                                      'REGISTRAR ${esPagoRenta
+                                          ? "PAGO"
+                                          : _isIngreso
+                                          ? "INGRESO"
+                                          : "EGRESO"}',
+                                    ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -1175,6 +1059,219 @@ class _MovimientosRentaScreenState
           },
         );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final movimientosFiltrados = ref.watch(
+      movimientosFiltradosPorPeriodoProvider((
+        idInmueble: widget.idInmueble,
+        periodo: _periodoSeleccionado,
+      )),
+    );
+
+    final balancePeriodo = ref.watch(
+      balancePeriodoProvider(movimientosFiltrados),
+    );
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Movimientos: ${widget.nombreInmueble}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: _mostrarSelectorPeriodo,
+            tooltip: 'Filtrar por período',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Período: ${_formatearPeriodo(_tipoPeriodSeleccionado, _periodoSeleccionado)}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+          ),
+
+          _construirTarjetaBalance(balancePeriodo),
+
+          Expanded(child: _construirListaMovimientos(movimientosFiltrados)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _mostrarFormularioMovimiento(),
+        tooltip: 'Registrar movimiento',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _mostrarSelectorPeriodo() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Seleccionar período'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _botonPeriodo(TipoPeriodo.dia, 'Día'),
+              _botonPeriodo(TipoPeriodo.semana, 'Semana'),
+              _botonPeriodo(TipoPeriodo.mes, 'Mes'),
+              _botonPeriodo(TipoPeriodo.bimestre, 'Bimestre'),
+              _botonPeriodo(TipoPeriodo.trimestre, 'Trimestre'),
+              _botonPeriodo(TipoPeriodo.semestre, 'Semestre'),
+              _botonPeriodo(TipoPeriodo.anio, 'Año'),
+              ListTile(
+                title: const Text('Personalizado'),
+                leading: const Icon(Icons.date_range),
+                onTap: () {
+                  Navigator.pop(context);
+                  _seleccionarPeriodoPersonalizado();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _botonPeriodo(TipoPeriodo tipo, String label) {
+    return ListTile(
+      title: Text(label),
+      leading: Icon(
+        _getIconoTipoPeriodo(tipo),
+        color:
+            _tipoPeriodSeleccionado == tipo
+                ? Theme.of(context).primaryColor
+                : null,
+      ),
+      selected: _tipoPeriodSeleccionado == tipo,
+      onTap: () {
+        Navigator.pop(context);
+        _cambiarPeriodo(tipo);
+      },
+    );
+  }
+
+  IconData _getIconoTipoPeriodo(TipoPeriodo tipo) {
+    switch (tipo) {
+      case TipoPeriodo.dia:
+        return Icons.today;
+      case TipoPeriodo.semana:
+        return Icons.view_week;
+      case TipoPeriodo.mes:
+        return Icons.calendar_view_month;
+      case TipoPeriodo.bimestre:
+        return Icons.calendar_today;
+      case TipoPeriodo.trimestre:
+        return Icons.date_range;
+      case TipoPeriodo.semestre:
+        return Icons.event_note;
+      case TipoPeriodo.anio:
+        return Icons.calendar_month;
+      case TipoPeriodo.personalizado:
+        return Icons.date_range;
+    }
+  }
+
+  String _formatearPeriodo(TipoPeriodo tipo, DateTimeRange periodo) {
+    final formatter = DateFormat('dd/MM/yyyy');
+    final inicio = formatter.format(periodo.start);
+    final fin = formatter.format(periodo.end);
+
+    switch (tipo) {
+      case TipoPeriodo.dia:
+        return 'Día $inicio';
+      case TipoPeriodo.semana:
+        return 'Semana del $inicio al $fin';
+      case TipoPeriodo.mes:
+        return 'Mes ${DateFormat('MMMM yyyy', 'es_ES').format(periodo.start)}';
+      case TipoPeriodo.bimestre:
+        return 'Bimestre ${periodo.start.month}-${periodo.start.month + 1} ${periodo.start.year}';
+      case TipoPeriodo.trimestre:
+        return 'Trimestre ${((periodo.start.month - 1) ~/ 3) + 1} del ${periodo.start.year}';
+      case TipoPeriodo.semestre:
+        return 'Semestre ${periodo.start.month <= 6 ? 1 : 2} del ${periodo.start.year}';
+      case TipoPeriodo.anio:
+        return 'Año ${periodo.start.year}';
+      case TipoPeriodo.personalizado:
+        return '$inicio - $fin';
+    }
+  }
+
+  Widget _construirTarjetaBalance(Map<String, double> balance) {
+    return Card(
+      margin: const EdgeInsets.all(16.0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Text(
+              'Balance del Período',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).primaryColor,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _construirItemBalance(
+                  'Ingresos',
+                  balance['ingresos'] ?? 0,
+                  Icons.arrow_upward,
+                  Colors.green,
+                ),
+                _construirItemBalance(
+                  'Egresos',
+                  balance['egresos'] ?? 0,
+                  Icons.arrow_downward,
+                  Colors.red,
+                ),
+                _construirItemBalance(
+                  'Balance',
+                  balance['balance'] ?? 0,
+                  Icons.account_balance,
+                  (balance['balance'] ?? 0) >= 0 ? Colors.green : Colors.red,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _construirItemBalance(
+    String label,
+    double value,
+    IconData icon,
+    Color color,
+  ) {
+    return Column(
+      children: [
+        Icon(icon, color: color),
+        Text(label),
+        Text(
+          formatCurrency.format(value),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

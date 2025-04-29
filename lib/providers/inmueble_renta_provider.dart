@@ -6,6 +6,7 @@ import '../models/comprobante_movimiento_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/models/inmueble_model.dart';
 import '../controllers/movimiento_renta_controller.dart';
+import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:inmobiliaria/providers/providers_global.dart';
 import 'package:inmobiliaria/providers/contrato_renta_providers.dart';
 
@@ -365,3 +366,75 @@ final resumenContratosRentaProvider = FutureProvider<Map<String, dynamic>>((
     };
   }
 });
+
+/// Provider para filtrar movimientos por el período seleccionado
+final movimientosFiltradosPorPeriodoProvider = Provider.family<
+  List<MovimientoRenta>,
+  ({int idInmueble, DateTimeRange periodo})
+>((ref, params) {
+  final todosLosMovimientos = ref.watch(
+    movimientosPorInmuebleProvider(params.idInmueble),
+  );
+
+  return todosLosMovimientos.when(
+    data: (movimientos) {
+      return movimientos.where((movimiento) {
+        final fechaMovimiento = movimiento.fechaMovimiento;
+
+        // Normalizar las fechas para comparación (sin hora, minutos, etc.)
+        final fechaInicio = DateTime(
+          params.periodo.start.year,
+          params.periodo.start.month,
+          params.periodo.start.day,
+        );
+
+        final fechaFin = DateTime(
+          params.periodo.end.year,
+          params.periodo.end.month,
+          params.periodo.end.day,
+          23,
+          59,
+          59, // Incluir todo el día final
+        );
+
+        final fechaMovimientoNormalizada = DateTime(
+          fechaMovimiento.year,
+          fechaMovimiento.month,
+          fechaMovimiento.day,
+        );
+
+        // Incluir fechas que están dentro del rango, incluyendo los límites
+        return (fechaMovimientoNormalizada.isAtSameMomentAs(fechaInicio) ||
+                fechaMovimientoNormalizada.isAfter(fechaInicio)) &&
+            (fechaMovimientoNormalizada.isAtSameMomentAs(fechaFin) ||
+                fechaMovimientoNormalizada.isBefore(fechaFin));
+      }).toList();
+    },
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
+/// Provider para calcular el balance de un período específico
+final balancePeriodoProvider =
+    Provider.family<Map<String, double>, List<MovimientoRenta>>((
+      ref,
+      movimientos,
+    ) {
+      double totalIngresos = 0;
+      double totalEgresos = 0;
+
+      for (final movimiento in movimientos) {
+        if (movimiento.tipoMovimiento == 'ingreso') {
+          totalIngresos += movimiento.monto;
+        } else {
+          totalEgresos += movimiento.monto;
+        }
+      }
+
+      return {
+        'ingresos': totalIngresos,
+        'egresos': totalEgresos,
+        'balance': totalIngresos - totalEgresos,
+      };
+    });
