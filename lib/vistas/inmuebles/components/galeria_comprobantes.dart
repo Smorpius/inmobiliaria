@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
 import '../../../utils/archivo_utils.dart';
 import '../../../models/inmueble_model.dart';
+import '../../../models/movimiento_renta_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/inmueble_renta_provider.dart';
 import '../../../models/comprobante_movimiento_model.dart';
@@ -19,6 +20,9 @@ class GaleriaComprobantes extends ConsumerStatefulWidget {
 
 class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
   int? _movimientoSeleccionado;
+  // Variables para el filtro de período
+  DateTime _periodoSeleccionado = DateTime.now();
+  bool _filtrarPorPeriodo = false;
 
   @override
   Widget build(BuildContext context) {
@@ -34,22 +38,63 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
+        actions: [
+          // Botón para mostrar el selector de período
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            tooltip: 'Filtrar por período',
+            onPressed: _mostrarSelectorPeriodo,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Indicador de filtro activo
+            if (_filtrarPorPeriodo)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Chip(
+                  avatar: const Icon(Icons.filter_alt, size: 18),
+                  label: Text(
+                    'Período: ${_periodoSeleccionado.month}/${_periodoSeleccionado.year}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  deleteIcon: const Icon(Icons.close),
+                  onDeleted: () {
+                    setState(() {
+                      _filtrarPorPeriodo = false;
+                      _movimientoSeleccionado = null;
+                    });
+                  },
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
+                ),
+              ),
+
             // Selector de movimiento
             movimientosAsyncValue.when(
               data: (movimientos) {
-                if (movimientos.isEmpty) {
-                  return const Center(
+                // Filtrar los movimientos por período si el filtro está activo
+                final movimientosFiltrados =
+                    _filtrarPorPeriodo
+                        ? _filtrarMovimientosPorPeriodo(movimientos)
+                        : movimientos;
+
+                if (movimientosFiltrados.isEmpty) {
+                  return Center(
                     child: Padding(
-                      padding: EdgeInsets.all(32.0),
+                      padding: const EdgeInsets.all(32.0),
                       child: Text(
-                        'No hay movimientos registrados',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        _filtrarPorPeriodo
+                            ? 'No hay movimientos en el período seleccionado'
+                            : 'No hay movimientos registrados',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
                       ),
                     ),
                   );
@@ -77,7 +122,7 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
                           ),
                           value: _movimientoSeleccionado,
                           items:
-                              movimientos.map((movimiento) {
+                              movimientosFiltrados.map((movimiento) {
                                 final icono =
                                     movimiento.tipoMovimiento == 'ingreso'
                                         ? Icons.arrow_circle_up
@@ -319,6 +364,136 @@ class _GaleriaComprobantesState extends ConsumerState<GaleriaComprobantes> {
                       style: const TextStyle(fontSize: 16),
                     ),
                   ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  List<MovimientoRenta> _filtrarMovimientosPorPeriodo(
+    List<MovimientoRenta> movimientos,
+  ) {
+    return movimientos.where((movimiento) {
+      // Como fechaMovimiento no es nulo según la definición de la clase MovimientoRenta,
+      // simplemente filtramos por año y mes sin verificación de nulidad
+      return movimiento.fechaMovimiento.year == _periodoSeleccionado.year &&
+          movimiento.fechaMovimiento.month == _periodoSeleccionado.month;
+    }).toList();
+  }
+
+  void _mostrarSelectorPeriodo() {
+    final meses = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => Dialog(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppBar(
+                  title: const Text('Seleccionar período'),
+                  centerTitle: true,
+                  leading: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Mes:'),
+                          DropdownButton<int>(
+                            value: _periodoSeleccionado.month,
+                            items: List.generate(12, (index) {
+                              final mes = index + 1;
+                              return DropdownMenuItem(
+                                value: mes,
+                                child: Text(meses[index]),
+                              );
+                            }),
+                            onChanged: (mes) {
+                              if (mes != null) {
+                                setState(() {
+                                  _periodoSeleccionado = DateTime(
+                                    _periodoSeleccionado.year,
+                                    mes,
+                                  );
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Año:'),
+                          DropdownButton<int>(
+                            value: _periodoSeleccionado.year,
+                            items: List.generate(10, (index) {
+                              final anio = DateTime.now().year - index;
+                              return DropdownMenuItem(
+                                value: anio,
+                                child: Text(anio.toString()),
+                              );
+                            }),
+                            onChanged: (anio) {
+                              if (anio != null) {
+                                setState(() {
+                                  _periodoSeleccionado = DateTime(
+                                    anio,
+                                    _periodoSeleccionado.month,
+                                  );
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancelar'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _filtrarPorPeriodo = true;
+                            _movimientoSeleccionado = null;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text('Aplicar filtro'),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
