@@ -1204,7 +1204,8 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
       return 'recibo';
     }
 
-    return esPDF ? 'documento' : 'imagen';
+    // En vez de 'documento' o 'imagen', usar 'otro' que sí está en el ENUM
+    return 'otro';
   }
 
   // Obtiene el ID del último comprobante registrado para un movimiento

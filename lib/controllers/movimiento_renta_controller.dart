@@ -149,9 +149,9 @@ class MovimientoRentaController {
       double egresos = 0.0;
 
       for (var mov in movimientos) {
-        if (mov.esIngreso) {
+        if (mov.tipoMovimiento == 'ingreso') {
           ingresos += mov.monto;
-        } else {
+        } else if (mov.tipoMovimiento == 'egreso') {
           egresos += mov.monto;
         }
       }
@@ -170,9 +170,9 @@ class MovimientoRentaController {
           };
         }
 
-        if (mov.esIngreso) {
+        if (mov.tipoMovimiento == 'ingreso') {
           balancePorInmueble[mov.idInmueble]!['ingresos'] += mov.monto;
-        } else {
+        } else if (mov.tipoMovimiento == 'egreso') {
           balancePorInmueble[mov.idInmueble]!['egresos'] += mov.monto;
         }
 
@@ -505,7 +505,7 @@ class MovimientoRentaController {
         }
 
         // Acumular montos
-        if (mov.esIngreso) {
+        if (mov.tipoMovimiento == 'ingreso') {
           rendimientoPorInmueble[mov.idInmueble]!['ingresos'] += mov.monto;
 
           // Agrupar ingresos por concepto
@@ -516,7 +516,7 @@ class MovimientoRentaController {
                       .idInmueble]!['detalle_ingresos'][concepto] ??
                   0.0) +
               mov.monto;
-        } else {
+        } else if (mov.tipoMovimiento == 'egreso') {
           rendimientoPorInmueble[mov.idInmueble]!['egresos'] += mov.monto;
 
           // Agrupar egresos por concepto
@@ -540,6 +540,8 @@ class MovimientoRentaController {
         // Si no hay egresos, el ROI es 0 para evitar división por cero
         if (datos['egresos'] > 0) {
           datos['roi'] = datos['balance'] / datos['egresos'] * 100;
+        } else {
+          datos['roi'] = 0.0;
         }
       }
 
