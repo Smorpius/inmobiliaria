@@ -488,12 +488,14 @@ class ComprobanteMovimientoController {
 
         // Obtener resultados del reporte desde la primera fila
         final row = results.first.fields;
-        final totalEgresos = (row['total_egresos'] != null) 
-            ? double.parse(row['total_egresos'].toString()) 
-            : 0.0;
-        final totalIngresos = (row['total_ingresos'] != null)
-            ? double.parse(row['total_ingresos'].toString())
-            : 0.0;
+        final totalEgresos =
+            (row['total_egresos'] != null)
+                ? double.parse(row['total_egresos'].toString())
+                : 0.0;
+        final totalIngresos =
+            (row['total_ingresos'] != null)
+                ? double.parse(row['total_ingresos'].toString())
+                : 0.0;
         final totalComprobantes = row['total_comprobantes'] as int? ?? 0;
         final comprobantesFacturas = row['comprobantes_facturas'] as int? ?? 0;
         final comprobantesRecibos = row['comprobantes_recibos'] as int? ?? 0;
