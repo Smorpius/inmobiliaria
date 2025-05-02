@@ -1,128 +1,84 @@
 import 'dart:io';
 import 'package:pdf/pdf.dart';
-import 'directory_service.dart';
-import '../utils/applogger.dart';
-import '../utils/pdf_font_helper.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
+import 'package:inmobiliaria/utils/applogger.dart';
 
-/// Servicio para generar documentos PDF con soporte Unicode
+/// Servicio para la generación y guardado de archivos PDF
 class PdfService {
-  /// Crea un documento PDF básico con el tema que soporta caracteres Unicode
+  /// Crea un documento PDF con la configuración básica
   static Future<pw.Document> crearDocumento() async {
-    try {
-      // Obtener el tema con soporte Unicode
-      final theme = await PdfFontHelper.getThemeData();
-
-      // Crear el documento con el tema aplicado
-      final pdf = pw.Document(theme: theme);
-      return pdf;
-    } catch (e, stack) {
-      AppLogger.error('Error al crear documento PDF', e, stack);
-      throw Exception('Error al crear documento PDF: $e');
-    }
-  }
-
-  /// Guarda un documento PDF en el almacenamiento del dispositivo
-  static Future<String> guardarDocumento(
-    pw.Document pdf,
-    String nombreArchivo, {
-    String? tipoDocumento,
-  }) async {
-    try {
-      final directorios = await DirectoryService.crearEstructuraDirectorios();
-      String? directorio = directorios['base'];
-      if (tipoDocumento != null && directorios.containsKey(tipoDocumento)) {
-        directorio = directorios[tipoDocumento] ?? directorio;
-      }
-      if (directorio == null) {
-        throw Exception('No se pudo obtener un directorio válido');
-      }
-      AppLogger.info('Guardando PDF en: $directorio/$nombreArchivo.pdf');
-      final file = File('$directorio/$nombreArchivo.pdf');
-      await file.writeAsBytes(await pdf.save());
-      if (await file.exists()) {
-        AppLogger.info('PDF guardado correctamente: ${file.path}');
-        return file.path;
-      } else {
-        throw Exception('El archivo no se creó correctamente');
-      }
-    } catch (e, stack) {
-      AppLogger.error('Error al guardar documento PDF', e, stack);
-      try {
-        final output = await getApplicationDocumentsDirectory();
-        final file = File('${output.path}/$nombreArchivo.pdf');
-        await file.writeAsBytes(await pdf.save());
-        AppLogger.info('PDF recuperado y guardado en: ${file.path}');
-        return file.path;
-      } catch (fallbackError) {
-        AppLogger.error('Error en recuperación al guardar PDF', fallbackError);
-        throw Exception('Error al guardar documento PDF: $e');
-      }
-    }
-  }
-
-  /// Crea un PDF con un encabezado y contenido básico
-  static Future<pw.Document> crearDocumentoConContenido({
-    required String titulo,
-    required String contenido,
-    String? subtitulo,
-    PdfColor? colorEncabezado,
-  }) async {
-    final pdf = await crearDocumento();
-    final unicodeStyle = await PdfFontHelper.getTextStyle();
-    final titleStyle = await PdfFontHelper.getTextStyle(
-      fontSize: 24,
-      color: colorEncabezado ?? PdfColors.blue800,
-      fontWeight: pw.FontWeight.bold,
-    );
-    final subtitleStyle = await PdfFontHelper.getTextStyle(
-      fontSize: 16,
-      color: PdfColors.grey700,
-    );
-
-    pdf.addPage(
-      pw.Page(
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Header(
-                level: 0,
-                title: titulo,
-                child: pw.Text(titulo, style: titleStyle),
-              ),
-              if (subtitulo != null)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(bottom: 10),
-                  child: pw.Text(subtitulo, style: subtitleStyle),
-                ),
-              pw.Divider(),
-              pw.SizedBox(height: 10),
-              pw.Paragraph(text: contenido, style: unicodeStyle),
-            ],
-          );
-        },
-      ),
+    final pdf = pw.Document(
+      title: 'Reporte Inmobiliaria',
+      author: 'Sistema Inmobiliario',
+      creator: 'Aplicación Inmobiliaria',
+      producer: 'Flutter PDF',
+      subject: 'Reporte Generado',
+      // Configuración para asegurar compatibilidad con acentos y símbolos
+      version: PdfVersion.pdf_1_5,
+      compress: true,
     );
 
     return pdf;
   }
 
-  /// Crea un texto con soporte Unicode
-  static Future<pw.Text> createUnicodeText(
-    String text, {
-    double? fontSize,
-    PdfColor? color,
-    pw.FontWeight? fontWeight,
-    pw.TextAlign? textAlign,
-  }) async {
-    final style = await PdfFontHelper.getTextStyle(
-      fontSize: fontSize,
-      color: color,
-      fontWeight: fontWeight,
-    );
+  /// Guarda un documento PDF en el almacenamiento local y retorna su ruta
+  static Future<String> guardarDocumento(
+    pw.Document pdf,
+    String nombreBase,
+  ) async {
+    try {
+      // Obtener directorio para guardar documentos
+      final Directory dir = await _obtenerDirectorioDocumentos();
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String fileName = '${nombreBase}_$timestamp.pdf';
+      final String filePath = '${dir.path}/$fileName';
 
-    return pw.Text(text, style: style, textAlign: textAlign);
+      // Guardar el archivo
+      final File file = File(filePath);
+      await file.writeAsBytes(await pdf.save());
+
+      AppLogger.info('PDF guardado exitosamente en: $filePath');
+      return filePath;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al guardar PDF', e, stackTrace);
+      throw Exception('Error al guardar el documento PDF: $e');
+    }
+  }
+
+  /// Obtiene el directorio apropiado según la plataforma
+  static Future<Directory> _obtenerDirectorioDocumentos() async {
+    try {
+      if (Platform.isIOS || Platform.isAndroid) {
+        return await getApplicationDocumentsDirectory();
+      } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final downloadsDir = await getDownloadsDirectory();
+        if (downloadsDir != null) {
+          final inmobiliariaDir = Directory(
+            '${downloadsDir.path}/Inmobiliaria/Reportes',
+          );
+          if (!await inmobiliariaDir.exists()) {
+            await inmobiliariaDir.create(recursive: true);
+          }
+          return inmobiliariaDir;
+        } else {
+          final tempDir = await getTemporaryDirectory();
+          return tempDir;
+        }
+      } else {
+        // Fallback para otras plataformas
+        return await getTemporaryDirectory();
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(
+        'Error al obtener directorio de documentos',
+        e,
+        stackTrace,
+      );
+
+      // Usar directorio temporal como respaldo
+      final tempDir = await getTemporaryDirectory();
+      return tempDir;
+    }
   }
 }
