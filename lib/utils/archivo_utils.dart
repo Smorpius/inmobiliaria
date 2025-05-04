@@ -120,14 +120,34 @@ class ArchivoUtils {
   static Future<String> _obtenerRutaBaseDocumentos() async {
     try {
       final Directory appDir = await _obtenerDirectorioRaizAplicacion();
-      final String rutaBase = path.join(appDir.path, _rutaRelativaDocumentos);
 
-      // Crear el directorio si no existe
+      // Primero intentar con la ruta relativa predeterminada (assets/documentos)
+      final String rutaBase = path.join(appDir.path, _rutaRelativaDocumentos);
       final Directory dirDocumentos = Directory(rutaBase);
-      if (!await dirDocumentos.exists()) {
-        await dirDocumentos.create(recursive: true);
+
+      // Verificar si existe la estructura con assets/documentos
+      if (await dirDocumentos.exists()) {
+        AppLogger.info('Usando directorio de documentos: $rutaBase');
+        return rutaBase;
       }
 
+      // Si no existe, intentar con la estructura alternativa (documentos)
+      final String rutaAlternativa = path.join(
+        appDir.path,
+        _rutaRelativaDocumentos.replaceFirst('assets/', ''),
+      );
+      final Directory dirAlternativo = Directory(rutaAlternativa);
+
+      if (await dirAlternativo.exists()) {
+        AppLogger.info(
+          'Usando directorio alternativo de documentos: $rutaAlternativa',
+        );
+        return rutaAlternativa;
+      }
+
+      // Si ninguno existe, crear el directorio predeterminado
+      await dirDocumentos.create(recursive: true);
+      AppLogger.info('Creado directorio de documentos: $rutaBase');
       return rutaBase;
     } catch (e, stackTrace) {
       AppLogger.error(
@@ -155,9 +175,29 @@ class ArchivoUtils {
 
   /// Obtiene la ruta completa de un archivo desde una ruta relativa
   static Future<String> obtenerRutaCompleta(String rutaRelativa) async {
+    // Intentar primero con la ruta base actual
     final String rutaBase = await _obtenerRutaBaseDocumentos();
     final rutaNormalizada = normalizarRuta(rutaRelativa);
-    return path.join(rutaBase, rutaNormalizada);
+    final rutaCompleta = path.join(rutaBase, rutaNormalizada);
+
+    // Verificar si existe el archivo
+    if (await File(rutaCompleta).exists()) {
+      AppLogger.debug('Archivo encontrado en ruta principal: $rutaCompleta');
+      return rutaCompleta;
+    }
+
+    // Si no existe, intentar sin el prefijo 'assets/'
+    String rutaBaseAlternativa = rutaBase;
+    if (rutaBase.startsWith('assets/')) {
+      rutaBaseAlternativa = rutaBase.replaceFirst('assets/', '');
+    }
+
+    final rutaAlternativa = path.join(rutaBaseAlternativa, rutaNormalizada);
+
+    // Log para depuración
+    AppLogger.debug('Intentando ruta alternativa: $rutaAlternativa');
+
+    return rutaAlternativa;
   }
 
   /// Verifica la existencia de un archivo, intentando múltiples ubicaciones si es necesario
@@ -168,23 +208,43 @@ class ArchivoUtils {
       final nombreArchivo = path.basename(rutaRelativa);
 
       // Lista de posibles ubicaciones a probar en orden de prioridad
-      final ubicaciones = [
-        // 1. Ruta normalizada completa
-        path.join(rutaBase, rutaNormalizada),
+      final ubicaciones =
+          [
+            // 1. Ruta normalizada completa (con assets)
+            path.join(rutaBase, rutaNormalizada),
 
-        // 2. Solo el nombre del archivo en la raíz
-        path.join(rutaBase, nombreArchivo),
+            // 2. Ruta normalizada sin prefijo assets (si aplica)
+            rutaBase.startsWith('assets/')
+                ? path.join(
+                  rutaBase.replaceFirst('assets/', ''),
+                  rutaNormalizada,
+                )
+                : null,
 
-        // 3. El nombre del archivo en cada directorio conocido
-        path.join(rutaBase, _dirComprobantes, nombreArchivo),
-        path.join(rutaBase, _dirContratos, nombreArchivo),
-        path.join(rutaBase, _dirTemp, nombreArchivo),
+            // 3. Solo el nombre del archivo en la raíz
+            path.join(rutaBase, nombreArchivo),
 
-        // 4. Buscar en subdirectorios comunes
-        path.join(rutaBase, _dirComprobantes, 'movimientos', nombreArchivo),
-        path.join(rutaBase, _dirComprobantes, 'ventas', nombreArchivo),
-        path.join(rutaBase, _dirComprobantes, 'rentas', nombreArchivo),
-      ];
+            // 4. El nombre del archivo en cada directorio conocido
+            path.join(rutaBase, _dirComprobantes, nombreArchivo),
+            path.join(rutaBase, _dirContratos, nombreArchivo),
+            path.join(rutaBase, _dirTemp, nombreArchivo),
+
+            // 5. Buscar en subdirectorios comunes
+            path.join(rutaBase, _dirComprobantes, 'movimientos', nombreArchivo),
+            path.join(rutaBase, _dirComprobantes, 'ventas', nombreArchivo),
+            path.join(rutaBase, _dirComprobantes, 'rentas', nombreArchivo),
+
+            // 6. Buscar en directorios alternativos (documentos vs assets/documentos)
+            rutaBase.contains('assets/documentos')
+                ? path.join(
+                  rutaBase.replaceFirst('assets/documentos', 'documentos'),
+                  rutaNormalizada,
+                )
+                : path.join(
+                  rutaBase.replaceFirst('documentos', 'assets/documentos'),
+                  rutaNormalizada,
+                ),
+          ].where((path) => path != null).map((path) => path!).toList();
 
       // Registrar para depuración con nivel detalle disminuido
       AppLogger.info(
@@ -219,30 +279,72 @@ class ArchivoUtils {
     try {
       final String rutaBase = await _obtenerRutaBaseDocumentos();
 
-      // Lista de posibles directorios donde buscar
-      final directorios = [
-        rutaBase,
-        path.join(rutaBase, _dirComprobantes),
-        path.join(rutaBase, _dirContratos),
-        path.join(rutaBase, _dirTemp),
-        path.join(rutaBase, _dirComprobantes, 'movimientos'),
-        path.join(rutaBase, _dirComprobantes, 'ventas'),
-        path.join(rutaBase, _dirComprobantes, 'rentas'),
+      // Obtener ruta alternativa (con o sin prefijo 'assets/')
+      String rutaBaseAlternativa = rutaBase;
+      if (rutaBase.contains('assets/documentos')) {
+        rutaBaseAlternativa = rutaBase.replaceFirst(
+          'assets/documentos',
+          'documentos',
+        );
+      } else if (rutaBase.contains('documentos')) {
+        rutaBaseAlternativa = rutaBase.replaceFirst(
+          'documentos',
+          'assets/documentos',
+        );
+      }
+
+      // Lista de posibles directorios donde buscar en ambas rutas base
+      final directoriosBase = [rutaBase, rutaBaseAlternativa];
+      final subDirs = [
+        '',
+        _dirComprobantes,
+        _dirContratos,
+        _dirTemp,
+        '$_dirComprobantes/movimientos',
+        '$_dirComprobantes/ventas',
+        '$_dirComprobantes/rentas',
+        '$_dirContratos/venta',
+        '$_dirContratos/renta',
       ];
+
+      // Generar todas las combinaciones de directorios posibles
+      final directorios = <String>[];
+      for (final base in directoriosBase) {
+        for (final subDir in subDirs) {
+          directorios.add(path.join(base, subDir));
+        }
+      }
+
+      // Registrar para depuración
+      AppLogger.debug(
+        'Buscando archivo $nombreArchivo en ${directorios.length} ubicaciones',
+      );
 
       // Buscar en todos los directorios
       for (final directorio in directorios) {
         final dir = Directory(directorio);
         if (!(await dir.exists())) continue;
 
-        final archivos = await dir.list().toList();
-        for (final archivo in archivos) {
-          if (archivo is File && path.basename(archivo.path) == nombreArchivo) {
-            return archivo.path;
+        try {
+          final archivos = await dir.list().toList();
+          for (final archivo in archivos) {
+            if (archivo is File &&
+                path.basename(archivo.path) == nombreArchivo) {
+              AppLogger.info(
+                'Archivo $nombreArchivo encontrado en: ${archivo.path}',
+              );
+              return archivo.path;
+            }
           }
+        } catch (e) {
+          // Ignorar errores al listar directorios individuales para continuar con otros
+          AppLogger.debug('No se pudo listar el directorio $directorio: $e');
         }
       }
 
+      AppLogger.warning(
+        'No se encontró el archivo $nombreArchivo en ninguna ubicación',
+      );
       return null;
     } catch (e, stackTrace) {
       AppLogger.error('Error al buscar archivo por nombre', e, stackTrace);

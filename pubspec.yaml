@@ -55,6 +55,8 @@ dependencies:
   printing: ^5.11.1             # Para vista previa e impresión de PDFs
   open_file: ^3.5.10
   month_picker_dialog: ^6.0.2 # Usar la versión sugerida
+  share_plus: ^7.2.1          # Para compartir archivos y texto entre aplicaciones
+  cross_file: ^0.3.4+2
 
 dev_dependencies:
   flutter_test:
