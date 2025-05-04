@@ -15,6 +15,9 @@ import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart'; // Importar
 import 'vistas/documentos/documentos_screen.dart'; // Importar la nueva pantalla
+import 'vistas/estadisticas/estadisticas_dashboard_screen.dart'; // Importar pantalla de estadísticas
+import 'vistas/estadisticas/ventas/reporte_ventas_screen.dart'; // Importar pantalla de reporte de ventas
+import 'vistas/estadisticas/rentas/reporte_rentas_screen.dart'; // Importar pantalla de reporte de rentas
 
 Future<void> main() async {
   try {
@@ -201,8 +204,22 @@ class MyApp extends ConsumerWidget {
         '/proveedores': (context) => const ListaProveedoresScreen(),
         '/ventas': (context) => const ListaVentasScreen(),
         '/ventas/reportes': (context) => const ReportesVentasScreen(),
-        '/documentos':
-            (context) => const DocumentosScreen(), // Nueva ruta añadida
+        '/documentos': (context) => const DocumentosScreen(),
+        '/estadisticas': (context) => const EstadisticasDashboardScreen(),
+        '/estadisticas/ventas':
+            (context) => ReporteVentasScreen(
+              periodoInicial: DateTimeRange(
+                start: DateTime.now().subtract(const Duration(days: 30)),
+                end: DateTime.now(),
+              ),
+            ),
+        '/estadisticas/rentas':
+            (context) => ReporteRentasScreen(
+              periodoInicial: DateTimeRange(
+                start: DateTime.now().subtract(const Duration(days: 30)),
+                end: DateTime.now(),
+              ),
+            ),
       },
       // Manejador para rutas desconocidas
       onUnknownRoute: (settings) {

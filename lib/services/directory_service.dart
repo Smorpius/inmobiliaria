@@ -9,6 +9,7 @@ class DirectoryService {
   static const String contratosRentaDir = 'documentos/contratos/renta';
   static const String contratosVentaDir = 'documentos/contratos/venta';
   static const String comprobantesDir = 'documentos/comprobantes';
+  static const String estadisticasDir = 'documentos/estadisticas';
 
   // Cache para evitar llamadas repetidas a getApplicationDocumentsDirectory
   static String? _baseDirPath;
@@ -70,9 +71,11 @@ class DirectoryService {
 
     final Map<String, String> dirs = {
       'base': baseDir,
+      'documentos': path.join(baseDir, 'documentos'),
       'contratos_renta': path.join(baseDir, contratosRentaDir),
       'contratos_venta': path.join(baseDir, contratosVentaDir),
       'comprobantes': path.join(baseDir, comprobantesDir),
+      'estadisticas': path.join(baseDir, estadisticasDir),
     };
 
     for (final entry in dirs.entries) {
@@ -143,12 +146,59 @@ class DirectoryService {
         return path.join(contratosVentaDir, path.basename(fullPath));
       case 'comprobantes':
         return path.join(comprobantesDir, path.basename(fullPath));
+      case 'estadisticas':
+        return path.join(estadisticasDir, path.basename(fullPath));
       default:
         AppLogger.warning(
           'No se pudo determinar la ruta relativa para dirType: $dirType',
         );
         // Devolver solo el nombre del archivo como fallback
         return path.basename(fullPath);
+    }
+  }
+
+  /// Obtiene la ruta absoluta de un directorio específico
+  static Future<String?> getDirectoryPath(String dirType) async {
+    final dirs = await ensureDirectoriesExist();
+    return dirs[dirType];
+  }
+
+  /// Crea el directorio si no existe y retorna su ruta
+  static Future<String?> createDirectoryIfNotExists(String dirType) async {
+    try {
+      final baseDir = await _getBaseDirectory();
+      String dirPath;
+
+      // Resolver ruta específica del directorio
+      switch (dirType) {
+        case 'estadisticas':
+          dirPath = path.join(baseDir, estadisticasDir);
+          break;
+        case 'contratos_renta':
+          dirPath = path.join(baseDir, contratosRentaDir);
+          break;
+        case 'contratos_venta':
+          dirPath = path.join(baseDir, contratosVentaDir);
+          break;
+        case 'comprobantes':
+          dirPath = path.join(baseDir, comprobantesDir);
+          break;
+        default:
+          // Si no es un tipo predefinido, asumimos que es una ruta relativa
+          dirPath = path.join(baseDir, 'documentos/$dirType');
+      }
+
+      // Crear directorio si no existe
+      final Directory dir = Directory(dirPath);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+        AppLogger.info('Directorio creado: $dirPath');
+      }
+
+      return dirPath;
+    } catch (e, stackTrace) {
+      AppLogger.error('Error al crear directorio $dirType', e, stackTrace);
+      return null;
     }
   }
 }
