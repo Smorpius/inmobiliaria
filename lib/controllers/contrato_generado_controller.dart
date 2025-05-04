@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import '../models/inmueble_model.dart';
 import '../services/mysql_helper.dart';
 import 'package:printing/printing.dart';
+import 'package:path/path.dart' as path;
 import '../services/directory_service.dart';
 import '../services/contrato_pdf_service.dart';
 import '../models/contrato_generado_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:typed_data'; // Agregamos esta importación para Uint8List
 
 final contratoGeneradoControllerProvider = Provider<ContratoGeneradoController>(
   (ref) {
@@ -438,11 +440,49 @@ class ContratoGeneradoController {
   /// Muestra un PDF en un visor con opciones de impresión y compartir
   Future<void> _mostrarPdfPreview(
     BuildContext context,
-    String filePath,
+    String rutaRelativa, // Ahora recibe la ruta relativa
     String title,
   ) async {
-    final file = File(filePath);
-    if (await file.exists()) {
+    AppLogger.info('Intentando mostrar PDF con ruta relativa: $rutaRelativa');
+    try {
+      // Determinar el tipo de directorio basado en la ruta relativa
+      String dirType;
+      if (rutaRelativa.contains(DirectoryService.contratosRentaDir)) {
+        dirType = 'contratos_renta';
+      } else if (rutaRelativa.contains(DirectoryService.contratosVentaDir)) {
+        dirType = 'contratos_venta';
+      } else {
+        AppLogger.error(
+          'No se pudo determinar el tipo de directorio desde la ruta relativa: $rutaRelativa',
+        );
+        throw Exception(
+          'Ruta relativa inválida para determinar tipo de contrato',
+        );
+      }
+
+      // Obtener la ruta absoluta usando DirectoryService
+      final String nombreArchivo = path.basename(rutaRelativa);
+      final String rutaCompleta = await DirectoryService.getFullPath(
+        nombreArchivo,
+        dirType,
+      );
+
+      AppLogger.info('Mostrando PDF desde ruta absoluta: $rutaCompleta');
+
+      final file = File(rutaCompleta);
+      if (!await file.exists()) {
+        AppLogger.error(
+          'El archivo PDF no existe en la ruta absoluta: $rutaCompleta',
+        );
+        throw Exception(
+          'El archivo del contrato no fue encontrado en $rutaCompleta',
+        );
+      }
+
+      // Leer el archivo completo en memoria
+      final Uint8List pdfBytes = await file.readAsBytes();
+      AppLogger.info('PDF leído en memoria (${pdfBytes.lengthInBytes} bytes)');
+
       if (context.mounted) {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -456,8 +496,8 @@ class ContratoGeneradoController {
                         onPressed: () async {
                           try {
                             await Printing.sharePdf(
-                              bytes: await file.readAsBytes(),
-                              filename: file.path.split('/').last,
+                              bytes: pdfBytes,
+                              filename: nombreArchivo,
                             );
                           } catch (e) {
                             AppLogger.error('Error al compartir PDF', e);
@@ -476,24 +516,35 @@ class ContratoGeneradoController {
                     ],
                   ),
                   body: PdfPreview(
-                    build: (format) => file.readAsBytes(),
+                    build: (format) => pdfBytes,
                     allowPrinting: true,
-                    allowSharing: true,
+                    allowSharing:
+                        false, // Ya tenemos botón de compartir en AppBar
                     canChangePageFormat: false,
-                    canChangeOrientation: false,
-                    canDebug: false,
+                    pdfFileName: nombreArchivo,
+                    useActions:
+                        false, // Desactivar acciones internas si ya tenemos las nuestras
+                    loadingWidget: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                    onError: (context, error) {
+                      // Corregido: usar onError en lugar de errorBuilder
+                      AppLogger.error('Error en PdfPreview', error);
+                      return Center(
+                        child: Text('Error al mostrar PDF: $error'),
+                      );
+                    },
                   ),
                 ),
           ),
         );
       }
-    } else {
+    } catch (e, stack) {
+      AppLogger.error('Error general en _mostrarPdfPreview', e, stack);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No se pudo abrir el contrato: archivo no encontrado',
-            ),
+          SnackBar(
+            content: Text('Error al mostrar el contrato: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );

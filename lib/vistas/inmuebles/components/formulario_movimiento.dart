@@ -791,19 +791,7 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
         subDirectorio: 'movimientos',
       );
 
-      // Normalización completa de rutas
-      ruta = ruta.replaceAll('\\', '/');
-
-      // Asegurar formato correcto para la ruta
-      if (!ruta.startsWith('/') &&
-          !ruta.startsWith('comprobantes/') &&
-          ruta.isNotEmpty) {
-        ruta = 'comprobantes/$ruta';
-      }
-
-      // Eliminar duplicados de "comprobantes/comprobantes/"
-      ruta = ruta.replaceAll('comprobantes/comprobantes/', 'comprobantes/');
-
+      AppLogger.info('Comprobante guardado con ruta relativa: $ruta');
       return ruta;
     } catch (e, stack) {
       AppLogger.error('Error al guardar archivo permanente', e, stack);
@@ -1129,7 +1117,19 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
                                                       const EdgeInsets.only(
                                                         bottom: 8.0,
                                                       ),
-                                                  child: Text('- $error'),
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.error_outline,
+                                                        color: Colors.red,
+                                                        size: 16,
+                                                      ),
+                                                      SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Text(error),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
                                               )
                                               .toList(),
@@ -1137,7 +1137,8 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
                                   ),
                                   actions: [
                                     TextButton(
-                                      onPressed: () => Navigator.pop(context),
+                                      onPressed:
+                                          () => Navigator.of(context).pop(),
                                       child: const Text('Cerrar'),
                                     ),
                                   ],

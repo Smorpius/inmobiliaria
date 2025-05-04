@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
@@ -6,8 +5,9 @@ import '../../../utils/applogger.dart';
 import 'package:path/path.dart' as path;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:open_file/open_file.dart';
+import '../../../services/pdf_service.dart';
 import '../../../models/inmueble_model.dart';
-import 'package:path_provider/path_provider.dart';
+import '../../../services/directory_service.dart';
 import '../../../providers/cliente_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../controllers/contrato_generado_controller.dart';
@@ -444,30 +444,35 @@ class _ContratoGeneratorScreenState
         await _generarContratoVenta(pdf, cliente, montoMensual);
       }
 
-      // Guardar PDF
-      final output = await getTemporaryDirectory();
-      final nombreArchivo =
-          'contrato_${widget.tipoContrato}_${widget.inmueble.id}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final file = File(path.join(output.path, nombreArchivo));
-      await file.writeAsBytes(await pdf.save());
+      // Guardar PDF usando PdfService
+      final nombreBase =
+          'contrato_${widget.tipoContrato}_${widget.inmueble.id}';
+      final String rutaRelativaGuardada = await PdfService.guardarContratoPDF(
+        pdf,
+        nombreBase,
+        widget.tipoContrato, // 'venta' o 'renta'
+      );
+      AppLogger.info(
+        'Contrato guardado por PdfService en ruta relativa: $rutaRelativaGuardada',
+      );
 
       // Guardar referencia del contrato en BD
       int idReferencia =
           widget.inmueble.id ?? 1; // Usando el ID del inmueble como referencia
-
       await ref
           .read(contratoGeneradoControllerProvider)
           .registrarContrato(
             tipoContrato: widget.tipoContrato,
             idReferencia: idReferencia,
-            rutaArchivo: file.path,
+            rutaArchivo:
+                rutaRelativaGuardada, // Usar la ruta relativa devuelta por PdfService
             idUsuario:
                 1, // Usuario actual, idealmente se obtendría de un servicio de autenticación
           );
 
       setState(() {
         _contratoGenerado = true;
-        _rutaContrato = file.path;
+        _rutaContrato = rutaRelativaGuardada; // Guardar la ruta relativa
         _generandoContrato = false;
       });
     } catch (e, stack) {
@@ -491,7 +496,40 @@ class _ContratoGeneratorScreenState
   Future<void> _abrirContrato() async {
     try {
       if (_rutaContrato != null) {
-        await OpenFile.open(_rutaContrato!);
+        // --- INICIO CAMBIO ---
+        // Determinar el tipo de directorio basado en la ruta relativa almacenada
+        String dirType;
+        if (_rutaContrato!.contains(DirectoryService.contratosRentaDir)) {
+          dirType = 'contratos_renta';
+        } else if (_rutaContrato!.contains(
+          DirectoryService.contratosVentaDir,
+        )) {
+          dirType = 'contratos_venta';
+        } else {
+          // Fallback si la ruta no contiene los directorios esperados (podría ser una ruta antigua/temporal)
+          AppLogger.warning(
+            'Ruta relativa no estándar: $_rutaContrato. Intentando abrir directamente.',
+          );
+          await OpenFile.open(_rutaContrato!);
+          return;
+        }
+
+        // Obtener la ruta absoluta usando DirectoryService
+        final String nombreArchivo = path.basename(_rutaContrato!);
+        final String rutaAbsoluta = await DirectoryService.getFullPath(
+          nombreArchivo,
+          dirType,
+        );
+        AppLogger.info('Abriendo contrato desde ruta absoluta: $rutaAbsoluta');
+
+        final result = await OpenFile.open(rutaAbsoluta);
+        if (result.type != ResultType.done) {
+          throw Exception('No se pudo abrir el archivo: ${result.message}');
+        }
+        // --- FIN CAMBIO ---
+      } else {
+        AppLogger.warning('Intento de abrir contrato con ruta nula.');
+        throw Exception('La ruta del contrato no está disponible.');
       }
     } catch (e, stack) {
       AppLogger.error('Error al abrir contrato', e, stack);

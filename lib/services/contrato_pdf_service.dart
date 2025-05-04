@@ -193,11 +193,22 @@ class ContratoPdfService {
         ),
       );
 
-      final fileName =
+      // Generar un nombre único para el contrato
+      final nombreBase =
           'contrato_venta_${inmueble.id}_${DateFormat('yyyyMMdd').format(DateTime.now())}';
-      final filePath = await PdfService.guardarDocumento(pdf, fileName);
-      AppLogger.info('Contrato de venta generado: $filePath');
-      return filePath;
+
+      // CAMBIO CLAVE: Usar el nuevo método para guardar directamente el archivo sin pasar por archivos temporales
+      final rutaRelativa = await PdfService.guardarContratoPDF(
+        pdf,
+        nombreBase,
+        'venta',
+      );
+
+      AppLogger.info(
+        'Contrato de venta generado en ruta relativa: $rutaRelativa',
+      );
+
+      return rutaRelativa;
     } catch (e, stackTrace) {
       AppLogger.error('Error al generar contrato de venta PDF', e, stackTrace);
       throw Exception('Error al generar PDF: $e');
@@ -397,11 +408,21 @@ class ContratoPdfService {
         ),
       );
 
-      final fileName =
-          'contrato_renta_${inmueble.id}_${DateFormat('yyyyMMdd').format(DateTime.now())}';
-      final filePath = await PdfService.guardarDocumento(pdf, fileName);
-      AppLogger.info('Contrato de renta generado: $filePath');
-      return filePath;
+      // Generar un nombre único para el contrato
+      final nombreBase = 'contrato_renta_${inmueble.id}';
+
+      // CAMBIO CLAVE: Usar el nuevo método para guardar directamente el archivo sin pasar por archivos temporales
+      final rutaRelativa = await PdfService.guardarContratoPDF(
+        pdf,
+        nombreBase,
+        'renta',
+      );
+
+      AppLogger.info(
+        'Contrato de renta generado en ruta relativa: $rutaRelativa',
+      );
+
+      return rutaRelativa;
     } catch (e, stackTrace) {
       AppLogger.error('Error al generar contrato de renta PDF', e, stackTrace);
       throw Exception('Error al generar PDF: $e');

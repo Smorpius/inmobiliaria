@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'utils/applogger.dart'; // Importación del AppLogger
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
 import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
+import 'utils/archivo_utils.dart'; // Importación de ArchivoUtils
 import 'utils/pdf_font_helper.dart'; // Importación de PdfFontHelper
 import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
@@ -29,6 +30,25 @@ Future<void> main() async {
     } catch (e) {
       AppLogger.error(
         'Error al inicializar sistema de fuentes para PDFs',
+        e,
+        StackTrace.current,
+      );
+    }
+
+    // Crear estructura de directorios necesarios para la aplicación
+    try {
+      final directoriosCreados =
+          await ArchivoUtils.crearDirectoriosNecesarios();
+      if (directoriosCreados) {
+        AppLogger.info('Estructura de directorios inicializada correctamente');
+      } else {
+        AppLogger.warning(
+          'No se pudieron crear todos los directorios necesarios',
+        );
+      }
+    } catch (e) {
+      AppLogger.error(
+        'Error al crear estructura de directorios',
         e,
         StackTrace.current,
       );
