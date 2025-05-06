@@ -19,6 +19,13 @@ class ClienteFormEdit extends StatefulWidget {
 }
 
 class _ClienteFormEditState extends State<ClienteFormEdit> {
+  // Definición de la paleta de colores en RGB
+  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
+  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
+  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
+  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
+  
   // Controladores para información personal
   late final TextEditingController nombreController;
   late final TextEditingController apellidoPaternoController;
@@ -195,94 +202,56 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Editar Cliente'),
+      backgroundColor: colorClaro,
+      title: Text('Editar Cliente', style: TextStyle(color: colorPrimario)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            _buildTextField(
               controller: nombreController,
-              decoration: const InputDecoration(
-                labelText: 'Nombre',
-                prefixIcon: Icon(Icons.person),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Nombre', 
+              prefixIcon: Icons.person
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: apellidoPaternoController,
-              decoration: const InputDecoration(
-                labelText: 'Apellido Paterno',
-                prefixIcon: Icon(Icons.person),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Apellido Paterno', 
+              prefixIcon: Icons.person
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: apellidoMaternoController,
-              decoration: const InputDecoration(
-                labelText: 'Apellido Materno (opcional)',
-                prefixIcon: Icon(Icons.person),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Apellido Materno (opcional)', 
+              prefixIcon: Icons.person
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Tipo de Cliente',
-                prefixIcon: Icon(Icons.category),
-                border: OutlineInputBorder(),
-              ),
-              value: tipoCliente,
-              items: const [
-                DropdownMenuItem(value: 'comprador', child: Text('Comprador')),
-                DropdownMenuItem(
-                  value: 'arrendatario',
-                  child: Text('Arrendatario'),
-                ),
-                DropdownMenuItem(value: 'ambos', child: Text('Ambos')),
-              ],
-              onChanged: (value) {
-                setState(() => tipoCliente = value!);
-              },
-            ),
+            _buildDropdownField(),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: telefonoController,
-              decoration: const InputDecoration(
-                labelText: 'Teléfono',
-                prefixIcon: Icon(Icons.phone),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.phone,
+              labelText: 'Teléfono', 
+              prefixIcon: Icons.phone,
+              keyboardType: TextInputType.phone
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: rfcController,
-              decoration: const InputDecoration(
-                labelText: 'RFC',
-                prefixIcon: Icon(Icons.assignment_ind),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'RFC', 
+              prefixIcon: Icons.assignment_ind
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: curpController,
-              decoration: const InputDecoration(
-                labelText: 'CURP',
-                prefixIcon: Icon(Icons.badge),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'CURP', 
+              prefixIcon: Icons.badge
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: correoController,
-              decoration: const InputDecoration(
-                labelText: 'Correo',
-                prefixIcon: Icon(Icons.email),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
+              labelText: 'Correo', 
+              prefixIcon: Icons.email,
+              keyboardType: TextInputType.emailAddress
             ),
 
             // Sección de dirección
@@ -290,82 +259,68 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
               padding: EdgeInsets.symmetric(vertical: 16.0),
               child: Divider(thickness: 1),
             ),
-            const Text(
+            Text(
               'Información de Dirección',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16, 
+                fontWeight: FontWeight.bold,
+                color: colorPrimario
+              ),
             ),
             const SizedBox(height: 12),
 
             // Todos los campos de dirección para editar
-            TextField(
+            _buildTextField(
               controller: calleController,
-              decoration: const InputDecoration(
-                labelText: 'Calle',
-                prefixIcon: Icon(Icons.location_on),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Calle', 
+              prefixIcon: Icons.location_on
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: numeroController,
-              decoration: const InputDecoration(
-                labelText: 'Número',
-                prefixIcon: Icon(Icons.home),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Número', 
+              prefixIcon: Icons.home
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: coloniaController,
-              decoration: const InputDecoration(
-                labelText: 'Colonia',
-                prefixIcon: Icon(Icons.grid_3x3),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Colonia', 
+              prefixIcon: Icons.grid_3x3
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: ciudadController,
-              decoration: const InputDecoration(
-                labelText: 'Ciudad *',
-                prefixIcon: Icon(Icons.location_city),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Ciudad *', 
+              prefixIcon: Icons.location_city
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: estadoGeograficoController,
-              decoration: const InputDecoration(
-                labelText: 'Estado *',
-                prefixIcon: Icon(Icons.map),
-                border: OutlineInputBorder(),
-              ),
+              labelText: 'Estado *', 
+              prefixIcon: Icons.map
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: codigoPostalController,
-              decoration: const InputDecoration(
-                labelText: 'Código Postal',
-                prefixIcon: Icon(Icons.markunread_mailbox),
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
+              labelText: 'Código Postal', 
+              prefixIcon: Icons.markunread_mailbox,
+              keyboardType: TextInputType.number
             ),
             const SizedBox(height: 12),
-            TextField(
+            _buildTextField(
               controller: referenciasController,
-              decoration: const InputDecoration(
-                labelText: 'Referencias',
-                prefixIcon: Icon(Icons.info_outline),
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
+              labelText: 'Referencias', 
+              prefixIcon: Icons.info_outline,
+              maxLines: 2
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 8.0),
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
               child: Text(
                 '* Campos obligatorios',
-                style: TextStyle(fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: colorOscuro.withOpacity(0.6),
+                ),
               ),
             ),
           ],
@@ -374,19 +329,72 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
       actions: [
         TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.cancel),
-          label: const Text('Cancelar'),
+          icon: Icon(Icons.cancel, color: colorOscuro),
+          label: Text('Cancelar', style: TextStyle(color: colorOscuro)),
         ),
         ElevatedButton.icon(
           onPressed: () => _actualizarCliente(context),
-          icon: const Icon(Icons.save),
-          label: const Text('Guardar'),
+          icon: Icon(Icons.save, color: colorClaro),
+          label: Text('Guardar', style: TextStyle(color: colorClaro)),
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
+            backgroundColor: colorPrimario,
           ),
         ),
       ],
+    );
+  }
+  
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String labelText,
+    required IconData prefixIcon,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: labelText,
+        labelStyle: TextStyle(color: colorOscuro),
+        prefixIcon: Icon(prefixIcon, color: colorPrimario),
+        border: const OutlineInputBorder(),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: colorGrisClaro),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: colorPrimario),
+        ),
+        fillColor: colorClaro,
+      ),
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+    );
+  }
+  
+  Widget _buildDropdownField() {
+    return DropdownButtonFormField<String>(
+      decoration: InputDecoration(
+        labelText: 'Tipo de Cliente',
+        labelStyle: TextStyle(color: colorOscuro),
+        prefixIcon: Icon(Icons.category, color: colorPrimario),
+        border: const OutlineInputBorder(),
+        enabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: colorGrisClaro),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: colorPrimario),
+        ),
+      ),
+      value: tipoCliente,
+      dropdownColor: colorClaro,
+      items: [
+        DropdownMenuItem(value: 'comprador', child: Text('Comprador', style: TextStyle(color: colorOscuro))),
+        DropdownMenuItem(value: 'arrendatario', child: Text('Arrendatario', style: TextStyle(color: colorOscuro))),
+        DropdownMenuItem(value: 'ambos', child: Text('Ambos', style: TextStyle(color: colorOscuro))),
+      ],
+      onChanged: (value) {
+        setState(() => tipoCliente = value!);
+      },
     );
   }
 }

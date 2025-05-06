@@ -6,7 +6,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../controllers/cliente_controller.dart';
-import '../../widgets/app_scaffold.dart'; // Importación necesaria
+import '../../widgets/app_scaffold.dart';
 
 class VistaClientes extends StatefulWidget {
   final ClienteController? controller;
@@ -19,6 +19,13 @@ class VistaClientes extends StatefulWidget {
 }
 
 class _VistaClientesState extends State<VistaClientes> {
+  // Definición de la paleta de colores en RGB
+  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
+  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
+  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
+  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
+
   late final ClienteController _controller;
   Cliente? _selectedCliente;
   bool _isLoading = true;
@@ -204,9 +211,9 @@ class _VistaClientesState extends State<VistaClientes> {
 
         if (mounted) {
           messengerState.showSnackBar(
-            const SnackBar(
-              content: Text('Cliente reactivado correctamente'),
-              backgroundColor: Colors.green,
+            SnackBar(
+              content: const Text('Cliente reactivado correctamente'),
+              backgroundColor: colorPrimario,
             ),
           );
         }
@@ -216,9 +223,9 @@ class _VistaClientesState extends State<VistaClientes> {
 
         if (mounted) {
           messengerState.showSnackBar(
-            const SnackBar(
-              content: Text('Cliente inactivado correctamente'),
-              backgroundColor: Colors.orange,
+            SnackBar(
+              content: const Text('Cliente inactivado correctamente'),
+              backgroundColor: colorAcento,
             ),
           );
         }
@@ -272,7 +279,7 @@ class _VistaClientesState extends State<VistaClientes> {
           onPressed: _toggleMostrarInactivos,
           icon: Icon(
             _mostrandoInactivos ? Icons.person : Icons.person_off,
-            color: _mostrandoInactivos ? Colors.red : null,
+            color: _mostrandoInactivos ? colorAcento : null,
           ),
           tooltip:
               _mostrandoInactivos
@@ -282,7 +289,7 @@ class _VistaClientesState extends State<VistaClientes> {
       ],
       body:
           _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator(color: colorPrimario))
               : Stack(
                 children: [
                   Row(
@@ -370,14 +377,14 @@ class _VistaClientesState extends State<VistaClientes> {
                                       Icon(
                                         Icons.person_search,
                                         size: 80,
-                                        color: Colors.grey.shade300,
+                                        color: colorGrisClaro,
                                       ),
                                       const SizedBox(height: 16),
                                       Text(
                                         'Seleccione un cliente para ver sus detalles',
                                         style: TextStyle(
                                           fontSize: 16,
-                                          color: Colors.grey.shade600,
+                                          color: colorOscuro.withOpacity(0.6),
                                         ),
                                       ),
                                     ],
@@ -396,6 +403,8 @@ class _VistaClientesState extends State<VistaClientes> {
                       right: 16,
                       bottom: 16,
                       child: FloatingActionButton(
+                        backgroundColor: colorPrimario,
+                        foregroundColor: colorClaro,
                         onPressed: _agregarCliente,
                         tooltip: 'Agregar Cliente',
                         child: const Icon(Icons.person_add),
@@ -410,7 +419,7 @@ class _VistaClientesState extends State<VistaClientes> {
     return Card(
       elevation: 4,
       margin: const EdgeInsets.all(8),
-      color: _mostrandoInactivos ? Colors.grey.shade100 : null,
+      color: _mostrandoInactivos ? colorGrisClaro.withOpacity(0.3) : colorClaro,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -422,8 +431,8 @@ class _VistaClientesState extends State<VistaClientes> {
                 children: [
                   CircleAvatar(
                     backgroundColor:
-                        _mostrandoInactivos ? Colors.grey : Colors.teal,
-                    foregroundColor: Colors.white,
+                        _mostrandoInactivos ? colorGrisClaro : colorPrimario,
+                    foregroundColor: colorClaro,
                     radius: 40,
                     child: Text(
                       cliente.nombre.substring(0, 1).toUpperCase(),
@@ -440,7 +449,7 @@ class _VistaClientesState extends State<VistaClientes> {
                           _mostrandoInactivos
                               ? TextDecoration.lineThrough
                               : null,
-                      color: _mostrandoInactivos ? Colors.grey.shade700 : null,
+                      color: _mostrandoInactivos ? colorGrisClaro : colorOscuro,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -452,13 +461,13 @@ class _VistaClientesState extends State<VistaClientes> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade100,
+                        color: colorAcento.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
                         'INACTIVO',
                         style: TextStyle(
-                          color: Colors.red.shade700,
+                          color: colorAcento,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -510,8 +519,8 @@ class _VistaClientesState extends State<VistaClientes> {
                     icon: const Icon(Icons.edit),
                     label: const Text('Editar'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
+                      backgroundColor: colorPrimario,
+                      foregroundColor: colorClaro,
                     ),
                   ),
                 const SizedBox(width: 8),
@@ -523,8 +532,8 @@ class _VistaClientesState extends State<VistaClientes> {
                   label: Text(_mostrandoInactivos ? 'Reactivar' : 'Inactivar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
-                        _mostrandoInactivos ? Colors.green : Colors.red,
-                    foregroundColor: Colors.white,
+                        _mostrandoInactivos ? colorPrimario : colorAcento,
+                    foregroundColor: colorClaro,
                   ),
                 ),
               ],
@@ -554,7 +563,7 @@ class _VistaClientesState extends State<VistaClientes> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.teal, size: 22),
+          Icon(icon, color: colorPrimario, size: 22),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -563,7 +572,7 @@ class _VistaClientesState extends State<VistaClientes> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: Colors.grey.shade700,
+                    color: colorOscuro.withOpacity(0.7),
                     fontWeight: FontWeight.bold,
                   ),
                 ),

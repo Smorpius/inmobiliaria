@@ -25,12 +25,19 @@ class ClienteDetailView extends ConsumerStatefulWidget {
 }
 
 class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
+  // Definición de la paleta de colores en RGB
+  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
+  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
+  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
+  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
+
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 4,
       margin: const EdgeInsets.all(8),
-      color: widget.isInactivo ? Colors.grey.shade100 : null,
+      color: widget.isInactivo ? colorGrisClaro.withOpacity(0.3) : colorClaro,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -56,8 +63,8 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
       child: Column(
         children: [
           CircleAvatar(
-            backgroundColor: widget.isInactivo ? Colors.grey : Colors.teal,
-            foregroundColor: Colors.white,
+            backgroundColor: widget.isInactivo ? colorGrisClaro : colorPrimario,
+            foregroundColor: colorClaro,
             radius: 40,
             child: Text(
               widget.cliente.nombre.substring(0, 1).toUpperCase(),
@@ -71,7 +78,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
               fontSize: 24,
               fontWeight: FontWeight.bold,
               decoration: widget.isInactivo ? TextDecoration.lineThrough : null,
-              color: widget.isInactivo ? Colors.grey.shade700 : null,
+              color: widget.isInactivo ? colorGrisClaro : colorOscuro,
             ),
             textAlign: TextAlign.center,
           ),
@@ -80,13 +87,13 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.red.shade100,
+                color: colorAcento.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
                 'INACTIVO',
                 style: TextStyle(
-                  color: Colors.red.shade700,
+                  color: colorAcento,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -553,8 +560,8 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
             icon: const Icon(Icons.edit),
             label: const Text('Editar'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: Colors.white,
+              backgroundColor: colorPrimario,
+              foregroundColor: colorClaro,
             ),
           ),
         if (!widget.isInactivo) const SizedBox(width: 12),
@@ -563,8 +570,8 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
           icon: Icon(widget.isInactivo ? Icons.person_add : Icons.delete),
           label: Text(widget.isInactivo ? 'Reactivar' : 'Inactivar'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.isInactivo ? Colors.green : Colors.red,
-            foregroundColor: Colors.white,
+            backgroundColor: widget.isInactivo ? colorPrimario : colorAcento,
+            foregroundColor: colorClaro,
           ),
         ),
       ],
@@ -632,7 +639,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.teal, size: 22),
+          Icon(icon, color: colorPrimario, size: 22),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -641,7 +648,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: Colors.grey.shade700,
+                    color: colorOscuro.withOpacity(0.7),
                     fontWeight: FontWeight.bold,
                   ),
                 ),

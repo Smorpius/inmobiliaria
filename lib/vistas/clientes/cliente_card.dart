@@ -7,8 +7,14 @@ class ClienteCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  // Nuevo: para determinar si mostrar reactivar en lugar de inactivar
   final bool isInactivo;
+
+  // Definición de la paleta de colores en RGB
+  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
+  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
+  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
+  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
 
   const ClienteCard({
     super.key,
@@ -17,7 +23,6 @@ class ClienteCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
-    // Por defecto, consideramos que el cliente está activo
     this.isInactivo = false,
   });
 
@@ -39,37 +44,36 @@ class ClienteCard extends StatelessWidget {
     return Card(
       elevation: isSelected ? 4 : 1,
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      // Color de fondo distinto según estado activo/inactivo
       color:
           isInactivo
-              ? (isSelected ? Colors.red.shade50 : Colors.grey.shade100)
-              : (isSelected ? Colors.teal.shade50 : null),
+              ? (isSelected ? colorAcento.withOpacity(0.1) : colorGrisClaro.withOpacity(0.3))
+              : (isSelected ? colorPrimario.withOpacity(0.1) : colorClaro),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isInactivo ? Colors.grey : Colors.teal,
-          foregroundColor: Colors.white,
+          backgroundColor: isInactivo ? colorGrisClaro : colorPrimario,
+          foregroundColor: colorClaro,
           child: Text(cliente.nombre.substring(0, 1).toUpperCase()),
         ),
         title: Text(
           cliente.nombreCompleto,
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            // Tachamos el nombre si está inactivo
             decoration: isInactivo ? TextDecoration.lineThrough : null,
-            color: isInactivo ? Colors.grey.shade700 : null,
+            color: isInactivo ? colorGrisClaro : colorOscuro,
           ),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Tel: ${cliente.telefono}'),
-            Text('RFC: ${cliente.rfc}'),
-            Text('Tipo: ${_formatTipoCliente(cliente.tipoCliente)}'),
+            Text('Tel: ${cliente.telefono}', style: TextStyle(color: colorOscuro.withOpacity(0.7))),
+            Text('RFC: ${cliente.rfc}', style: TextStyle(color: colorOscuro.withOpacity(0.7))),
+            Text('Tipo: ${_formatTipoCliente(cliente.tipoCliente)}', 
+              style: TextStyle(color: colorOscuro.withOpacity(0.7))),
             if (isInactivo)
               Text(
                 'INACTIVO',
                 style: TextStyle(
-                  color: Colors.red.shade700,
+                  color: colorAcento,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -80,22 +84,19 @@ class ClienteCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Solo mostrar el botón de edición para clientes activos
             if (!isInactivo)
               IconButton(
-                icon: const Icon(Icons.edit, color: Colors.teal),
+                icon: Icon(Icons.edit, color: colorPrimario),
                 tooltip: 'Editar cliente',
                 onPressed: onEdit,
               ),
             IconButton(
-              // Cambiar icono y color según estado
               icon: Icon(
                 isInactivo ? Icons.person_add : Icons.delete,
-                color: isInactivo ? Colors.green : Colors.red,
+                color: isInactivo ? colorPrimario : colorAcento,
               ),
               tooltip: isInactivo ? 'Reactivar cliente' : 'Inactivar cliente',
-              onPressed:
-                  onDelete, // Usamos la misma acción (luego será reactivar o inactivar)
+              onPressed: onDelete,
             ),
           ],
         ),

@@ -8,22 +8,28 @@ class HomePage extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    // Define custom colors
+    final darkColor = const Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
+    final lightColor = const Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
+    final lightGrayColor = const Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+    final accentColor = const Color.fromRGBO(216, 86, 62, 1); // #D8563E
+
     return Scaffold(
       appBar: AppBar(
         title: const Center(
           child: Text(
             "CASITAS REAL ESATEE",
             style: TextStyle(
-              color: Colors.teal,
+              color: Color.fromRGBO(165, 57, 45, 1), // #A5392D
               fontWeight: FontWeight.bold,
               fontSize: 20,
             ),
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Color.fromRGBO(247, 245, 242, 1), // #F7F5F2
         elevation: 2,
-        shadowColor: Colors.black26,
-        iconTheme: const IconThemeData(color: Colors.teal),
+        shadowColor: Color.fromRGBO(26, 26, 26, 0.26), // #1A1A1A with opacity
+        iconTheme: const IconThemeData(color: Color.fromRGBO(165, 57, 45, 1)), // #A5392D
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
@@ -42,7 +48,10 @@ class HomePage extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Colors.grey.shade50, Colors.white],
+                colors: [
+                  const Color.fromRGBO(212, 207, 203, 1), // #D4CFCB
+                  const Color.fromRGBO(247, 245, 242, 1), // #F7F5F2
+                ],
               ),
             ),
           ),
@@ -82,25 +91,25 @@ class HomePage extends StatelessWidget {
                         {
                           'title': 'Inmuebles',
                           'icon': Icons.home_work,
-                          'color': Colors.teal,
+                          'color': const Color.fromRGBO(165, 57, 45, 1), // #A5392D
                           'route': '/inmuebles',
                         },
                         {
                           'title': 'Clientes',
                           'icon': Icons.people,
-                          'color': Colors.blue,
+                          'color': const Color.fromRGBO(216, 86, 62, 1), // #D8563E
                           'route': '/clientes',
                         },
                         {
                           'title': 'Ventas',
                           'icon': Icons.shopping_cart,
-                          'color': Colors.orange,
-                          'route': '/ventas', // Actualizado: ahora tiene ruta
+                          'color': const Color.fromRGBO(212, 207, 203, 1), // #D4CFCB
+                          'route': '/ventas',
                         },
                         {
                           'title': 'Proveedores',
                           'icon': Icons.inventory,
-                          'color': Colors.purple,
+                          'color': const Color.fromRGBO(26, 26, 26, 1), // #1A1A1A
                           'route': '/proveedores',
                         },
                       ];
