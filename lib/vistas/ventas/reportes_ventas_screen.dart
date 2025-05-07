@@ -5,21 +5,22 @@ import '../../providers/venta_providers.dart';
 import '../../models/venta_reporte_model.dart';
 import '../../widgets/filtro_periodo_widget.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../utils/app_colors.dart'; // Importar AppColors
 
 /// Constantes para colores usados en los gráficos y tarjetas
 class ReporteColors {
-  static const Color ingresos = Colors.blue;
-  static const Color utilidades = Colors.green;
-  static const Color ventas = Colors.blue;
-  static const Color dinero = Colors.green;
-  static const Color utilidad = Colors.purple;
-  static const Color margen = Colors.orange;
-  static const List<Color> tiposInmuebles = [
-    Colors.blue,
-    Colors.green,
-    Colors.orange,
-    Colors.purple,
-    Colors.red,
+  static final Color ingresos = AppColors.info;
+  static final Color utilidades = AppColors.exito;
+  static final Color ventas = AppColors.info;
+  static final Color dinero = AppColors.exito;
+  static final Color utilidad = AppColors.acento;
+  static final Color margen = AppColors.advertencia;
+  static final List<Color> tiposInmuebles = [
+    AppColors.info,
+    AppColors.exito,
+    AppColors.advertencia,
+    AppColors.acento,
+    AppColors.error,
   ];
 }
 
@@ -172,7 +173,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                   Icon(
                     Icons.info_outline,
                     size: 48,
-                    color: Colors.grey.shade400,
+                    color: AppColors.grisClaro, // Antes Colors.grey.shade400
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -180,13 +181,17 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade600,
+                      color: AppColors.oscuro.withAlpha(
+                        (0.7 * 255).round(),
+                      ), // Antes Colors.grey.shade600
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Registre ventas o modifique el rango de fechas',
-                    style: TextStyle(color: Colors.grey.shade500),
+                    style: TextStyle(
+                      color: AppColors.oscuro.withAlpha((0.5 * 255).round()),
+                    ), // Antes Colors.grey.shade500
                   ),
                 ],
               ),
@@ -203,21 +208,29 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.info_outline, size: 48, color: Colors.grey.shade400),
+              Icon(
+                Icons.info_outline,
+                size: 48,
+                color: AppColors.grisClaro,
+              ), // Antes Colors.grey.shade400
               const SizedBox(height: 16),
               Text(
                 'No hay ventas registradas en este período',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade600,
+                  color: AppColors.oscuro.withAlpha(
+                    (0.7 * 255).round(),
+                  ), // Antes Colors.grey.shade600
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
                 'Intenta seleccionar otro período o registra nuevas ventas.',
-                style: TextStyle(color: Colors.grey.shade500),
+                style: TextStyle(
+                  color: AppColors.oscuro.withAlpha((0.5 * 255).round()),
+                ), // Antes Colors.grey.shade500
                 textAlign: TextAlign.center,
               ),
             ],
@@ -285,9 +298,11 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Ingresos y utilidades (en miles de \$)',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: AppColors.oscuro.withAlpha((0.7 * 255).round()),
+              ), // Corregido: Eliminado const
             ),
             const SizedBox(height: 16),
             SizedBox(
@@ -391,12 +406,16 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
                             children: [
                               TextSpan(
                                 text: '${formatter.format(value)}\n',
-                                style: const TextStyle(color: Colors.black),
+                                style: const TextStyle(
+                                  color: AppColors.oscuro,
+                                ), // Se mantiene const aquí
                               ),
                               TextSpan(
                                 text: label,
-                                style: const TextStyle(
-                                  color: Colors.grey,
+                                style: TextStyle(
+                                  color: AppColors.oscuro.withAlpha(
+                                    (0.7 * 255).round(),
+                                  ), // Corregido: Eliminado const
                                   fontSize: 10,
                                 ),
                               ),
@@ -441,7 +460,7 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
             title: '${porcentaje.toStringAsFixed(1)}%',
             radius: 80,
             titleStyle: const TextStyle(
-              color: Colors.white,
+              color: AppColors.claro, // Antes Colors.white
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
@@ -555,7 +574,10 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
             const SizedBox(height: 8),
             Text(
               title,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.oscuro.withAlpha((0.8 * 255).round()),
+              ), // Antes Colors.grey.shade700
             ),
             const SizedBox(height: 4),
             Text(
@@ -585,11 +607,18 @@ class _ReportesVentasScreenState extends ConsumerState<ReportesVentasScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.bar_chart, size: 48, color: Colors.grey.shade400),
+            Icon(
+              Icons.bar_chart,
+              size: 48,
+              color: AppColors.grisClaro,
+            ), // Antes Colors.grey.shade400
             const SizedBox(height: 16),
             Text(
               mensaje,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+              style: TextStyle(
+                color: AppColors.oscuro.withAlpha((0.7 * 255).round()),
+                fontSize: 16,
+              ), // Antes Colors.grey.shade600
               textAlign: TextAlign.center,
             ),
           ],

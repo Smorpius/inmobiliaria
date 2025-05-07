@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-// Reemplazar en c:\Ingenieria de Software\inmobiliaria\lib\models\estados_venta.dart
+import '../utils/app_colors.dart'; // Importar la clase de colores
 
 class EstadosVenta {
   static const int enProceso = 7;
@@ -25,13 +25,13 @@ class EstadosVenta {
   static Color obtenerColor(int idEstado) {
     switch (idEstado) {
       case enProceso:
-        return Colors.orange;
+        return AppColors.advertencia;
       case completada:
-        return Colors.green;
+        return AppColors.exito;
       case cancelada:
-        return Colors.red;
+        return AppColors.error;
       default:
-        return Colors.grey;
+        return AppColors.grisClaro;
     }
   }
 }

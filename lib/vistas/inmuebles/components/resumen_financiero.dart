@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/inmueble_renta_provider.dart';
 import 'package:inmobiliaria/models/movimiento_renta_model.dart';
 import 'package:intl/intl.dart'; // Importar intl para formatear fechas
+import '../../../utils/app_colors.dart'; // Añadimos la importación de AppColors
 
 class ResumenFinanciero extends ConsumerWidget {
   final Inmueble inmueble;
@@ -105,42 +106,47 @@ class ResumenFinanciero extends ConsumerWidget {
     Color color,
     IconData icono,
   ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withAlpha(25), // ~10% opacity (255 * 0.1 = 25)
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withAlpha(77),
-        ), // ~30% opacity (255 * 0.3 = 77)
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icono, color: color, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                titulo,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: color,
-                ),
+    // Usar AppColors para los colores de tarjetas financieras
+    Color backgroundColor =
+        titulo == 'Ingresos'
+            ? AppColors.withAlpha(AppColors.exito, 30)
+            : AppColors.withAlpha(AppColors.error, 30);
+    Color iconColor = titulo == 'Ingresos' ? AppColors.exito : AppColors.error;
+
+    return Card(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(8),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            valor,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
+              child: Icon(icono, color: iconColor),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  style: TextStyle(fontSize: 14, color: AppColors.oscuro),
+                ),
+                Text(
+                  valor,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

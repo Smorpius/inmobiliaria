@@ -11,6 +11,10 @@ import 'components/inmueble_empty_state.dart';
 import '../../providers/inmueble_providers.dart';
 import '../../widgets/inmueble_filtro_avanzado.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../utils/app_colors.dart'; // Importar AppColors
+
+// Provider para controlar la visibilidad de los filtros avanzados
+final filtrosAvanzadosVisiblesProvider = StateProvider<bool>((ref) => false);
 
 class InmuebleListScreen extends ConsumerWidget {
   const InmuebleListScreen({super.key});
@@ -33,11 +37,11 @@ class InmuebleListScreen extends ConsumerWidget {
 
   // Mapeo de estados a colores
   static const Map<int, Color> coloresEstados = {
-    estadoNoDisponible: Colors.red,
-    estadoDisponible: Colors.green,
-    estadoVendido: Colors.blue,
-    estadoRentado: Colors.orange,
-    estadoEnNegociacion: Colors.purple,
+    estadoNoDisponible: AppColors.error,
+    estadoDisponible: AppColors.exito,
+    estadoVendido: AppColors.info,
+    estadoRentado: AppColors.advertencia,
+    estadoEnNegociacion: AppColors.acento,
   };
 
   @override
@@ -52,44 +56,94 @@ class InmuebleListScreen extends ConsumerWidget {
         children: [
           Column(
             children: [
-              // Header con dropdown de tipo de operación
+              // Header con FilterChips para tipo de operación
               Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    const Text('Operación: '),
-                    Expanded(
-                      child: Consumer(
-                        builder: (context, ref, child) {
-                          final filtros = ref.watch(filtrosInmuebleProvider);
-                          return DropdownButton<String?>(
-                            value: filtros.operacion,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(
-                                value: null,
-                                child: Text('Todos'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'venta',
-                                child: Text('Venta'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'renta',
-                                child: Text('Renta'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              ref
-                                  .read(filtrosInmuebleProvider.notifier)
-                                  .actualizarFiltro(operacion: value);
-                            },
-                          );
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8.0,
+                  horizontal: 12.0,
+                ),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final filtros = ref.watch(filtrosInmuebleProvider);
+                    final notifier = ref.read(filtrosInmuebleProvider.notifier);
+                    return SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildOperacionFilterChip(
+                            label: 'Todos',
+                            targetOperacion: null,
+                            currentOperacion: filtros.operacion,
+                            notifier: notifier,
+                          ),
+                          _buildOperacionFilterChip(
+                            label: 'Renta',
+                            targetOperacion: 'renta',
+                            currentOperacion: filtros.operacion,
+                            notifier: notifier,
+                          ),
+                          _buildOperacionFilterChip(
+                            label: 'Venta',
+                            targetOperacion: 'venta',
+                            currentOperacion: filtros.operacion,
+                            notifier: notifier,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              // Sección de Filtros Avanzados
+              Consumer(
+                builder: (context, ref, child) {
+                  final esVisible = ref.watch(filtrosAvanzadosVisiblesProvider);
+                  if (!esVisible) {
+                    return const SizedBox.shrink();
+                  }
+                  return Card(
+                    // Envolver en una Card para mejor separación visual
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 8.0,
+                    ),
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(
+                        8.0,
+                      ), // Reducir padding interno
+                      child: InmuebleFiltroAvanzado(
+                        onFiltrar: ({
+                          String? tipo,
+                          String? operacion,
+                          double? precioMin,
+                          double? precioMax,
+                          String? ciudad,
+                          int? idEstado,
+                          double? margenMin,
+                        }) {
+                          ref
+                              .read(filtrosInmuebleProvider.notifier)
+                              .actualizarFiltro(
+                                tipo: tipo,
+                                operacion: operacion,
+                                precioMin: precioMin,
+                                precioMax: precioMax,
+                                ciudad: ciudad,
+                                idEstado: idEstado,
+                                margenMin: margenMin,
+                              );
+                        },
+                        onLimpiar: () {
+                          ref
+                              .read(filtrosInmuebleProvider.notifier)
+                              .limpiarFiltros();
                         },
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
               // Indicador de estado
               _buildEstadoIndicator(mostrarInactivos),
@@ -113,17 +167,27 @@ class InmuebleListScreen extends ConsumerWidget {
     bool mostrarInactivos,
   ) {
     return [
-      // Botón de filtros avanzados
+      // Botón para mostrar/ocultar filtros avanzados
       IconButton(
-        icon: const Icon(Icons.filter_list),
+        icon: Icon(
+          ref.watch(filtrosAvanzadosVisiblesProvider)
+              ? Icons.filter_alt_off_outlined
+              : Icons.filter_alt_outlined,
+        ),
         tooltip: 'Filtros avanzados',
-        onPressed: () => _mostrarFiltroAvanzado(context, ref),
+        onPressed: () {
+          ref.read(filtrosAvanzadosVisiblesProvider.notifier).state =
+              !ref.read(filtrosAvanzadosVisiblesProvider);
+        },
       ),
       // Botón para alternar entre activos e inactivos
       IconButton(
         icon: Icon(
-          mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-          color: mostrarInactivos ? Colors.red : Colors.green,
+          mostrarInactivos
+              ? Icons.person
+              : Icons.person_off, // Icono actualizado
+          color:
+              mostrarInactivos ? AppColors.acento : null, // Color actualizado
         ),
         tooltip: mostrarInactivos ? 'Mostrar activos' : 'Mostrar inactivos',
         onPressed: () {
@@ -151,26 +215,8 @@ class InmuebleListScreen extends ConsumerWidget {
   }
 
   Widget _buildEstadoIndicator(bool mostrarInactivos) {
-    return Container(
-      color: mostrarInactivos ? Colors.red.shade100 : Colors.green.shade100,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: Row(
-        children: [
-          Icon(
-            mostrarInactivos ? Icons.visibility_off : Icons.visibility,
-            color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
-          ),
-          const SizedBox(width: 8),
-          Text(
-            mostrarInactivos ? 'INMUEBLES INACTIVOS' : 'INMUEBLES ACTIVOS',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: mostrarInactivos ? Colors.red[800] : Colors.green[800],
-            ),
-          ),
-        ],
-      ),
-    );
+    // Se devuelve un Container vacío para ocultar el indicador
+    return const SizedBox.shrink();
   }
 
   Widget _buildFabButton(BuildContext context, WidgetRef ref) {
@@ -179,46 +225,6 @@ class InmuebleListScreen extends ConsumerWidget {
       tooltip: 'Agregar inmueble',
       onPressed: () => _navegarAgregarInmueble(context, ref),
       child: const Icon(Icons.add),
-    );
-  }
-
-  void _mostrarFiltroAvanzado(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return InmuebleFiltroAvanzado(
-          onFiltrar: ({
-            String? tipo,
-            String? operacion,
-            double? precioMin,
-            double? precioMax,
-            String? ciudad,
-            int? idEstado,
-            double? margenMin,
-          }) {
-            ref
-                .read(filtrosInmuebleProvider.notifier)
-                .actualizarFiltro(
-                  tipo: tipo,
-                  operacion: operacion,
-                  precioMin: precioMin,
-                  precioMax: precioMax,
-                  ciudad: ciudad,
-                  idEstado: idEstado,
-                  margenMin: margenMin,
-                );
-            Navigator.pop(context);
-          },
-          onLimpiar: () {
-            ref.read(filtrosInmuebleProvider.notifier).limpiarFiltros();
-            Navigator.pop(context);
-          },
-        );
-      },
     );
   }
 
@@ -491,6 +497,35 @@ class InmuebleListScreen extends ConsumerWidget {
         content: Text(mensaje),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _buildOperacionFilterChip({
+    required String label,
+    required String? targetOperacion,
+    required String? currentOperacion,
+    required FiltrosInmuebleNotifier notifier,
+  }) {
+    final isSelected = currentOperacion == targetOperacion;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: FilterChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (bool value) {
+          // Si el chip se está seleccionando (value es true), actualiza la operación.
+          // Si el chip se está deseleccionando (value es false),
+          // la operación vuelve a null (Todos).
+          notifier.actualizarFiltro(operacion: value ? targetOperacion : null);
+        },
+        backgroundColor: Colors.grey.shade200,
+        selectedColor:
+            Colors
+                .teal
+                .shade300, // Usando un color similar al de RegistrarNuevaVentaScreen
+        checkmarkColor: isSelected ? Colors.white : Colors.black,
+        labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
       ),
     );
   }

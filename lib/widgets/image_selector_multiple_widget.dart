@@ -2,6 +2,7 @@ import 'dart:io';
 import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/app_colors.dart'; // Agregando AppColors
 
 class ImageSelectorMultipleWidget extends StatelessWidget {
   final List<File> imagenes;
@@ -361,7 +362,7 @@ class ImageSelectorMultipleWidget extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: isLoading ? Colors.grey : Colors.red,
+                color: isLoading ? AppColors.grisClaro : AppColors.error,
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.close, color: Colors.white, size: 16),
@@ -380,7 +381,7 @@ class ImageSelectorMultipleWidget extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: isLoading ? Colors.grey : Colors.blue,
+                  color: isLoading ? AppColors.grisClaro : AppColors.info,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.star, color: Colors.white, size: 16),
@@ -396,7 +397,7 @@ class ImageSelectorMultipleWidget extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.blue,
+                color: AppColors.info,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/inmueble_imagen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:photo_view/photo_view_gallery.dart';
+import '../utils/app_colors.dart'; // Importando AppColors
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class InmuebleImagenCarousel extends StatefulWidget {
@@ -184,10 +185,16 @@ class _InmuebleImagenCarouselState extends State<InmuebleImagenCarousel> {
                     left: 16,
                     child: Material(
                       elevation: 4,
-                      color: Colors.black.withAlpha((0.5 * 255).round()),
+                      color: AppColors.withAlpha(
+                        AppColors.oscuro,
+                        128,
+                      ), // ~0.5 opacidad
                       shape: const CircleBorder(),
                       child: IconButton(
-                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: AppColors.claro,
+                        ),
                         onPressed:
                             () => widget.onImagenTap?.call(_currentIndex),
                         tooltip: 'Opciones de imagen',

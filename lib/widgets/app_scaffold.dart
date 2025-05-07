@@ -8,6 +8,7 @@ class AppScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final bool showDrawer;
   final Widget? bottomNavigationBar;
+  final Widget? floatingActionButton; // Nuevo parámetro
 
   const AppScaffold({
     super.key,
@@ -17,6 +18,7 @@ class AppScaffold extends StatelessWidget {
     this.actions,
     this.showDrawer = true,
     this.bottomNavigationBar,
+    this.floatingActionButton, // Añadir al constructor
   });
 
   @override
@@ -57,6 +59,8 @@ class AppScaffold extends StatelessWidget {
       ),
       body: body,
       bottomNavigationBar: bottomNavigationBar,
+      floatingActionButton:
+          floatingActionButton, // Pasar el parámetro al Scaffold
     );
   }
 
@@ -170,7 +174,6 @@ class AppScaffold extends StatelessWidget {
               currentRoute: currentRoute,
               context: context,
             ),
-            const Divider(),
           ],
         ),
       ),

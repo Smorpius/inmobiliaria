@@ -6,6 +6,7 @@ import '../models/inmueble_imagen.dart';
 import '../services/image_service.dart';
 import 'package:image_picker/image_picker.dart';
 import '../controllers/inmueble_controller.dart';
+import '../utils/app_colors.dart'; // Agregando AppColors
 
 class ImagenSelectorWidget extends StatefulWidget {
   final int idInmueble;
@@ -283,13 +284,15 @@ class _ImagenSelectorWidgetState extends State<ImagenSelectorWidget> {
                 padding: const EdgeInsets.all(8),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: AppColors.withAlpha(AppColors.error, 50),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(
+                    color: AppColors.withAlpha(AppColors.error, 200),
+                  ),
                 ),
                 child: Text(
                   _errorMensaje!,
-                  style: TextStyle(color: Colors.red.shade700),
+                  style: TextStyle(color: AppColors.error),
                 ),
               ),
 

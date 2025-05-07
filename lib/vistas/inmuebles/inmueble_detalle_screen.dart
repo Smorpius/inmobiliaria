@@ -17,6 +17,7 @@ import 'components/clientes_interesados_section.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/models/inmueble_model.dart';
 import 'package:inmobiliaria/widgets/async_value_widget.dart';
+import '../../../utils/app_colors.dart'; // Importar AppColors
 import 'package:inmobiliaria/providers/cliente_providers.dart';
 import 'package:inmobiliaria/models/inmueble_imagenes_state.dart';
 import 'package:inmobiliaria/widgets/inmueble_financiero_info.dart';
@@ -47,11 +48,11 @@ class InmuebleDetailScreen extends ConsumerStatefulWidget {
 
   // Mapeo de estados a colores
   static const Map<int, Color> coloresEstados = {
-    estadoNoDisponible: Colors.red,
-    estadoDisponible: Colors.green,
-    estadoVendido: Colors.blue,
-    estadoRentado: Colors.orange,
-    estadoEnNegociacion: Colors.purple,
+    estadoNoDisponible: AppColors.error,
+    estadoDisponible: AppColors.exito,
+    estadoVendido: AppColors.info,
+    estadoRentado: AppColors.advertencia,
+    estadoEnNegociacion: AppColors.acento,
   };
 
   final Inmueble inmuebleInicial;

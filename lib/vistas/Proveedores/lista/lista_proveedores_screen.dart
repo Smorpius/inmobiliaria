@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'proveedores_filtro.dart';
 import 'proveedores_busqueda.dart';
 import 'proveedores_list_view.dart';
 import 'dart:developer' as developer;
@@ -79,11 +78,32 @@ class _ListaProveedoresScreenState
           title: 'Gestión de Proveedores',
           currentRoute: '/proveedores',
           actions: [
-            ProveedoresFiltro(
-              mostrarInactivos: estado.mostrarInactivos,
-              onChanged: notifier.cambiarFiltroInactivos,
-              isLoading: estado.isLoading,
-              onRefresh: () => notifier.cargarProveedores(),
+            // IconButton para actualizar lista
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Actualizar lista',
+              onPressed:
+                  estado.isLoading ? null : () => notifier.cargarProveedores(),
+            ),
+            // IconButton para alternar vista de inactivos/activos
+            IconButton(
+              icon: Icon(
+                estado.mostrarInactivos ? Icons.person : Icons.person_off,
+                color:
+                    estado.mostrarInactivos
+                        ? Theme.of(context).colorScheme.secondary
+                        : null,
+              ),
+              tooltip:
+                  estado.mostrarInactivos
+                      ? 'Ver proveedores activos'
+                      : 'Ver proveedores inactivos',
+              onPressed:
+                  estado.isLoading
+                      ? null
+                      : () => notifier.cambiarFiltroInactivos(
+                        !estado.mostrarInactivos,
+                      ),
             ),
           ],
           body: Column(

@@ -20,7 +20,6 @@ class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
   late TextEditingController _busquedaController;
   late String? _tipoSeleccionado;
   late String? _categoriaSeleccionada;
-  late bool _soloFavoritos;
 
   @override
   void initState() {
@@ -30,7 +29,6 @@ class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
     );
     _tipoSeleccionado = widget.filtro.tipoDocumento;
     _categoriaSeleccionada = widget.filtro.categoria;
-    _soloFavoritos = widget.filtro.soloFavoritos;
   }
 
   @override
@@ -137,24 +135,6 @@ class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
                   DropdownMenuItem(value: 'general', child: Text('General')),
                 ],
               ),
-
-              // Checkbox para favoritos
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Checkbox(
-                    value: _soloFavoritos,
-                    activeColor: AppColors.primario, // Usar AppColors
-                    onChanged: (bool? value) {
-                      setState(() {
-                        _soloFavoritos = value ?? false;
-                        _actualizarFiltro();
-                      });
-                    },
-                  ),
-                  const Text('Solo favoritos'),
-                ],
-              ),
             ],
           ),
 
@@ -179,8 +159,7 @@ class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
   bool _hayFiltrosActivos() {
     return _busquedaController.text.isNotEmpty ||
         _tipoSeleccionado != null ||
-        _categoriaSeleccionada != null ||
-        _soloFavoritos;
+        _categoriaSeleccionada != null;
   }
 
   void _limpiarFiltros() {
@@ -188,7 +167,6 @@ class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
       _busquedaController.clear();
       _tipoSeleccionado = null;
       _categoriaSeleccionada = null;
-      _soloFavoritos = false;
       _actualizarFiltro();
     });
   }
@@ -198,7 +176,6 @@ class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
       terminoBusqueda: _busquedaController.text,
       tipoDocumento: _tipoSeleccionado,
       categoria: _categoriaSeleccionada,
-      soloFavoritos: _soloFavoritos,
     );
     widget.onFiltroChanged(nuevoFiltro);
   }

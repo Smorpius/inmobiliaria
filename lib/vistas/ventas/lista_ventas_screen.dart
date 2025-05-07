@@ -10,6 +10,7 @@ import '../../models/estados_venta.dart';
 import 'registrar_nueva_venta_screen.dart';
 import '../../providers/venta_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Añadida importación de AppColors
 
 class ListaVentasScreen extends ConsumerStatefulWidget {
   const ListaVentasScreen({super.key});
@@ -56,11 +57,11 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
           tooltip: 'Filtrar ventas',
           onPressed: () => _mostrarDialogoFiltros(context, ref),
         ),
-        IconButton(
-          icon: const Icon(Icons.bar_chart),
-          tooltip: 'Ver reportes',
-          onPressed: () => Navigator.pushNamed(context, '/ventas/reportes'),
-        ),
+        // IconButton(
+        //   icon: const Icon(Icons.bar_chart),
+        //   tooltip: 'Ver reportes',
+        //   onPressed: () => Navigator.pushNamed(context, '/ventas/reportes'),
+        // ),
       ],
       body: Column(
         children: [
@@ -76,33 +77,11 @@ class _ListaVentasScreenState extends ConsumerState<ListaVentasScreen> {
           Expanded(child: _construirContenidoVentas(context, ref, ventasState)),
         ],
       ),
-      bottomNavigationBar: SizedBox(
-        height: 80,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ElevatedButton(
-            onPressed: () => _navegarARegistrarVenta(context, ref),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 12.0),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.add),
-                SizedBox(width: 8),
-                Text(
-                  'Registrar Nueva Venta',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-        ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navegarARegistrarVenta(context, ref),
+        backgroundColor: Theme.of(context).primaryColor,
+        tooltip: 'Registrar Nueva Venta', // Tooltip para accesibilidad
+        child: const Icon(Icons.add),
       ),
     );
   }

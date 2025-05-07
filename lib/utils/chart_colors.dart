@@ -1,40 +1,44 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart'; // Importar la clase AppColors
 
 /// Clase que centraliza los colores utilizados en los gráficos estadísticos
 class ChartColors {
   /// Color para representar ingresos
-  static final ingresos = Colors.green.shade700;
+  static final ingresos = AppColors.exito;
 
   /// Color para representar egresos
-  static final egresos = Colors.red.shade700;
+  static final egresos = AppColors.error;
 
   /// Color para representar balance
-  static final balance = Colors.blue.shade700;
+  static final balance = AppColors.info;
 
   /// Color para el fondo de ingresos en gráficos de área
-  static Color ingresosBackground = Colors.green.shade100.withAlpha(
-    (255 * 0.3).round(),
+  static Color ingresosBackground = AppColors.withAlpha(
+    AppColors.exito,
+    77, // aproximadamente 0.3 de opacidad
   );
 
   /// Color para el fondo de egresos en gráficos de área
-  static Color egresosBackground = Colors.red.shade100.withAlpha(
-    (255 * 0.3).round(),
+  static Color egresosBackground = AppColors.withAlpha(
+    AppColors.error,
+    77, // aproximadamente 0.3 de opacidad
   );
 
   /// Color para el fondo de balance en gráficos de área
-  static Color balanceBackground = Colors.blue.shade100.withAlpha(
-    (255 * 0.3).round(),
+  static Color balanceBackground = AppColors.withAlpha(
+    AppColors.info,
+    77, // aproximadamente 0.3 de opacidad
   );
 
   /// Lista de colores para gráficos de pie y barras múltiples
   static List<Color> pieChartColors = [
-    Colors.blue,
-    Colors.green,
-    Colors.red,
-    Colors.amber,
-    Colors.purple,
-    Colors.teal,
-    Colors.indigo,
+    AppColors.info,
+    AppColors.exito,
+    AppColors.error,
+    AppColors.advertencia,
+    AppColors.acento,
+    AppColors.primario,
+    AppColors.oscuro,
   ];
 
   /// Obtiene un color de la lista de colores para gráficos basado en el índice

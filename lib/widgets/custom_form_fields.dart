@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/app_colors.dart'; // Importar clase de colores
 
 class CustomFormFields {
   // Constantes de estilo para evitar recreaciones innecesarias
   static const double _defaultBorderRadius = 12.0;
-  static final Color _defaultFillColor = Colors.grey.shade100;
-  static const Color _primaryColor = Colors.teal;
+  static final Color _defaultFillColor = AppColors.withAlpha(
+    AppColors.grisClaro,
+    40,
+  );
+  static const Color _primaryColor = AppColors.primario;
 
   // Cacheo de bordes comunes para mejorar el rendimiento
   static final _defaultBorder = OutlineInputBorder(
@@ -45,7 +49,7 @@ class CustomFormFields {
         border: _defaultBorder,
         focusedBorder: _focusedBorder,
         filled: true,
-        fillColor: enabled ? _defaultFillColor : Colors.grey.shade200,
+        fillColor: enabled ? _defaultFillColor : AppColors.grisClaro,
         counterText: '', // Ocultar contador si se especifica maxLength
         suffixIcon: suffixIcon,
         errorMaxLines: 2, // Mejora display de errores
@@ -77,22 +81,23 @@ class CustomFormFields {
     required VoidCallback? onPressed,
     required IconData icon,
     bool isLoading = false,
-    Color backgroundColor = Colors.teal,
+    Color backgroundColor = AppColors.primario,
   }) {
     return ElevatedButton.icon(
       onPressed: isLoading ? null : onPressed, // Deshabilita durante carga
       style: ElevatedButton.styleFrom(
         backgroundColor: backgroundColor,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.claro,
         padding: const EdgeInsets.symmetric(vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        // Corrección de uso obsoleto de withOpacity
+        // Corrección de uso de alpha
         disabledBackgroundColor: backgroundColor.withAlpha(
           (backgroundColor.a * 0.7).round(),
         ),
-        disabledForegroundColor: Colors.white.withAlpha(
+        disabledForegroundColor: AppColors.withAlpha(
+          AppColors.claro,
           178,
-        ), // Equivalente a 70% de opacidad
+        ), // 70% de opacidad
       ),
       icon:
           isLoading
@@ -100,8 +105,8 @@ class CustomFormFields {
                 width: 20,
                 height: 20,
                 margin: const EdgeInsets.only(right: 8.0),
-                child: const CircularProgressIndicator(
-                  color: Colors.white,
+                child: CircularProgressIndicator(
+                  color: AppColors.claro,
                   strokeWidth: 2,
                 ),
               )
@@ -227,7 +232,9 @@ class CustomFormFields {
                   '$currentLength/$maxLength',
                   style: TextStyle(
                     color:
-                        currentLength > maxLength! ? Colors.red : Colors.grey,
+                        currentLength > maxLength!
+                            ? AppColors.error
+                            : AppColors.grisClaro,
                   ),
                 );
               }
@@ -326,11 +333,14 @@ class CustomFormFields {
           filled: true,
           fillColor: _defaultFillColor,
         ),
-        child: const Center(
+        child: Center(
           child: SizedBox(
             height: 24,
             width: 24,
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primario,
+            ),
           ),
         ),
       );
@@ -359,7 +369,7 @@ class CustomFormFields {
       menuMaxHeight: 300, // Limitar altura del menú para prevenir problemas
       icon: const Icon(Icons.arrow_drop_down),
       iconSize: 24,
-      dropdownColor: Colors.white,
+      dropdownColor: AppColors.claro,
     );
   }
 
@@ -383,7 +393,7 @@ class CustomFormFields {
       suffixIcon: IconButton(
         icon: Icon(
           passwordVisible ? Icons.visibility_off : Icons.visibility,
-          color: Colors.grey,
+          color: AppColors.grisClaro,
         ),
         tooltip: passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña',
         onPressed: () => onToggleVisibility(!passwordVisible),
@@ -397,12 +407,12 @@ class CustomFormFields {
     required VoidCallback? onPressed,
     IconData? icon,
     bool isLoading = false,
-    Color color = Colors.teal,
+    Color color = AppColors.primario,
   }) {
     return ElevatedButton(
       onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.claro,
         foregroundColor: color,
         padding: const EdgeInsets.symmetric(vertical: 15),
         side: BorderSide(color: color),
@@ -427,7 +437,7 @@ class CustomFormFields {
             ),
           Text(
             isLoading ? "Procesando..." : label,
-            style: TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ],
       ),

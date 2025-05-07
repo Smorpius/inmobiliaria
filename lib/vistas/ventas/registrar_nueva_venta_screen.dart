@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'registrar_operacion_screen.dart';
 import '../../models/inmueble_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../utils/app_colors.dart'; // Añadida importación de AppColors
 import 'package:inmobiliaria/providers/inmuebles_disponibles_provider.dart';
 
 class RegistrarNuevaVentaScreen extends ConsumerStatefulWidget {
@@ -151,11 +152,11 @@ class _RegistrarNuevaVentaScreenState
   Color _getEstadoColor(int idEstado) {
     switch (idEstado) {
       case 3:
-        return Colors.green;
+        return AppColors.exito;
       case 6:
-        return Colors.orange;
+        return AppColors.advertencia;
       default:
-        return Colors.grey;
+        return AppColors.grisClaro;
     }
   }
 

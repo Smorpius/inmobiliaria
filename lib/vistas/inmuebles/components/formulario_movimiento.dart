@@ -7,6 +7,7 @@ import '../../../models/inmueble_model.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:inmobiliaria/utils/app_colors.dart';
 import '../../../models/movimiento_renta_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/inmueble_renta_provider.dart';
@@ -174,7 +175,7 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
                                 });
                               }
                             },
-                            activeColor: Colors.green,
+                            activeColor: AppColors.exito,
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
@@ -190,7 +191,7 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
                                 });
                               }
                             },
-                            activeColor: Colors.red,
+                            activeColor: AppColors.exito,
                             contentPadding: EdgeInsets.zero,
                           ),
                         ),
@@ -399,8 +400,8 @@ class _FormularioMovimientoState extends ConsumerState<FormularioMovimiento> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
                       _tipoMovimiento == 'ingreso'
-                          ? Colors.green
-                          : Colors.orange,
+                          ? AppColors.exito
+                          : AppColors.advertencia,
                   foregroundColor: Colors.white,
                 ),
                 child:

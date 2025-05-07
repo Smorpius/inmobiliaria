@@ -2,6 +2,7 @@ import '../utils/applogger.dart';
 import 'package:flutter/material.dart';
 import '../models/inmueble_model.dart';
 import '../controllers/inmueble_controller.dart';
+import '../utils/app_colors.dart'; // Importar AppColors
 
 class InmuebleEstadoSelector extends StatefulWidget {
   final Inmueble inmueble;
@@ -38,12 +39,14 @@ class _InmuebleEstadoSelectorState extends State<InmuebleEstadoSelector> {
     2: 'No Disponible', // Agregado estado No Disponible
   };
 
+  // Mapa de colores para cada estado según la paleta centralizada
   final Map<int, Color> _estadoColores = {
-    3: Colors.green, // Disponible
-    6: Colors.orange, // En Negociación
-    4: Colors.blue, // Vendido
-    5: Colors.purple, // Rentado
-    2: Colors.red, // No Disponible
+    1: AppColors.error.withAlpha(204), // No disponible oscuro
+    2: AppColors.error, // No disponible
+    3: AppColors.exito, // Disponible
+    4: AppColors.info, // Vendido
+    5: AppColors.acento, // Rentado
+    6: AppColors.advertencia, // En negociación
   };
 
   @override

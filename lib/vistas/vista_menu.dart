@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart'; // Importar AppColors
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -10,31 +11,19 @@ class HomePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Center(
-          child: Text(
-            "CASITAS REAL ESATEE",
-            style: TextStyle(
-              color: Color.fromRGBO(165, 57, 45, 1), // #A5392D
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
+        title: const Text(
+          "CASITAS REAL ESATEE",
+          style: TextStyle(
+            color: AppColors.primario,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
           ),
         ),
-        backgroundColor: Color.fromRGBO(247, 245, 242, 1), // #F7F5F2
+        centerTitle: true,
+        backgroundColor: AppColors.claro,
         elevation: 2,
-        shadowColor: Color.fromRGBO(26, 26, 26, 0.26), // #1A1A1A with opacity
-        iconTheme: const IconThemeData(
-          color: Color.fromRGBO(165, 57, 45, 1),
-        ), // #A5392D
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {
-              // Acción para notificaciones
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
+        shadowColor: AppColors.withAlpha(AppColors.oscuro, 66), // 0.26 opacity
+        iconTheme: const IconThemeData(color: AppColors.primario),
       ),
       body: Stack(
         children: [
@@ -44,10 +33,7 @@ class HomePage extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  const Color.fromRGBO(212, 207, 203, 1), // #D4CFCB
-                  const Color.fromRGBO(247, 245, 242, 1), // #F7F5F2
-                ],
+                colors: [AppColors.grisClaro, AppColors.claro],
               ),
             ),
           ),
@@ -87,45 +73,35 @@ class HomePage extends StatelessWidget {
                         {
                           'title': 'Inmuebles',
                           'icon': Icons.home_work,
-                          'color': const Color.fromRGBO(
-                            165,
-                            57,
-                            45,
-                            1,
-                          ), // #A5392D
+                          'color': AppColors.primario, // #A5392D - Café rojizo
                           'route': '/inmuebles',
                         },
                         {
                           'title': 'Clientes',
                           'icon': Icons.people,
-                          'color': const Color.fromRGBO(
-                            216,
-                            86,
-                            62,
-                            1,
-                          ), // #D8563E
+                          'color': AppColors.acento, // #D8563E - Café acentuado
                           'route': '/clientes',
                         },
                         {
                           'title': 'Ventas',
                           'icon': Icons.shopping_cart,
-                          'color': const Color.fromRGBO(
-                            212,
-                            207,
-                            203,
-                            1,
-                          ), // #D4CFCB
+                          'color': AppColors.withValues(
+                            color: AppColors.primario,
+                            red: 125, // Tono café más oscuro
+                            green: 45,
+                            blue: 35,
+                          ),
                           'route': '/ventas',
                         },
                         {
                           'title': 'Proveedores',
                           'icon': Icons.inventory,
-                          'color': const Color.fromRGBO(
-                            26,
-                            26,
-                            26,
-                            1,
-                          ), // #1A1A1A
+                          'color': AppColors.withValues(
+                            color: AppColors.primario,
+                            red: 190, // Tono café más claro
+                            green: 70,
+                            blue: 55,
+                          ),
                           'route': '/proveedores',
                         },
                       ];
@@ -202,63 +178,124 @@ class _FeatureCardHoverState extends State<FeatureCardHover> {
       onExit: (_) => setState(() => isHovered = false),
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color:
-                isHovered
-                    ? widget.color.withAlpha((0.3 * 255).toInt())
-                    : Colors.white.withAlpha((0.6 * 255).toInt()),
-            boxShadow:
-                isHovered
-                    ? [
-                      BoxShadow(
-                        color: widget.color.withAlpha((0.5 * 255).toInt()),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                    : [
-                      BoxShadow(
-                        color: widget.color.withAlpha((0.2 * 255).toInt()),
-                        blurRadius: 4,
-                        spreadRadius: 0,
-                      ),
-                    ],
+        borderRadius: BorderRadius.circular(16),
+        child: Card(
+          color: AppColors.primario, // Color base para la tarjeta
+          elevation: isHovered ? 8 : 4,
+          shadowColor: AppColors.withAlpha(widget.color, 100),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color:
+                  isHovered
+                      ? AppColors.claro
+                      : AppColors.withValues(color: AppColors.claro, alpha: 0),
+              width: 1.5,
+            ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: EdgeInsets.all(isHovered ? 10 : 6),
-                decoration: BoxDecoration(
-                  color:
-                      isHovered
-                          ? widget.color.withAlpha((0.4 * 255).toInt())
-                          : widget.color.withAlpha((0.2 * 255).toInt()),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  widget.icon,
-                  color: isHovered ? Colors.white : widget.color,
-                  size: isHovered ? 28 : 22,
-                ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  isHovered
+                      ? AppColors.withValues(
+                        color: widget.color,
+                        alpha: 255,
+                      ) // Color del icono, opaco en hover (sin cambios)
+                      : AppColors.withValues(
+                        color: widget.color,
+                        alpha: (255 * 0.90).round(),
+                      ), // Color del icono, un poco más opaco en normal
+                  isHovered
+                      ? AppColors.withValues(
+                        color: Color.lerp(widget.color, AppColors.claro, 0.1)!,
+                        alpha: 255,
+                      ) // Mezcla (90% icono, 10% claro), opaco en hover
+                      : AppColors.withValues(
+                        color: Color.lerp(widget.color, AppColors.claro, 0.3)!,
+                        alpha: (255 * 0.85).round(),
+                      ), // Mezcla (70% icono, 30% claro), un poco más opaco en normal
+                ],
               ),
-              const SizedBox(height: 5),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: isHovered ? Colors.white : widget.color,
-                  fontSize: isHovered ? 14 : 12,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: EdgeInsets.all(isHovered ? 14 : 12),
+                  decoration: BoxDecoration(
+                    color:
+                        isHovered
+                            ? AppColors
+                                .claro // Color claro de la paleta para estado hover
+                            : AppColors
+                                .grisClaro, // Color gris claro de la paleta para estado normal
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.withValues(
+                        color: AppColors.primario,
+                        alpha: isHovered ? 100 : 80,
+                      ),
+                      width: 2.0,
+                    ),
+                    boxShadow:
+                        isHovered
+                            ? [
+                              BoxShadow(
+                                color: AppColors.withAlpha(
+                                  AppColors.primario,
+                                  60,
+                                ),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                            : [],
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    color:
+                        widget
+                            .color, // Usar el color de la tarjeta para el icono
+                    size: isHovered ? 32 : 26,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                child: Text(widget.title),
-              ),
-            ],
+                const SizedBox(height: 12),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 200),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.withValues(
+                      color: AppColors.claro,
+                      red: 250,
+                      green: 245,
+                      blue: 240,
+                    ),
+                    fontSize: isHovered ? 16 : 14,
+                    letterSpacing: 0.5,
+                    shadows:
+                        isHovered
+                            ? [
+                              Shadow(
+                                blurRadius: 2.0,
+                                color: AppColors.withAlpha(
+                                  AppColors.oscuro,
+                                  80,
+                                ),
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                            : [],
+                  ),
+                  textAlign: TextAlign.center,
+                  child: Text(widget.title),
+                ),
+              ],
+            ),
           ),
         ),
       ),

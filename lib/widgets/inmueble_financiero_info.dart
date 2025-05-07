@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/inmueble_model.dart';
 import '../utils/inmueble_formatter.dart';
 import '../vistas/inmuebles/components/detail_row.dart';
+import '../utils/app_colors.dart'; // Añadiendo AppColors
 
 class InmuebleFinancieroInfo extends StatelessWidget {
   final Inmueble inmueble;
@@ -33,7 +34,7 @@ class InmuebleFinancieroInfo extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: isInactivo ? Colors.grey : Colors.indigo,
+                color: isInactivo ? AppColors.grisClaro : AppColors.info,
               ),
             ),
           ),
@@ -66,7 +67,10 @@ class InmuebleFinancieroInfo extends StatelessWidget {
             margin: const EdgeInsets.only(top: 8),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isInactivo ? Colors.grey.shade200 : Colors.blue.shade50,
+              color:
+                  isInactivo
+                      ? AppColors.withAlpha(AppColors.grisClaro, 200)
+                      : AppColors.withAlpha(AppColors.info, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(

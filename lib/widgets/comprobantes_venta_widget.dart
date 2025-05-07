@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/comprobante_venta_model.dart';
 import '../providers/comprobantes_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../utils/app_colors.dart'; // Ruta de importación corregida
 
 /// Widget para mostrar los comprobantes de una venta específica
 class ComprobantesVentaWidget extends ConsumerWidget {
@@ -35,12 +36,15 @@ class ComprobantesVentaWidget extends ConsumerWidget {
                 const Icon(
                   Icons.description_outlined,
                   size: 48,
-                  color: Colors.grey,
+                  color: AppColors.grisClaro,
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'No hay comprobantes registrados',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: AppColors.oscuro.withAlpha((0.6 * 255).round()),
+                  ),
                 ),
                 if (!esSoloLectura)
                   Padding(
@@ -106,11 +110,15 @@ class ComprobantesVentaWidget extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const Icon(
+                  Icons.error_outline,
+                  size: 48,
+                  color: AppColors.error,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Error al cargar comprobantes: $error',
-                  style: const TextStyle(color: Colors.red),
+                  style: const TextStyle(color: AppColors.error),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -173,7 +181,7 @@ class ComprobantesVentaWidget extends ConsumerWidget {
                 onPressed: () => Navigator.of(context).pop(true),
                 child: const Text(
                   'Eliminar',
-                  style: TextStyle(color: Colors.red),
+                  style: TextStyle(color: AppColors.error),
                 ),
               ),
             ],
@@ -210,7 +218,7 @@ class ComprobantesVentaWidget extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('No se pudo eliminar el comprobante'),
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.error,
             ),
           );
         }
@@ -220,7 +228,7 @@ class ComprobantesVentaWidget extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al eliminar comprobante: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -272,19 +280,23 @@ class ComprobantesVentaWidget extends ConsumerWidget {
                               comprobante.rutaArchivo,
                               fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) {
-                                return const Center(
+                                return Center(
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(
+                                      const Icon(
                                         Icons.broken_image,
                                         size: 64,
-                                        color: Colors.grey,
+                                        color: AppColors.grisClaro,
                                       ),
-                                      SizedBox(height: 16),
+                                      const SizedBox(height: 16),
                                       Text(
                                         'No se pudo cargar la imagen',
-                                        style: TextStyle(color: Colors.grey),
+                                        style: TextStyle(
+                                          color: AppColors.oscuro.withAlpha(
+                                            (0.6 * 255).round(),
+                                          ),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -326,10 +338,10 @@ class ComprobantesVentaWidget extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text('Fecha de registro: ${comprobante.fechaRegistro}'),
                       if (comprobante.esPrincipal)
-                        const Chip(
-                          label: Text('Principal'),
-                          backgroundColor: Colors.blue,
-                          labelStyle: TextStyle(color: Colors.white),
+                        Chip(
+                          label: const Text('Principal'),
+                          backgroundColor: AppColors.primario,
+                          labelStyle: const TextStyle(color: AppColors.claro),
                         ),
                     ],
                   ),
@@ -370,11 +382,11 @@ class _ComprobanteVentaCard extends StatelessWidget {
             left: 0,
             right: 0,
             child: Container(
-              color: Colors.black.withAlpha(153),
+              color: AppColors.oscuro.withAlpha(153),
               padding: const EdgeInsets.all(8),
               child: Text(
                 comprobante.descripcion ?? 'Sin descripción',
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppColors.claro),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -389,13 +401,13 @@ class _ComprobanteVentaCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withAlpha((0.8 * 255).toInt()),
+                  color: AppColors.primario.withAlpha((0.8 * 255).round()),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Text(
                   'Principal',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.claro,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -410,11 +422,11 @@ class _ComprobanteVentaCard extends StatelessWidget {
               left: 8,
               child: Container(
                 decoration: const BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.claro,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
+                  icon: const Icon(Icons.delete, color: AppColors.error),
                   iconSize: 20,
                   constraints: const BoxConstraints(
                     minWidth: 32,
@@ -432,7 +444,7 @@ class _ComprobanteVentaCard extends StatelessWidget {
               color: Colors.transparent,
               child: InkWell(
                 onTap: onTap,
-                splashColor: Colors.white.withAlpha(77),
+                splashColor: AppColors.claro.withAlpha(77),
               ),
             ),
           ),
@@ -444,14 +456,23 @@ class _ComprobanteVentaCard extends StatelessWidget {
   Widget _buildPreview() {
     if (comprobante.rutaArchivo.toLowerCase().endsWith('.pdf')) {
       return Container(
-        color: Colors.grey[200],
-        child: const Center(
+        color: AppColors.grisClaro.withAlpha((0.5 * 255).round()),
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.picture_as_pdf, size: 64, color: Colors.red),
-              SizedBox(height: 8),
-              Text('Documento PDF', style: TextStyle(color: Colors.grey)),
+              const Icon(
+                Icons.picture_as_pdf,
+                size: 64,
+                color: AppColors.error,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Documento PDF',
+                style: TextStyle(
+                  color: AppColors.oscuro.withAlpha((0.6 * 255).round()),
+                ),
+              ),
             ],
           ),
         ),
@@ -461,13 +482,22 @@ class _ComprobanteVentaCard extends StatelessWidget {
         comprobante.rutaArchivo,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
-          return const Center(
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.broken_image, size: 48, color: Colors.grey),
-                SizedBox(height: 8),
-                Text('Error al cargar', style: TextStyle(color: Colors.grey)),
+                const Icon(
+                  Icons.broken_image,
+                  size: 48,
+                  color: AppColors.grisClaro,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Error al cargar',
+                  style: TextStyle(
+                    color: AppColors.oscuro.withAlpha((0.6 * 255).round()),
+                  ),
+                ),
               ],
             ),
           );

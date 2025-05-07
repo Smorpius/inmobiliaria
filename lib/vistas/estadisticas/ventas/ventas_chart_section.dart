@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import '../../../utils/app_colors.dart'; // Ruta de importación corregida
 
 class VentasChartSection extends StatelessWidget {
   final String title;
@@ -54,10 +55,12 @@ class VentasChartSection extends StatelessWidget {
 
     // Si no hay datos, mostrar un mensaje
     if (maxIngreso <= 0) {
-      return const Center(
+      return Center(
         child: Text(
           'No hay datos disponibles para mostrar',
-          style: TextStyle(color: Colors.grey),
+          style: TextStyle(
+            color: AppColors.oscuro.withAlpha((0.6 * 255).round()),
+          ), // Antes Colors.grey
         ),
       );
     }
@@ -117,7 +120,10 @@ class VentasChartSection extends StatelessWidget {
         ),
         Text(
           'Utilidad: ${formatCurrency.format(utilidad)}',
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+          style: TextStyle(
+            fontSize: 10,
+            color: AppColors.oscuro.withAlpha((0.7 * 255).round()),
+          ), // Antes Colors.grey.shade700
         ),
       ],
     );

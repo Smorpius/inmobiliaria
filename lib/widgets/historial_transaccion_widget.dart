@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import '../models/historial_transaccion_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../utils/app_colors.dart'; // Importando AppColors
 import '../providers/historial_transaccion_provider.dart';
 
 /// Widget para mostrar el historial de cambios de una entidad
@@ -467,15 +468,15 @@ class _HistorialTransaccionItem extends StatelessWidget {
     campo = campo.toLowerCase();
 
     if (campo.contains('estado')) {
-      return Colors.orange;
+      return AppColors.advertencia;
     } else if (campo.contains('monto') ||
         campo.contains('precio') ||
         campo.contains('costo')) {
-      return Colors.green[700]!;
+      return AppColors.exito;
     } else if (campo.contains('eliminado') || campo.contains('cancelado')) {
-      return Colors.red;
+      return AppColors.error;
     } else {
-      return Colors.blue[700]!;
+      return AppColors.info;
     }
   }
 

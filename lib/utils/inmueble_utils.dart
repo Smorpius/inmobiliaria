@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../models/inmueble_model.dart';
 import '../../../models/inmueble_imagen.dart';
+import '../utils/app_colors.dart'; // Importar AppColors
 
 /// Utilidades comunes para las vistas de inmuebles
 class InmuebleUtils {
@@ -61,19 +62,19 @@ class InmuebleCard extends StatelessWidget {
 
     switch (inmueble.idEstado) {
       case 3:
-        estadoColor = Colors.green;
+        estadoColor = AppColors.exito;
         estadoTexto = 'Disponible';
         break;
       case 4:
-        estadoColor = Colors.red;
+        estadoColor = AppColors.info;
         estadoTexto = 'Vendido';
         break;
       case 5:
-        estadoColor = Colors.orange;
+        estadoColor = AppColors.acento;
         estadoTexto = 'Rentado';
         break;
       case 6:
-        estadoColor = Colors.blue;
+        estadoColor = AppColors.advertencia;
         estadoTexto = 'En negociación';
         break;
     }

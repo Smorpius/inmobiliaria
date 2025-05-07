@@ -168,22 +168,9 @@ class _DocumentoDetalleScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.documento.nombre),
-        backgroundColor: AppColors.claro, // Usar AppColors
-        foregroundColor: AppColors.primario, // Usar AppColors
-        actions: [
-          if (_archivoLocal != null && !_cargando) ...[
-            IconButton(
-              icon: const Icon(Icons.share),
-              onPressed: _compartirDocumento,
-              tooltip: 'Compartir',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: _eliminarDocumento,
-              tooltip: 'Eliminar',
-            ),
-          ],
-        ],
+        backgroundColor: AppColors.claro,
+        foregroundColor: AppColors.primario,
+        actions: [], // AppBar superior sin acciones
       ),
       body:
           _cargando
@@ -209,13 +196,18 @@ class _DocumentoDetalleScreenState
                 build: (format) => _archivoLocal!.readAsBytesSync(),
                 canChangeOrientation: false,
                 canChangePageFormat: false,
-                allowPrinting: true,
-                allowSharing: true,
+                allowPrinting:
+                    false, // Se deshabilita ya que tenemos botón propio
+                allowSharing:
+                    false, // No mostrar el compartir interno de PdfPreview
+                useActions:
+                    false, // Ocultar la barra de acciones interna de PdfPreview
                 maxPageWidth: 700,
                 pdfFileName: widget.documento.nombre,
               ),
             ),
           ),
+          _buildCustomPdfActionsBar(), // Barra de acciones personalizada
           _buildInfoPanel(),
         ],
       );
@@ -263,6 +255,48 @@ class _DocumentoDetalleScreenState
         ],
       );
     }
+  }
+
+  // Nueva barra de acciones personalizada para PDF
+  Widget _buildCustomPdfActionsBar() {
+    if (_archivoLocal == null || !_archivoLocal!.existsSync()) {
+      return const SizedBox.shrink(); // No mostrar nada si no hay archivo
+    }
+    return Container(
+      // Antes (método obsoleto):
+      // Corrección recomendada:
+      color: AppColors.error.withAlpha(
+        (0.8 * 255).round(),
+      ), // Color rojo similar al de la imagen
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.print, color: Colors.white),
+            onPressed: () async {
+              if (_archivoLocal != null) {
+                await Printing.layoutPdf(
+                  onLayout: (format) => _archivoLocal!.readAsBytesSync(),
+                  name: widget.documento.nombre,
+                );
+              }
+            },
+            tooltip: 'Imprimir',
+          ),
+          IconButton(
+            icon: const Icon(Icons.share, color: Colors.white),
+            onPressed: _compartirDocumento,
+            tooltip: 'Compartir',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.white),
+            onPressed: _eliminarDocumento,
+            tooltip: 'Eliminar',
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildInfoPanel() {

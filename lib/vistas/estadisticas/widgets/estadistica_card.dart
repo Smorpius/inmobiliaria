@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../utils/app_colors.dart'; // Agregando la importación de AppColors
 
 class EstadisticaCard extends StatelessWidget {
   final String title;
@@ -32,27 +33,34 @@ class EstadisticaCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(
-                    (255 * 0.1).round(),
-                  ), // Reemplazado withOpacity con withAlpha
+                  color: AppColors.withAlpha(
+                    color,
+                    26,
+                  ), // Usando AppColors.withAlpha con aproximadamente 0.1 de opacidad
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, size: 40, color: color),
+                child: Icon(icon, color: color, size: 32),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 18,
                   fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
+                textAlign: TextAlign.center,
               ),
               if (subtitle != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 4.0),
                   child: Text(
                     subtitle!,
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                    style: TextStyle(
+                      color: AppColors.oscuro.withAlpha(
+                        204,
+                      ), // ~0.8 de opacidad
+                      fontSize: 14,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),

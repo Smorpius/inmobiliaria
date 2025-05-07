@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
 import '../../../models/inmueble_model.dart';
 import 'package:inmobiliaria/utils/inmueble_formatter.dart';
+import '../../../utils/app_colors.dart'; // Añadiendo importación de AppColors
 
 class InmuebleBasicInfo extends StatelessWidget {
   final Inmueble inmueble;
@@ -99,19 +100,25 @@ class InmuebleBasicInfo extends StatelessWidget {
   /// Obtiene el color según el estado del inmueble
   Color _obtenerColorEstado(int? idEstado) {
     switch (idEstado) {
-      case 2: return Colors.red;      // No disponible
-      case 3: return Colors.green;    // Disponible
-      case 4: return Colors.blue;     // Vendido
-      case 5: return Colors.purple;   // Rentado
-      case 6: return Colors.orange;   // En negociación
-      default: return Colors.grey;    // Estado desconocido o nulo
+      case 2:
+        return AppColors.error; // No disponible
+      case 3:
+        return AppColors.exito; // Disponible
+      case 4:
+        return AppColors.info; // Vendido
+      case 5:
+        return AppColors.acento; // Rentado
+      case 6:
+        return AppColors.advertencia; // En negociación
+      default:
+        return AppColors.grisClaro; // Estado desconocido o nulo
     }
   }
 
   /// Formatea la fecha de manera segura usando intl
   String _formatearFechaSeguro(DateTime? fecha) {
     if (fecha == null) return 'N/A';
-    
+
     try {
       return DateFormat('yyyy-MM-dd').format(fecha);
     } catch (e) {
@@ -138,26 +145,26 @@ class InmuebleBasicInfo extends StatelessWidget {
     StackTrace stackTrace,
   ) {
     final ahora = DateTime.now();
-    
+
     // Evitar log duplicado en intervalo corto
     if (!_ultimosErrores.containsKey(codigo) ||
         ahora.difference(_ultimosErrores[codigo]!) > _intervaloMinimo) {
-      
       _ultimosErrores[codigo] = ahora;
-      
+
       // Preservar la excepción original
       final errorString = error.toString();
-      
+
       // Limitar la cantidad de errores almacenados para evitar memory leaks
       if (_ultimosErrores.length > 50) {
-        final keysToRemove = _ultimosErrores.keys
-            .toList()
-            .sublist(0, _ultimosErrores.length - 30);
+        final keysToRemove = _ultimosErrores.keys.toList().sublist(
+          0,
+          _ultimosErrores.length - 30,
+        );
         for (var key in keysToRemove) {
           _ultimosErrores.remove(key);
         }
       }
-      
+
       AppLogger.error('$mensaje: $errorString', error, stackTrace);
     }
   }

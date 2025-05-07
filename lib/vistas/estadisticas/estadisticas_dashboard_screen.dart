@@ -31,6 +31,7 @@ class _EstadisticasDashboardScreenState
     return AppScaffold(
       title: 'Estadísticas',
       currentRoute: '/estadisticas',
+      actions: const [],
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

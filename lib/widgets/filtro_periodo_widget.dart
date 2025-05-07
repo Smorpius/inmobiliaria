@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart'; // Importando AppColors
 
 // Enumeración para los tipos de período
 enum TipoPeriodo {
@@ -265,12 +266,12 @@ class _FiltroPeriodoWidgetState extends State<FiltroPeriodoWidget> {
                 side: BorderSide(
                   color:
                       _selectedPeriodo == TipoPeriodo.personalizado
-                          ? Theme.of(context).primaryColor
-                          : Colors.grey,
+                          ? AppColors.primario
+                          : AppColors.grisClaro,
                 ),
                 foregroundColor:
                     _selectedPeriodo == TipoPeriodo.personalizado
-                        ? Theme.of(context).primaryColor
+                        ? AppColors.primario
                         : null,
               ),
               onPressed: _mostrarSelectorFechaPersonalizado,
