@@ -1,11 +1,11 @@
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
+import 'package:printing/printing.dart';
 import 'package:open_file/open_file.dart';
 import '../widgets/loading_indicator.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../services/pdf_service.dart';
-import '../widgets/rentas_chart_section.dart';
 import '../widgets/filtro_periodo_widget.dart';
 import '../../../providers/renta_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,27 +92,6 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
   }
 
   Widget _buildReporte(Map<String, dynamic> data) {
-    // Extraer datos de estadísticas con valores por defecto para evitar nulos
-    final totalContratos = data['totalContratos'] ?? 0;
-    final contratosActivos = data['contratosActivos'] ?? 0;
-    final ingresosMensuales = data['ingresosMensuales'] ?? 0.0;
-    final egresosMensuales = data['egresosMensuales'] ?? 0.0;
-    final balanceMensual = data['balanceMensual'] ?? 0.0;
-
-    // Mejor cálculo de rentabilidad para evitar divisiones por cero
-    final rentabilidad =
-        data['rentabilidad'] ??
-        (ingresosMensuales > 0
-            ? (balanceMensual / ingresosMensuales) * 100
-            : 0);
-
-    final datosInmuebles = List<Map<String, dynamic>>.from(
-      data['datosInmuebles'] ?? [],
-    );
-    final evolucionMensual = List<Map<String, dynamic>>.from(
-      data['evolucionMensual'] ?? [],
-    );
-
     return RefreshIndicator(
       onRefresh: () async {
         final _ = await ref.refresh(
@@ -124,220 +103,131 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildResumenCard(
-              totalContratos: totalContratos,
-              contratosActivos: contratosActivos,
-              ingresosMensuales: ingresosMensuales,
-              egresosMensuales: egresosMensuales,
-              balanceMensual: balanceMensual,
-              rentabilidad: rentabilidad,
-            ),
-            const SizedBox(height: 24),
-            RentasChartSection(
-              datosInmuebles: datosInmuebles,
-              evolucionMensual: evolucionMensual,
-            ),
-            const SizedBox(height: 24),
-            _buildContratosList(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResumenCard({
-    required int totalContratos,
-    required int contratosActivos,
-    required double ingresosMensuales,
-    required double egresosMensuales,
-    required double balanceMensual,
-    required double rentabilidad,
-  }) {
-    final formatCurrency = NumberFormat.currency(symbol: '\$', locale: 'es_MX');
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.insights, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Resumen de Rentas',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatColumn(
-                    'Total de Contratos',
-                    totalContratos.toString(),
-                    Icons.description,
-                    Colors.blue.shade700,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatColumn(
-                    'Contratos Activos',
-                    contratosActivos.toString(),
-                    Icons.fact_check,
-                    Colors.green.shade700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatColumn(
-                    'Ingresos Mensuales',
-                    formatCurrency.format(ingresosMensuales),
-                    Icons.arrow_upward,
-                    Colors.green.shade700,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatColumn(
-                    'Egresos Mensuales',
-                    formatCurrency.format(egresosMensuales),
-                    Icons.arrow_downward,
-                    Colors.red.shade700,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatColumn(
-                    'Balance Mensual',
-                    formatCurrency.format(balanceMensual),
-                    Icons.account_balance,
-                    Colors.purple.shade700,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatColumn(
-                    'Rentabilidad',
-                    '${rentabilidad.toStringAsFixed(2)}%',
-                    Icons.trending_up,
-                    Colors.amber.shade700,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatColumn(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 32),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildContratosList() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.assignment, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Contratos Activos',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () {
-                    // Acción para ver todos los contratos
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Ver todos los contratos')),
-                    );
-                  },
-                  icon: const Icon(Icons.visibility),
-                  label: const Text('Ver Todos'),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            // Placeholder para lista de contratos
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
+            Card(
+              margin: const EdgeInsets.symmetric(vertical: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 48, color: Colors.grey),
-                    SizedBox(height: 16),
                     Text(
-                      'Lista de contratos activos',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                      'Vista previa del reporte',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
-                      'Aquí se mostrarán los contratos activos cuando se implemente la funcionalidad completa',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
+                      'Periodo: ${DateFormat('dd/MM/yyyy').format(_periodo.start)} - ${DateFormat('dd/MM/yyyy').format(_periodo.end)}',
+                      style: TextStyle(color: Colors.grey.shade700),
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.7,
+              child: PdfPreview(
+                maxPageWidth: 700,
+                build: (format) async {
+                  try {
+                    final pdf = await PdfService.crearDocumento();
+
+                    // Agregar página de título
+                    await PdfService.agregarPaginaTitulo(
+                      pdf,
+                      'REPORTE DE RENTAS',
+                      'Periodo: ${DateFormat('dd/MM/yyyy').format(_periodo.start)} - ${DateFormat('dd/MM/yyyy').format(_periodo.end)}',
+                      imagePath: 'assets/logo.png',
+                    );
+
+                    // Agregar resumen general
+                    PdfService.agregarTabla(
+                      pdf,
+                      ['Métrica', 'Resultado'],
+                      [
+                        [
+                          'Total de Contratos',
+                          '${data['totalContratos'] ?? 0}',
+                        ],
+                        [
+                          'Contratos Activos',
+                          '${data['contratosActivos'] ?? 0}',
+                        ],
+                        [
+                          'Ingresos Mensuales',
+                          NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          ).format(data['ingresosMensuales'] ?? 0.0),
+                        ],
+                        [
+                          'Egresos Mensuales',
+                          NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          ).format(data['egresosMensuales'] ?? 0.0),
+                        ],
+                        [
+                          'Balance Mensual',
+                          NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          ).format(data['balanceMensual'] ?? 0.0),
+                        ],
+                      ],
+                      titulo: 'Resumen General',
+                    );
+
+                    // Devolver el PDF generado
+                    return pdf.save();
+                  } catch (e) {
+                    AppLogger.error(
+                      'Error al generar vista previa del PDF',
+                      e,
+                      StackTrace.current,
+                    );
+                    throw Exception('Error al generar vista previa: $e');
+                  }
+                },
+                canChangeOrientation: false,
+                canChangePageFormat: false,
+                canDebug: false,
+                pdfFileName: 'reporte_rentas_preview.pdf',
+                loadingWidget: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Generando vista previa del reporte...'),
+                    ],
+                  ),
+                ),
+                onError: (context, error) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        SizedBox(height: 16),
+                        Text(
+                          'Error al generar vista previa',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          error.toString().split('\n').first,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ],

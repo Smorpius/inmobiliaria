@@ -87,34 +87,6 @@ class _EstadisticasDashboardScreenState
                       ),
                     ),
                   ),
-                  _buildCategoryCard(
-                    context,
-                    'Clientes',
-                    'Análisis de datos de clientes',
-                    Icons.people,
-                    Colors.purple.shade700,
-                    () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Funcionalidad en desarrollo'),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildCategoryCard(
-                    context,
-                    'Financiero',
-                    'Análisis financiero global',
-                    Icons.account_balance,
-                    Colors.amber.shade700,
-                    () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Funcionalidad en desarrollo'),
-                        ),
-                      );
-                    },
-                  ),
                 ],
               ),
             ),

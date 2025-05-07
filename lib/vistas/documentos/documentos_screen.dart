@@ -75,9 +75,35 @@ class _DocumentosScreenState extends ConsumerState<DocumentosScreen> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error:
                   (err, stack) => Center(
-                    child: Text(
-                      'Error al cargar documentos: ${err.toString()}',
-                      style: const TextStyle(color: Colors.red),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error al cargar documentos',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          err.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reintentar'),
+                          onPressed: () => ref.refresh(documentosProvider),
+                        ),
+                      ],
                     ),
                   ),
               data: (documentos) {

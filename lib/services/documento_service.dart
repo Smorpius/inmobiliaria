@@ -12,6 +12,7 @@ class DocumentoService {
   // Obtener todos los documentos del sistema
   Future<List<Documento>> obtenerDocumentos() async {
     List<Documento> documentos = [];
+    List<Documento> documentosValidos = [];
 
     try {
       // Buscar en todas las carpetas de documentos
@@ -31,13 +32,66 @@ class DocumentoService {
           tipoDocumento,
         );
       }
+
+      // Verificar la existencia física de cada documento
+      AppLogger.info(
+        'Verificando existencia física de ${documentos.length} documentos...',
+      );
+
+      for (final documento in documentos) {
+        try {
+          final rutaCompleta = await ArchivoUtils.obtenerRutaCompleta(
+            documento.rutaArchivo,
+          );
+          final archivo = File(rutaCompleta);
+
+          if (await archivo.exists()) {
+            documentosValidos.add(documento);
+          } else {
+            // Intentar buscar por nombre en caso de que la ruta haya cambiado
+            final nombreArchivo = path.basename(documento.rutaArchivo);
+            final rutaAlternativa = await ArchivoUtils.buscarArchivoPorNombre(
+              nombreArchivo,
+            );
+
+            if (rutaAlternativa != null) {
+              // Crear una copia del documento con la ruta actualizada
+              final documentoActualizado = Documento(
+                id: documento.id,
+                nombre: documento.nombre,
+                rutaArchivo: rutaAlternativa,
+                tipoDocumento: documento.tipoDocumento,
+                categoria: documento.categoria,
+                fechaCreacion: documento.fechaCreacion,
+                descripcion: documento.descripcion,
+                esFavorito: documento.esFavorito,
+              );
+              documentosValidos.add(documentoActualizado);
+            } else {
+              AppLogger.warning(
+                'Documento no encontrado físicamente: ${documento.rutaArchivo}',
+              );
+            }
+          }
+        } catch (e) {
+          AppLogger.warning(
+            'Error al verificar existencia de documento: ${documento.rutaArchivo}, $e',
+          );
+        }
+      }
+
+      AppLogger.info(
+        'Documentos válidos encontrados: ${documentosValidos.length} de ${documentos.length}',
+      );
     } catch (e, stack) {
       AppLogger.error('Error al obtener documentos', e, stack);
     }
 
     // Ordenar por fecha más reciente
-    documentos.sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
-    return documentos;
+    documentosValidos.sort(
+      (a, b) => b.fechaCreacion.compareTo(a.fechaCreacion),
+    );
+    return documentosValidos;
   }
 
   // Subir un nuevo documento
