@@ -399,7 +399,8 @@ class _RegistrarNuevaVentaScreenState
               child: ElevatedButton(
                 onPressed: _continuarARegistro,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor:
+                      AppColors.primario, // Cambiado a AppColors.primario
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(

@@ -180,7 +180,10 @@ class _FeatureCardHoverState extends State<FeatureCardHover> {
         onTap: widget.onTap,
         borderRadius: BorderRadius.circular(16),
         child: Card(
-          color: AppColors.primario, // Color base para la tarjeta
+          color: AppColors.withAlpha(
+            AppColors.primario,
+            0,
+          ), // Color base transparente para la tarjeta
           elevation: isHovered ? 8 : 4,
           shadowColor: AppColors.withAlpha(widget.color, 100),
           shape: RoundedRectangleBorder(
@@ -203,21 +206,23 @@ class _FeatureCardHoverState extends State<FeatureCardHover> {
                   isHovered
                       ? AppColors.withValues(
                         color: widget.color,
-                        alpha: 255,
-                      ) // Color del icono, opaco en hover (sin cambios)
+                        alpha: (255 * 0.7).round(), // Reducir opacidad en hover
+                      )
                       : AppColors.withValues(
                         color: widget.color,
-                        alpha: (255 * 0.90).round(),
-                      ), // Color del icono, un poco más opaco en normal
+                        alpha:
+                            (255 * 0.5).round(), // Reducir opacidad en normal
+                      ),
                   isHovered
                       ? AppColors.withValues(
                         color: Color.lerp(widget.color, AppColors.claro, 0.1)!,
-                        alpha: 255,
-                      ) // Mezcla (90% icono, 10% claro), opaco en hover
+                        alpha: (255 * 0.6).round(), // Reducir opacidad en hover
+                      )
                       : AppColors.withValues(
                         color: Color.lerp(widget.color, AppColors.claro, 0.3)!,
-                        alpha: (255 * 0.85).round(),
-                      ), // Mezcla (70% icono, 30% claro), un poco más opaco en normal
+                        alpha:
+                            (255 * 0.4).round(), // Reducir opacidad en normal
+                      ),
                 ],
               ),
             ),

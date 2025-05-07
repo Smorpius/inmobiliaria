@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../utils/dialog_helper.dart';
 import '../../models/empleado_form_state.dart';
 import '../../controllers/empleado_form_controller.dart';
+import '../../utils/app_colors.dart'; // Importar AppColors
 import '../../controllers/usuario_empleado_controller.dart';
 
 class NuevoEmpleadoScreen extends StatefulWidget {
@@ -196,6 +197,12 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Nuevo Empleado"),
+        backgroundColor: AppColors.primario, // Aplicar color primario
+        foregroundColor:
+            AppColors.claro, // Aplicar color claro para el texto e iconos
+        iconTheme: const IconThemeData(
+          color: AppColors.claro,
+        ), // Asegurar color del icono de retroceso
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
@@ -212,6 +219,7 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
                 // Sección para datos de usuario
                 Card(
                   elevation: 2,
+                  color: AppColors.claro, // Fondo de la tarjeta
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: EmpleadoUsuarioForm(
@@ -240,6 +248,7 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
                 // Sección para datos laborales
                 Card(
                   elevation: 2,
+                  color: AppColors.claro, // Fondo de la tarjeta
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: EmpleadoLaboralForm(
@@ -266,13 +275,17 @@ class _NuevoEmpleadoScreenState extends State<NuevoEmpleadoScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _guardarEmpleado,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
+                      backgroundColor:
+                          AppColors.primario, // Aplicar color primario
+                      foregroundColor:
+                          AppColors.claro, // Aplicar color claro para el texto
                     ),
                     child:
                         _isLoading
                             ? const CircularProgressIndicator(
-                              color: Colors.white,
+                              color:
+                                  AppColors
+                                      .claro, // Aplicar color claro al indicador
                             )
                             : const Text("Crear Empleado"),
                   ),

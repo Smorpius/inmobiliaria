@@ -4,7 +4,6 @@ import '../../../utils/applogger.dart';
 import 'package:open_file/open_file.dart';
 import '../widgets/loading_indicator.dart';
 import '../../../services/pdf_service.dart';
-import '../../../widgets/app_scaffold.dart';
 import '../widgets/filtro_periodo_widget.dart';
 import '../../../providers/venta_providers.dart';
 import '../../../models/venta_reporte_model.dart';
@@ -37,21 +36,22 @@ class _ReporteVentasScreenState extends ConsumerState<ReporteVentasScreen> {
   Widget build(BuildContext context) {
     final reporteVentasAsync = ref.watch(ventasEstadisticasProvider(_periodo));
 
-    return AppScaffold(
-      title: 'Reporte de Ventas',
-      currentRoute: '/estadisticas/ventas',
-      actions: [
-        IconButton(
-          icon: Icon(
-            _isGeneratingPdf ? Icons.hourglass_bottom : Icons.picture_as_pdf,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reporte de Ventas'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isGeneratingPdf ? Icons.hourglass_bottom : Icons.picture_as_pdf,
+            ),
+            tooltip: 'Exportar a PDF',
+            onPressed:
+                _isGeneratingPdf
+                    ? null
+                    : () => _generarReportePDF(reporteVentasAsync),
           ),
-          tooltip: 'Exportar a PDF',
-          onPressed:
-              _isGeneratingPdf
-                  ? null
-                  : () => _generarReportePDF(reporteVentasAsync),
-        ),
-      ],
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

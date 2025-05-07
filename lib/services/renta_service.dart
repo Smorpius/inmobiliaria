@@ -1,6 +1,6 @@
 import 'package:intl/intl.dart';
-import 'package:flutter/material.dart';
 import '../utils/applogger.dart';
+import 'package:flutter/material.dart';
 import '../services/mysql_helper.dart';
 
 class RentaService {
@@ -407,21 +407,22 @@ class RentaService {
     );
     return await _db.withConnection((conn) async {
       try {
-        final fechaInicioStr =
-            DateFormat('yyyy-MM-dd').format(periodo.start);
+        final fechaInicioStr = DateFormat('yyyy-MM-dd').format(periodo.start);
         final fechaFinStr = DateFormat('yyyy-MM-dd').format(periodo.end);
 
         // Usar queryMulti para obtener todos los conjuntos de resultados
         final queryMultiResult = conn.queryMulti(
           'CALL ObtenerEstadisticasRentas(?, ?)',
-          [[fechaInicioStr, fechaFinStr]], // queryMulti espera una Iterable<List<Object?>>
+          [
+            [fechaInicioStr, fechaFinStr],
+          ], // queryMulti espera una Iterable<List<Object?>>
         );
 
         // Primero obtenemos el Stream.
         final resultsStream = await queryMultiResult;
         // Luego convertimos el Stream a una Lista.
         // Según el error, resultsStream.toList() aquí devuelve List<Results> directamente.
-        final allResults = resultsStream.toList(); 
+        final allResults = resultsStream.toList();
 
         // Procesar primer result set (estadísticas de contratos)
         Map<String, dynamic> estadisticasContratos = {};
@@ -459,29 +460,35 @@ class RentaService {
             'balanceGeneral': 0.0,
           };
         }
-        
+
         // Combinar resultados y calcular rentabilidad
-        final double totalIngresosMov = estadisticasMovimientos['totalIngresos'];
+        final double totalIngresosMov =
+            estadisticasMovimientos['totalIngresos'];
         final double totalEgresosMov = estadisticasMovimientos['totalEgresos'];
         double rentabilidad = 0.0;
         if (totalIngresosMov > 0) {
-          rentabilidad = ((totalIngresosMov - totalEgresosMov) / totalIngresosMov) * 100;
+          rentabilidad =
+              ((totalIngresosMov - totalEgresosMov) / totalIngresosMov) * 100;
         }
 
         return {
           ...estadisticasContratos,
           // Mapeo para las claves esperadas por la UI
-          'ingresosMensuales': estadisticasContratos['ingresosMensuales'], // Suma de montos de contrato
+          'ingresosMensuales':
+              estadisticasContratos['ingresosMensuales'], // Suma de montos de contrato
           'egresosMensuales': totalEgresosMov, // Egresos reales del periodo
-          'balanceMensual': totalIngresosMov - totalEgresosMov, // Balance real del periodo
+          'balanceMensual':
+              totalIngresosMov - totalEgresosMov, // Balance real del periodo
           'rentabilidad': rentabilidad,
           'datosInmuebles': [], // No disponible en este SP
           'evolucionMensual': [], // No disponible en este SP
         };
-
       } catch (e, stackTrace) {
         _registrarError(
-            'Error al obtener estadísticas de rentas', e, stackTrace);
+          'Error al obtener estadísticas de rentas',
+          e,
+          stackTrace,
+        );
         throw Exception(
           'Error al obtener estadísticas de rentas: ${_formatearMensajeError(e)}',
         );

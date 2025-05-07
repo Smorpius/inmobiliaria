@@ -9,6 +9,7 @@ import 'widgets/filtro_documentos_widget.dart';
 import '../../providers/documento_provider.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../widgets/app_scaffold.dart'; // Importar AppScaffold
 import '../../utils/app_colors.dart'; // Importamos la paleta de colores
 
 class DocumentosScreen extends ConsumerStatefulWidget {
@@ -27,148 +28,152 @@ class _DocumentosScreenState extends ConsumerState<DocumentosScreen> {
     final documentosAsync = ref.watch(documentosProvider);
     final documentosFiltrados = ref.watch(documentosFiltradosProvider(_filtro));
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Documentos'),
-        backgroundColor: AppColors.claro, // Usar AppColors
-        foregroundColor: AppColors.primario, // Usar AppColors
-        actions: [
-          IconButton(
-            icon: Icon(
-              _mostrarFiltros ? Icons.filter_list_off : Icons.filter_list,
-            ),
-            onPressed: () {
-              setState(() {
-                _mostrarFiltros = !_mostrarFiltros;
-              });
-            },
-            tooltip: _mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros',
+    return AppScaffold(
+      // Usar AppScaffold
+      title: 'Documentos',
+      currentRoute: '/documentos', // Agregar currentRoute
+      actions: [
+        IconButton(
+          icon: Icon(
+            _mostrarFiltros ? Icons.filter_list_off : Icons.filter_list,
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              // Capturar el resultado devuelto y usarlo o ignorarlo explícitamente
-              final _ = ref.refresh(documentosProvider);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Actualizando documentos...')),
-              );
-            },
-            tooltip: 'Actualizar',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Sección de filtros (expandible)
-          if (_mostrarFiltros)
-            FiltroDocumentosWidget(
-              filtro: _filtro,
-              onFiltroChanged: (nuevoFiltro) {
-                setState(() {
-                  _filtro = nuevoFiltro;
-                });
-              },
-            ),
+          onPressed: () {
+            setState(() {
+              _mostrarFiltros = !_mostrarFiltros;
+            });
+          },
+          tooltip: _mostrarFiltros ? 'Ocultar filtros' : 'Mostrar filtros',
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: () {
+            // Capturar el resultado devuelto y usarlo o ignorarlo explícitamente
+            final _ = ref.refresh(documentosProvider);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Actualizando documentos...')),
+            );
+          },
+          tooltip: 'Actualizar',
+        ),
+      ],
+      body: Scaffold(
+        // El Scaffold original ya no necesita AppBar
+        body: Column(
+          children: [
+            // Sección de filtros (expandible)
+            if (_mostrarFiltros)
+              FiltroDocumentosWidget(
+                filtro: _filtro,
+                onFiltroChanged: (nuevoFiltro) {
+                  setState(() {
+                    _filtro = nuevoFiltro;
+                  });
+                },
+              ),
 
-          // Resultados
-          Expanded(
-            child: documentosAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error:
-                  (err, stack) => Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error al cargar documentos',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+            // Resultados
+            Expanded(
+              child: documentosAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error:
+                    (err, stack) => Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 64,
+                            color: Colors.red,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          err.toString(),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Reintentar'),
-                          onPressed: () => ref.refresh(documentosProvider),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error al cargar documentos',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            err.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Reintentar'),
+                            onPressed: () => ref.refresh(documentosProvider),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-              data: (documentos) {
-                if (documentos.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.folder_off, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No hay documentos disponibles',
-                          style: TextStyle(fontSize: 18),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Agrega documentos con el botón + abajo',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+                data: (documentos) {
+                  if (documentos.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.folder_off, size: 64, color: Colors.grey),
+                          SizedBox(height: 16),
+                          Text(
+                            'No hay documentos disponibles',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Agrega documentos con el botón + abajo',
+                            style: TextStyle(fontSize: 14, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
-                if (documentosFiltrados.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.search_off,
-                          size: 64,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No hay resultados para esta búsqueda',
-                          style: TextStyle(fontSize: 18),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.clear),
-                          label: const Text('Limpiar filtros'),
-                          onPressed: () {
-                            setState(() {
-                              _filtro = DocumentoFiltro();
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                }
+                  if (documentosFiltrados.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No hay resultados para esta búsqueda',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.clear),
+                            label: const Text('Limpiar filtros'),
+                            onPressed: () {
+                              setState(() {
+                                _filtro = DocumentoFiltro();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
-                return _buildDocumentosGrid(documentosFiltrados);
-              },
+                  return _buildDocumentosGrid(documentosFiltrados);
+                },
+              ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _seleccionarDocumento,
-        backgroundColor: AppColors.primario, // Usar AppColors
-        child: const Icon(Icons.add, color: AppColors.claro), // Usar AppColors
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _seleccionarDocumento,
+          backgroundColor: AppColors.primario, // Usar AppColors
+          child: const Icon(
+            Icons.add,
+            color: AppColors.claro,
+          ), // Usar AppColors
+        ),
       ),
     );
   }

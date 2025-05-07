@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../utils/app_colors.dart'; // Importar AppColors
 
 /// Clase para formatear el teléfono mientras se escribe
 class TelefonoInputFormatter extends TextInputFormatter {
@@ -54,11 +55,17 @@ class EmpleadoStyles {
   static InputDecoration getInputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: Icon(icon, color: Colors.teal),
+      prefixIcon: Icon(
+        icon,
+        color: AppColors.primario,
+      ), // Aplicar color primario
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Colors.teal, width: 2),
+        borderSide: const BorderSide(
+          color: AppColors.acento,
+          width: 2,
+        ), // Aplicar color de acento
       ),
       contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
     );

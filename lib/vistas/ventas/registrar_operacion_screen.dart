@@ -9,6 +9,7 @@ import '../../models/contrato_renta_model.dart';
 import '../../providers/cliente_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controllers/contrato_renta_controller.dart';
+import '../../utils/app_colors.dart'; // Importar AppColors
 import '../../providers/inmuebles_disponibles_provider.dart';
 
 class RegistrarOperacionScreen extends ConsumerStatefulWidget {
@@ -838,7 +839,8 @@ class _RegistrarOperacionScreenState
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _registrarOperacion,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
+                    backgroundColor:
+                        AppColors.primario, // Cambiado a AppColors.primario
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(

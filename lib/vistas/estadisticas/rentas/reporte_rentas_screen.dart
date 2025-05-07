@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
 import 'package:printing/printing.dart';
 import 'package:open_file/open_file.dart';
-import 'package:pdf/widgets.dart' as pw; // <--- IMPORTACIÓN AGREGADA
 import '../widgets/loading_indicator.dart';
-import '../../../widgets/app_scaffold.dart';
 import '../../../services/pdf_service.dart';
 import '../widgets/filtro_periodo_widget.dart';
 import '../../../providers/renta_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pdf/widgets.dart' as pw; // <--- IMPORTACIÓN AGREGADA
 
 // Provider para obtener las estadísticas de rentas
 final rentasEstadisticasProvider =
@@ -47,21 +46,22 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
   Widget build(BuildContext context) {
     final reporteRentasAsync = ref.watch(rentasEstadisticasProvider(_periodo));
 
-    return AppScaffold(
-      title: 'Reporte de Rentas',
-      currentRoute: '/estadisticas/rentas',
-      actions: [
-        IconButton(
-          icon: Icon(
-            _isGeneratingPdf ? Icons.hourglass_bottom : Icons.picture_as_pdf,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reporte de Rentas'),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isGeneratingPdf ? Icons.hourglass_bottom : Icons.picture_as_pdf,
+            ),
+            tooltip: 'Exportar a PDF',
+            onPressed:
+                _isGeneratingPdf
+                    ? null
+                    : () => _generarReportePDF(reporteRentasAsync),
           ),
-          tooltip: 'Exportar a PDF',
-          onPressed:
-              _isGeneratingPdf
-                  ? null
-                  : () => _generarReportePDF(reporteRentasAsync),
-        ),
-      ],
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -155,29 +155,30 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
                         NumberFormat.currency(
                           symbol: '\$',
                           locale: 'es_MX',
-                        ).format(data['ingresosMensuales'] ?? 0.0)
+                        ).format(data['ingresosMensuales'] ?? 0.0),
                       ],
                       [
                         'Egresos Mensuales',
                         NumberFormat.currency(
                           symbol: '\$',
                           locale: 'es_MX',
-                        ).format(data['egresosMensuales'] ?? 0.0)
+                        ).format(data['egresosMensuales'] ?? 0.0),
                       ],
                       [
                         'Balance Mensual',
                         NumberFormat.currency(
                           symbol: '\$',
                           locale: 'es_MX',
-                        ).format(data['balanceMensual'] ?? 0.0)
+                        ).format(data['balanceMensual'] ?? 0.0),
                       ],
                       [
                         'Rentabilidad',
-                        '${(data['rentabilidad'] ?? 0.0).toStringAsFixed(2)}%'
+                        '${(data['rentabilidad'] ?? 0.0).toStringAsFixed(2)}%',
                       ],
                     ];
 
-                    if (data.isNotEmpty) { // Verificar si hay datos antes de agregar la tabla
+                    if (data.isNotEmpty) {
+                      // Verificar si hay datos antes de agregar la tabla
                       PdfService.agregarTabla(
                         pdf,
                         ['Métrica', 'Resultado'],
@@ -186,10 +187,15 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
                       );
                     } else {
                       pdf.addPage(
-                        pw.Page( // Asegurar que se usa el alias pw.
-                          build: (pw.Context context) { // Asegurar que se usa pw.Context
-                            return pw.Center( // Asegurar que se usa el alias pw.
-                              child: pw.Text('Resumen General: No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                        pw.Page(
+                          // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) {
+                            // Asegurar que se usa pw.Context
+                            return pw.Center(
+                              // Asegurar que se usa el alias pw.
+                              child: pw.Text(
+                                'Resumen General: No hay datos disponibles para el período seleccionado.',
+                              ), // Asegurar que se usa el alias pw.
                             );
                           },
                         ),
@@ -198,13 +204,25 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
 
                     // Rendimiento por Inmueble desde 'data'
                     final List<List<String>> datosRealesInmuebles = [];
-                    final List<Map<String, dynamic>> datosInmueblesList = List<Map<String, dynamic>>.from(data['datosInmuebles'] ?? []);
+                    final List<Map<String, dynamic>> datosInmueblesList =
+                        List<Map<String, dynamic>>.from(
+                          data['datosInmuebles'] ?? [],
+                        );
                     for (final inmueble in datosInmueblesList) {
                       datosRealesInmuebles.add([
                         inmueble['nombre'] as String? ?? '',
-                        NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(inmueble['ingresos'] ?? 0.0),
-                        NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(inmueble['egresos'] ?? 0.0),
-                        NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(inmueble['balance'] ?? 0.0),
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          locale: 'es_MX',
+                        ).format(inmueble['ingresos'] ?? 0.0),
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          locale: 'es_MX',
+                        ).format(inmueble['egresos'] ?? 0.0),
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          locale: 'es_MX',
+                        ).format(inmueble['balance'] ?? 0.0),
                       ]);
                     }
 
@@ -217,10 +235,15 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
                       );
                     } else {
                       pdf.addPage(
-                        pw.Page( // Asegurar que se usa el alias pw.
-                          build: (pw.Context context) { // Asegurar que se usa pw.Context
-                            return pw.Center( // Asegurar que se usa el alias pw.
-                              child: pw.Text('Rendimiento por Inmueble: No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                        pw.Page(
+                          // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) {
+                            // Asegurar que se usa pw.Context
+                            return pw.Center(
+                              // Asegurar que se usa el alias pw.
+                              child: pw.Text(
+                                'Rendimiento por Inmueble: No hay datos disponibles para el período seleccionado.',
+                              ), // Asegurar que se usa el alias pw.
                             );
                           },
                         ),
@@ -228,36 +251,67 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
                     }
 
                     // Evolución Mensual (Gráfico y Tabla) desde 'data'
-                    final List<Map<String, dynamic>> evolucionMensualList = List<Map<String, dynamic>>.from(data['evolucionMensual'] ?? []);
-                    
-                    final Map<String, List<Map<String, dynamic>>> datosRealesEvolucionGrafico = {};
+                    final List<Map<String, dynamic>> evolucionMensualList =
+                        List<Map<String, dynamic>>.from(
+                          data['evolucionMensual'] ?? [],
+                        );
+
+                    final Map<String, List<Map<String, dynamic>>>
+                    datosRealesEvolucionGrafico = {};
                     final List<List<String>> datosRealesEvolucionTabla = [];
 
                     if (evolucionMensualList.isNotEmpty) {
                       for (var e in evolucionMensualList) {
                         final mes = e['mes'] as String? ?? 'Sin fecha';
                         datosRealesEvolucionGrafico[mes] = [
-                          {'name': 'Ingresos', 'value': (e['ingresos'] as num? ?? 0).toDouble()},
-                          {'name': 'Egresos', 'value': (e['egresos'] as num? ?? 0).toDouble()},
-                          {'name': 'Balance', 'value': (e['balance'] as num? ?? 0).toDouble()},
+                          {
+                            'name': 'Ingresos',
+                            'value': (e['ingresos'] as num? ?? 0).toDouble(),
+                          },
+                          {
+                            'name': 'Egresos',
+                            'value': (e['egresos'] as num? ?? 0).toDouble(),
+                          },
+                          {
+                            'name': 'Balance',
+                            'value': (e['balance'] as num? ?? 0).toDouble(),
+                          },
                         ];
                         datosRealesEvolucionTabla.add([
                           mes,
-                          NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(e['ingresos'] ?? 0.0),
-                          NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(e['egresos'] ?? 0.0),
-                          NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(e['balance'] ?? 0.0),
+                          NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          ).format(e['ingresos'] ?? 0.0),
+                          NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          ).format(e['egresos'] ?? 0.0),
+                          NumberFormat.currency(
+                            symbol: '\$',
+                            locale: 'es_MX',
+                          ).format(e['balance'] ?? 0.0),
                         ]);
                       }
                     }
 
                     if (datosRealesEvolucionGrafico.isNotEmpty) {
-                      PdfService.agregarGraficoLineas(pdf, 'Evolución Mensual', datosRealesEvolucionGrafico);
+                      PdfService.agregarGraficoLineas(
+                        pdf,
+                        'Evolución Mensual',
+                        datosRealesEvolucionGrafico,
+                      );
                     } else {
                       pdf.addPage(
-                        pw.Page( // Asegurar que se usa el alias pw.
-                          build: (pw.Context context) { // Asegurar que se usa pw.Context
-                            return pw.Center( // Asegurar que se usa el alias pw.
-                              child: pw.Text('Evolución Mensual (Gráfico): No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                        pw.Page(
+                          // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) {
+                            // Asegurar que se usa pw.Context
+                            return pw.Center(
+                              // Asegurar que se usa el alias pw.
+                              child: pw.Text(
+                                'Evolución Mensual (Gráfico): No hay datos disponibles para el período seleccionado.',
+                              ), // Asegurar que se usa el alias pw.
                             );
                           },
                         ),
@@ -273,10 +327,15 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
                       );
                     } else {
                       pdf.addPage(
-                        pw.Page( // Asegurar que se usa el alias pw.
-                          build: (pw.Context context) { // Asegurar que se usa pw.Context
-                            return pw.Center( // Asegurar que se usa el alias pw.
-                              child: pw.Text('Detalle Mensual de Rentas (Tabla): No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                        pw.Page(
+                          // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) {
+                            // Asegurar que se usa pw.Context
+                            return pw.Center(
+                              // Asegurar que se usa el alias pw.
+                              child: pw.Text(
+                                'Detalle Mensual de Rentas (Tabla): No hay datos disponibles para el período seleccionado.',
+                              ), // Asegurar que se usa el alias pw.
                             );
                           },
                         ),
@@ -557,7 +616,11 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
         );
       }
     } catch (e) {
-      AppLogger.error('Error al generar reporte de rentas PDF', e, StackTrace.current);
+      AppLogger.error(
+        'Error al generar reporte de rentas PDF',
+        e,
+        StackTrace.current,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

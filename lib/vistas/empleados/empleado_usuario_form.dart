@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../widgets/user_avatar.dart';
 import '../../services/image_service.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../utils/app_colors.dart'; // Importar AppColors
 import '../../controllers/usuario_empleado_controller.dart';
 
 class EmpleadoUsuarioForm extends StatefulWidget {
@@ -204,14 +205,16 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                         ? "P"
                         : widget.apellidoController.text,
                 radius: 50,
-                backgroundColor: Colors.teal.shade700,
+                backgroundColor: AppColors.primario, // Aplicar color primario
               ),
               const SizedBox(height: 8),
               TextButton.icon(
                 icon: const Icon(Icons.photo_camera),
                 label: const Text("Foto de perfil"),
                 onPressed: _seleccionarImagen,
-                style: TextButton.styleFrom(foregroundColor: Colors.teal),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.acento,
+                ), // Aplicar color de acento
               ),
               const SizedBox(height: 10),
             ],
@@ -294,13 +297,22 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                           ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primario,
+                            ), // Aplicar color primario
                           )
                           : _nombreUsuarioExiste
-                          ? const Icon(Icons.error, color: Colors.red)
+                          ? const Icon(
+                            Icons.error,
+                            color: AppColors.error,
+                          ) // Aplicar color de error
                           : widget.nombreUsuarioController.text.isNotEmpty &&
                               !widget.isEditando
-                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          ? const Icon(
+                            Icons.check_circle,
+                            color: AppColors.exito,
+                          ) // Aplicar color de éxito
                           : null,
                   errorText:
                       _nombreUsuarioExiste
@@ -334,13 +346,16 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                           ? 'Nueva Contraseña (opcional)'
                           : 'Contraseña (min. 8 caracteres)',
                   helperText: !widget.isEditando ? 'Mínimo 8 caracteres' : null,
-                  prefixIcon: const Icon(Icons.lock, color: Colors.teal),
+                  prefixIcon: const Icon(
+                    Icons.lock,
+                    color: AppColors.primario,
+                  ), // Aplicar color primario
                   suffixIcon: IconButton(
                     icon: Icon(
                       _mostrarContrasena
                           ? Icons.visibility
                           : Icons.visibility_off,
-                      color: Colors.teal,
+                      color: AppColors.primario, // Aplicar color primario
                     ),
                     onPressed: () {
                       setState(() {
@@ -353,7 +368,10 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Colors.teal, width: 2),
+                    borderSide: const BorderSide(
+                      color: AppColors.acento,
+                      width: 2,
+                    ), // Aplicar color de acento
                   ),
                 ),
                 obscureText: !_mostrarContrasena,
@@ -397,8 +415,16 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
             margin: const EdgeInsets.symmetric(vertical: 8.0),
             color:
                 widget.contrasenaController.text.trim().length >= 8
-                    ? Colors.green.shade50
-                    : Colors.orange.shade50,
+                    ? AppColors.withValues(
+                      color: AppColors.exito,
+                      alpha:
+                          (0.1 * 255).round(), // Convertir 0.1 a escala 0-255
+                    ) // Aplicar color de éxito con opacidad
+                    : AppColors.withValues(
+                      color: AppColors.advertencia,
+                      alpha:
+                          (0.1 * 255).round(), // Convertir 0.1 a escala 0-255
+                    ), // Aplicar color de advertencia con opacidad
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
@@ -412,8 +438,10 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                             : Icons.warning,
                         color:
                             widget.contrasenaController.text.trim().length >= 8
-                                ? Colors.green
-                                : Colors.orange,
+                                ? AppColors
+                                    .exito // Aplicar AppColors.exito directamente
+                                : AppColors
+                                    .advertencia, // Aplicar AppColors.advertencia directamente
                         size: 16,
                       ),
                       const SizedBox(width: 4),
@@ -425,8 +453,10 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                           color:
                               widget.contrasenaController.text.trim().length >=
                                       8
-                                  ? Colors.green.shade800
-                                  : Colors.orange.shade800,
+                                  ? AppColors
+                                      .exito // Usar AppColors.exito directamente
+                                  : AppColors
+                                      .advertencia, // Usar AppColors.advertencia directamente
                         ),
                       ),
                     ],
@@ -438,7 +468,9 @@ class _EmpleadoUsuarioFormState extends State<EmpleadoUsuarioForm> {
                         'Necesita ${8 - widget.contrasenaController.text.trim().length} caracteres más',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.orange.shade800,
+                          color:
+                              AppColors
+                                  .advertencia, // Usar AppColors.advertencia directamente
                         ),
                       ),
                     ),

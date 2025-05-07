@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// Necesario para DateTimeRange si se usa aquí directamente // Eliminada importación de material.dart
-import '../services/renta_service.dart' as services; // Usar alias para claridad
 import '../services/mysql_helper.dart'; // Para DatabaseService
+import '../services/renta_service.dart' as services; // Usar alias para claridad
+// Necesario para DateTimeRange si se usa aquí directamente // Eliminada importación de material.dart
 
 /// Provider para el servicio de Renta que interactúa con la base de datos
 final rentaProvider = Provider<services.RentaService>((ref) {

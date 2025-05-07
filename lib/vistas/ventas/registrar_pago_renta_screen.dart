@@ -5,6 +5,7 @@ import '../../providers/pago_renta_provider.dart';
 import '../../providers/contrato_renta_provider.dart';
 import '../../models/comprobante_movimiento_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../utils/app_colors.dart'; // Importar AppColors
 
 class RegistrarPagoRentaScreen extends ConsumerStatefulWidget {
   final int idContrato;
@@ -467,7 +468,15 @@ class _RegistrarPagoRentaScreenState
               ElevatedButton(
                 onPressed: _isLoading ? null : _registrarPago,
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primario, // Aplicar color primario
+                  foregroundColor: Colors.white, // Texto en blanco
                   padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    // Mantener bordes redondeados si se desea
+                    borderRadius: BorderRadius.circular(
+                      8,
+                    ), // Ajustar según diseño
+                  ),
                 ),
                 child:
                     _isLoading
