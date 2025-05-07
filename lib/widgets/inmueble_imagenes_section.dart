@@ -121,40 +121,24 @@ class InmuebleImagenesSection extends ConsumerWidget {
           else
             _buildImagesCarousel(context, ref, state),
 
-          // Información de cómo actualizar las imágenes
-          if (!isInactivo && state.imagenes.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Botón para verificar y reparar imágenes dañadas
-                  TextButton.icon(
-                    icon: const Icon(Icons.healing, size: 16),
-                    label: const Text(
-                      'Reparar imágenes',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    onPressed:
-                        () => limpiarImagenesDanadas(
-                          context,
-                          ref,
-                          state.imagenes,
-                        ),
-                  ),
-
-                  // Botón para ver galería completa
-                  TextButton.icon(
-                    icon: const Icon(Icons.photo_library, size: 16),
-                    label: const Text(
-                      'Ver galería',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                    onPressed: () => _abrirGaleriaPantallaCompleta(context),
-                  ),
-                ],
-              ),
-            ),
+          // Botón para ver galería completa (si hay imágenes y no está inactivo)
+          // if (!isInactivo && state.imagenes.isNotEmpty)
+          //   Padding(
+          //     padding: const EdgeInsets.only(top: 8.0),
+          //     child: Row(
+          //       mainAxisAlignment: MainAxisAlignment.end, // Alineado a la derecha
+          //       children: [
+          //         TextButton.icon(
+          //           icon: const Icon(Icons.photo_library, size: 16),
+          //           label: const Text(
+          //             'Ver galería',
+          //             style: TextStyle(fontSize: 12),
+          //           ),
+          //           onPressed: () => _abrirGaleriaPantallaCompleta(context),
+          //         ),
+          //       ],
+          //     ),
+          //   ),
         ],
       );
     } catch (e) {
@@ -417,29 +401,11 @@ class InmuebleImagenesSection extends ConsumerWidget {
           border: Border.all(color: Colors.grey.shade300),
         ),
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.broken_image, size: 48, color: Colors.orange),
-              const SizedBox(height: 16),
-              const Text(
-                'Las imágenes están registradas pero no se pueden acceder a los archivos',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.orange),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Prueba agregar nuevas imágenes o reparar las existentes',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed:
-                    () => limpiarImagenesDanadas(context, ref, state.imagenes),
-                icon: const Icon(Icons.healing),
-                label: const Text('Reparar imágenes'),
-              ),
-            ],
+          // Para centrar el botón
+          child: TextButton.icon(
+            icon: const Icon(Icons.photo_library),
+            label: const Text('Ver galería'),
+            onPressed: () => _abrirGaleriaPantallaCompleta(context),
           ),
         ),
       );

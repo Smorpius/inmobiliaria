@@ -276,7 +276,13 @@ class ImageService {
     try {
       final File optimizedImage = await optimizeImage(imageFile);
       final appDocDir = await getApplicationDocumentsDirectory();
-      final categoria = 'inmuebles/$idInmueble';
+      // Modificación de la ruta para incluir assets/imagenes
+      final categoria = path.join(
+        'assets',
+        'imagenes',
+        'inmuebles',
+        idInmueble.toString(),
+      );
       final categoryDir = Directory(path.join(appDocDir.path, categoria));
 
       await categoryDir.create(recursive: true);
@@ -502,8 +508,11 @@ class ImageService {
 
       // 4. Eliminar directorio físico
       final appDocDir = await getApplicationDocumentsDirectory();
+      // Modificación de la ruta para incluir assets/imagenes
       final dirPath = path.join(
         appDocDir.path,
+        'assets',
+        'imagenes',
         'inmuebles',
         idInmueble.toString(),
       );
@@ -867,7 +876,10 @@ class ImageService {
   Future<int> getTotalStorageSize() async {
     try {
       final appDocDir = await getApplicationDocumentsDirectory();
-      final inmueblesDir = Directory(path.join(appDocDir.path, 'inmuebles'));
+      // Modificación de la ruta para incluir assets/imagenes
+      final inmueblesDir = Directory(
+        path.join(appDocDir.path, 'assets', 'imagenes', 'inmuebles'),
+      );
       if (!await inmueblesDir.exists()) return 0;
 
       int totalSize = 0;

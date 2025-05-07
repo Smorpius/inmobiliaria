@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
 import '../utils/applogger.dart';
 import '../services/mysql_helper.dart';
 
@@ -396,5 +397,95 @@ class RentaService {
     AppLogger.error(mensaje, error, stackTrace);
 
     _procesandoError = false;
+  }
+
+  Future<Map<String, dynamic>> obtenerEstadisticasRentas(
+    DateTimeRange periodo,
+  ) async {
+    AppLogger.info(
+      'Obteniendo estadísticas de rentas para el periodo: ${periodo.start} - ${periodo.end}',
+    );
+    return await _db.withConnection((conn) async {
+      try {
+        final fechaInicioStr =
+            DateFormat('yyyy-MM-dd').format(periodo.start);
+        final fechaFinStr = DateFormat('yyyy-MM-dd').format(periodo.end);
+
+        // Usar queryMulti para obtener todos los conjuntos de resultados
+        final queryMultiResult = conn.queryMulti(
+          'CALL ObtenerEstadisticasRentas(?, ?)',
+          [[fechaInicioStr, fechaFinStr]], // queryMulti espera una Iterable<List<Object?>>
+        );
+
+        // Primero obtenemos el Stream.
+        final resultsStream = await queryMultiResult;
+        // Luego convertimos el Stream a una Lista.
+        // Según el error, resultsStream.toList() aquí devuelve List<Results> directamente.
+        final allResults = resultsStream.toList(); 
+
+        // Procesar primer result set (estadísticas de contratos)
+        Map<String, dynamic> estadisticasContratos = {};
+        if (allResults.isNotEmpty && allResults[0].isNotEmpty) {
+          final resultsContratos = allResults[0];
+          final rowContratos = resultsContratos.first.fields;
+          estadisticasContratos = {
+            'totalContratos': rowContratos['total_contratos'] ?? 0,
+            'ingresosMensuales': rowContratos['ingresos_mensuales'] ?? 0.0,
+            'contratosActivos': rowContratos['contratos_activos'] ?? 0,
+          };
+        } else {
+          estadisticasContratos = {
+            'totalContratos': 0,
+            'ingresosMensuales': 0.0,
+            'contratosActivos': 0,
+          };
+        }
+
+        // Procesar segundo result set (estadísticas de movimientos)
+        Map<String, dynamic> estadisticasMovimientos = {};
+        if (allResults.length > 1 && allResults[1].isNotEmpty) {
+          final resultsMovimientos = allResults[1];
+          final rowMovimientos = resultsMovimientos.first.fields;
+          estadisticasMovimientos = {
+            'totalIngresos': rowMovimientos['total_ingresos'] ?? 0.0,
+            'totalEgresos': rowMovimientos['total_egresos'] ?? 0.0,
+            'balanceGeneral': rowMovimientos['balance'] ?? 0.0,
+          };
+        } else {
+          // Si no hay segundo result set o está vacío
+          estadisticasMovimientos = {
+            'totalIngresos': 0.0,
+            'totalEgresos': 0.0,
+            'balanceGeneral': 0.0,
+          };
+        }
+        
+        // Combinar resultados y calcular rentabilidad
+        final double totalIngresosMov = estadisticasMovimientos['totalIngresos'];
+        final double totalEgresosMov = estadisticasMovimientos['totalEgresos'];
+        double rentabilidad = 0.0;
+        if (totalIngresosMov > 0) {
+          rentabilidad = ((totalIngresosMov - totalEgresosMov) / totalIngresosMov) * 100;
+        }
+
+        return {
+          ...estadisticasContratos,
+          // Mapeo para las claves esperadas por la UI
+          'ingresosMensuales': estadisticasContratos['ingresosMensuales'], // Suma de montos de contrato
+          'egresosMensuales': totalEgresosMov, // Egresos reales del periodo
+          'balanceMensual': totalIngresosMov - totalEgresosMov, // Balance real del periodo
+          'rentabilidad': rentabilidad,
+          'datosInmuebles': [], // No disponible en este SP
+          'evolucionMensual': [], // No disponible en este SP
+        };
+
+      } catch (e, stackTrace) {
+        _registrarError(
+            'Error al obtener estadísticas de rentas', e, stackTrace);
+        throw Exception(
+          'Error al obtener estadísticas de rentas: ${_formatearMensajeError(e)}',
+        );
+      }
+    });
   }
 }

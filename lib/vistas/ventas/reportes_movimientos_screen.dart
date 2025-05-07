@@ -394,10 +394,6 @@ class _ReportesMovimientosScreenState
           const SizedBox(height: 8),
 
           // Nota sobre caracteres especiales
-          const Text(
-            'Este reporte incluirá todos los caracteres acentuados y símbolos especiales correctamente.',
-            style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-          ),
         ],
       ),
     );

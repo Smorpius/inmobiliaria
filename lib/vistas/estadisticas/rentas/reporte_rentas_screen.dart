@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
 import 'package:printing/printing.dart';
 import 'package:open_file/open_file.dart';
+import 'package:pdf/widgets.dart' as pw; // <--- IMPORTACIÓN AGREGADA
 import '../widgets/loading_indicator.dart';
 import '../../../widgets/app_scaffold.dart';
 import '../../../services/pdf_service.dart';
@@ -134,51 +135,153 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
                   try {
                     final pdf = await PdfService.crearDocumento();
 
-                    // Agregar página de título
+                    // Agregar página de título con datos reales
                     await PdfService.agregarPaginaTitulo(
                       pdf,
-                      'REPORTE DE RENTAS',
+                      'REPORTE DE RENTAS', // Título real
                       'Periodo: ${DateFormat('dd/MM/yyyy').format(_periodo.start)} - ${DateFormat('dd/MM/yyyy').format(_periodo.end)}',
                       imagePath: 'assets/logo.png',
                     );
 
-                    // Agregar resumen general
-                    PdfService.agregarTabla(
-                      pdf,
-                      ['Métrica', 'Resultado'],
+                    // --- UTILIZAR DATOS REALES CARGADOS (data) ---
+                    // La variable 'data' proviene del snapshot del provider 'reporteAsync.when(data: (data) => _buildReporte(data))'
+
+                    // Resumen General desde 'data'
+                    final datosRealesResumen = [
+                      ['Total de Contratos', '${data['totalContratos'] ?? 0}'],
+                      ['Contratos Activos', '${data['contratosActivos'] ?? 0}'],
                       [
-                        [
-                          'Total de Contratos',
-                          '${data['totalContratos'] ?? 0}',
-                        ],
-                        [
-                          'Contratos Activos',
-                          '${data['contratosActivos'] ?? 0}',
-                        ],
-                        [
-                          'Ingresos Mensuales',
-                          NumberFormat.currency(
-                            symbol: '\$',
-                            locale: 'es_MX',
-                          ).format(data['ingresosMensuales'] ?? 0.0),
-                        ],
-                        [
-                          'Egresos Mensuales',
-                          NumberFormat.currency(
-                            symbol: '\$',
-                            locale: 'es_MX',
-                          ).format(data['egresosMensuales'] ?? 0.0),
-                        ],
-                        [
-                          'Balance Mensual',
-                          NumberFormat.currency(
-                            symbol: '\$',
-                            locale: 'es_MX',
-                          ).format(data['balanceMensual'] ?? 0.0),
-                        ],
+                        'Ingresos Mensuales',
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          locale: 'es_MX',
+                        ).format(data['ingresosMensuales'] ?? 0.0)
                       ],
-                      titulo: 'Resumen General',
-                    );
+                      [
+                        'Egresos Mensuales',
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          locale: 'es_MX',
+                        ).format(data['egresosMensuales'] ?? 0.0)
+                      ],
+                      [
+                        'Balance Mensual',
+                        NumberFormat.currency(
+                          symbol: '\$',
+                          locale: 'es_MX',
+                        ).format(data['balanceMensual'] ?? 0.0)
+                      ],
+                      [
+                        'Rentabilidad',
+                        '${(data['rentabilidad'] ?? 0.0).toStringAsFixed(2)}%'
+                      ],
+                    ];
+
+                    if (data.isNotEmpty) { // Verificar si hay datos antes de agregar la tabla
+                      PdfService.agregarTabla(
+                        pdf,
+                        ['Métrica', 'Resultado'],
+                        datosRealesResumen,
+                        titulo: 'Resumen General',
+                      );
+                    } else {
+                      pdf.addPage(
+                        pw.Page( // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) { // Asegurar que se usa pw.Context
+                            return pw.Center( // Asegurar que se usa el alias pw.
+                              child: pw.Text('Resumen General: No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                            );
+                          },
+                        ),
+                      );
+                    }
+
+                    // Rendimiento por Inmueble desde 'data'
+                    final List<List<String>> datosRealesInmuebles = [];
+                    final List<Map<String, dynamic>> datosInmueblesList = List<Map<String, dynamic>>.from(data['datosInmuebles'] ?? []);
+                    for (final inmueble in datosInmueblesList) {
+                      datosRealesInmuebles.add([
+                        inmueble['nombre'] as String? ?? '',
+                        NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(inmueble['ingresos'] ?? 0.0),
+                        NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(inmueble['egresos'] ?? 0.0),
+                        NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(inmueble['balance'] ?? 0.0),
+                      ]);
+                    }
+
+                    if (datosRealesInmuebles.isNotEmpty) {
+                      PdfService.agregarTabla(
+                        pdf,
+                        ['Inmueble', 'Ingresos', 'Egresos', 'Balance'],
+                        datosRealesInmuebles,
+                        titulo: 'Rendimiento por Inmueble',
+                      );
+                    } else {
+                      pdf.addPage(
+                        pw.Page( // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) { // Asegurar que se usa pw.Context
+                            return pw.Center( // Asegurar que se usa el alias pw.
+                              child: pw.Text('Rendimiento por Inmueble: No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                            );
+                          },
+                        ),
+                      );
+                    }
+
+                    // Evolución Mensual (Gráfico y Tabla) desde 'data'
+                    final List<Map<String, dynamic>> evolucionMensualList = List<Map<String, dynamic>>.from(data['evolucionMensual'] ?? []);
+                    
+                    final Map<String, List<Map<String, dynamic>>> datosRealesEvolucionGrafico = {};
+                    final List<List<String>> datosRealesEvolucionTabla = [];
+
+                    if (evolucionMensualList.isNotEmpty) {
+                      for (var e in evolucionMensualList) {
+                        final mes = e['mes'] as String? ?? 'Sin fecha';
+                        datosRealesEvolucionGrafico[mes] = [
+                          {'name': 'Ingresos', 'value': (e['ingresos'] as num? ?? 0).toDouble()},
+                          {'name': 'Egresos', 'value': (e['egresos'] as num? ?? 0).toDouble()},
+                          {'name': 'Balance', 'value': (e['balance'] as num? ?? 0).toDouble()},
+                        ];
+                        datosRealesEvolucionTabla.add([
+                          mes,
+                          NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(e['ingresos'] ?? 0.0),
+                          NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(e['egresos'] ?? 0.0),
+                          NumberFormat.currency(symbol: '\$', locale: 'es_MX').format(e['balance'] ?? 0.0),
+                        ]);
+                      }
+                    }
+
+                    if (datosRealesEvolucionGrafico.isNotEmpty) {
+                      PdfService.agregarGraficoLineas(pdf, 'Evolución Mensual', datosRealesEvolucionGrafico);
+                    } else {
+                      pdf.addPage(
+                        pw.Page( // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) { // Asegurar que se usa pw.Context
+                            return pw.Center( // Asegurar que se usa el alias pw.
+                              child: pw.Text('Evolución Mensual (Gráfico): No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                            );
+                          },
+                        ),
+                      );
+                    }
+
+                    if (datosRealesEvolucionTabla.isNotEmpty) {
+                      PdfService.agregarTabla(
+                        pdf,
+                        ['Mes', 'Ingresos', 'Egresos', 'Balance'],
+                        datosRealesEvolucionTabla,
+                        titulo: 'Detalle Mensual de Rentas',
+                      );
+                    } else {
+                      pdf.addPage(
+                        pw.Page( // Asegurar que se usa el alias pw.
+                          build: (pw.Context context) { // Asegurar que se usa pw.Context
+                            return pw.Center( // Asegurar que se usa el alias pw.
+                              child: pw.Text('Detalle Mensual de Rentas (Tabla): No hay datos disponibles para el período seleccionado.'), // Asegurar que se usa el alias pw.
+                            );
+                          },
+                        ),
+                      );
+                    }
 
                     // Devolver el PDF generado
                     return pdf.save();
@@ -453,8 +556,8 @@ class _ReporteRentasScreenState extends ConsumerState<ReporteRentasScreen> {
           ),
         );
       }
-    } catch (e, stack) {
-      AppLogger.error('Error al generar reporte de rentas PDF', e, stack);
+    } catch (e) {
+      AppLogger.error('Error al generar reporte de rentas PDF', e, StackTrace.current);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
