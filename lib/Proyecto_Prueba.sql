@@ -2919,19 +2919,32 @@ END //
 
 -- Procedimiento para crear un usuario administrador
 CREATE PROCEDURE CrearUsuarioAdministrador(
-IN p_nombre_admin VARCHAR(100),
+IN p_nombre VARCHAR(100),
+IN p_apellido VARCHAR(100),
+IN p_nombre_usuario VARCHAR(100),
 IN p_contraseña VARCHAR(255),
+IN p_correo VARCHAR(100),
 OUT p_id_admin_out INT
 )
 BEGIN
-START TRANSACTION;
+  START TRANSACTION;
 
-INSERT INTO administrador (NombreAdmin, Contraseña)
-VALUES (p_nombre_admin, p_contraseña);
-
-SET p_id_admin_out = LAST_INSERT_ID();
-
-COMMIT;
+  -- Crear el usuario primero
+  INSERT INTO usuarios (
+    nombre, apellido, nombre_usuario, contraseña_usuario, correo_cliente, id_estado
+  ) VALUES (
+    p_nombre, p_apellido, p_nombre_usuario, EncriptarContraseña(p_contraseña), p_correo, 1
+  );
+  
+  SET @id_usuario = LAST_INSERT_ID();
+  
+  -- Luego crear el administrador
+  INSERT INTO administrador (NombreAdmin, Contraseña)
+  VALUES (p_nombre_usuario, EncriptarContraseña(p_contraseña));
+  
+  SET p_id_admin_out = LAST_INSERT_ID();
+  
+  COMMIT;
 END //
 
 -- Procedimiento para obtener datos de una venta para un reporte
