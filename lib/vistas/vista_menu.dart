@@ -8,12 +8,6 @@ class HomePage extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // Define custom colors
-    final darkColor = const Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-    final lightColor = const Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-    final lightGrayColor = const Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
-    final accentColor = const Color.fromRGBO(216, 86, 62, 1); // #D8563E
-
     return Scaffold(
       appBar: AppBar(
         title: const Center(
@@ -29,7 +23,9 @@ class HomePage extends StatelessWidget {
         backgroundColor: Color.fromRGBO(247, 245, 242, 1), // #F7F5F2
         elevation: 2,
         shadowColor: Color.fromRGBO(26, 26, 26, 0.26), // #1A1A1A with opacity
-        iconTheme: const IconThemeData(color: Color.fromRGBO(165, 57, 45, 1)), // #A5392D
+        iconTheme: const IconThemeData(
+          color: Color.fromRGBO(165, 57, 45, 1),
+        ), // #A5392D
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
@@ -91,25 +87,45 @@ class HomePage extends StatelessWidget {
                         {
                           'title': 'Inmuebles',
                           'icon': Icons.home_work,
-                          'color': const Color.fromRGBO(165, 57, 45, 1), // #A5392D
+                          'color': const Color.fromRGBO(
+                            165,
+                            57,
+                            45,
+                            1,
+                          ), // #A5392D
                           'route': '/inmuebles',
                         },
                         {
                           'title': 'Clientes',
                           'icon': Icons.people,
-                          'color': const Color.fromRGBO(216, 86, 62, 1), // #D8563E
+                          'color': const Color.fromRGBO(
+                            216,
+                            86,
+                            62,
+                            1,
+                          ), // #D8563E
                           'route': '/clientes',
                         },
                         {
                           'title': 'Ventas',
                           'icon': Icons.shopping_cart,
-                          'color': const Color.fromRGBO(212, 207, 203, 1), // #D4CFCB
+                          'color': const Color.fromRGBO(
+                            212,
+                            207,
+                            203,
+                            1,
+                          ), // #D4CFCB
                           'route': '/ventas',
                         },
                         {
                           'title': 'Proveedores',
                           'icon': Icons.inventory,
-                          'color': const Color.fromRGBO(26, 26, 26, 1), // #1A1A1A
+                          'color': const Color.fromRGBO(
+                            26,
+                            26,
+                            26,
+                            1,
+                          ), // #1A1A1A
                           'route': '/proveedores',
                         },
                       ];

@@ -5,8 +5,8 @@ import 'cliente_form_edit.dart';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
-import '../../controllers/cliente_controller.dart';
 import '../../widgets/app_scaffold.dart';
+import '../../controllers/cliente_controller.dart';
 
 class VistaClientes extends StatefulWidget {
   final ClienteController? controller;
@@ -23,7 +23,12 @@ class _VistaClientesState extends State<VistaClientes> {
   static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
   static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
   static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorGrisClaro = Color.fromRGBO(
+    212,
+    207,
+    203,
+    1,
+  ); // #D4CFCB
   static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
 
   late final ClienteController _controller;
@@ -384,7 +389,12 @@ class _VistaClientesState extends State<VistaClientes> {
                                         'Seleccione un cliente para ver sus detalles',
                                         style: TextStyle(
                                           fontSize: 16,
-                                          color: colorOscuro.withOpacity(0.6),
+                                          color: colorOscuro.withValues(
+                                            alpha: 153,
+                                            red: 26,
+                                            green: 26,
+                                            blue: 26,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -419,7 +429,15 @@ class _VistaClientesState extends State<VistaClientes> {
     return Card(
       elevation: 4,
       margin: const EdgeInsets.all(8),
-      color: _mostrandoInactivos ? colorGrisClaro.withOpacity(0.3) : colorClaro,
+      color:
+          _mostrandoInactivos
+              ? colorGrisClaro.withValues(
+                alpha: 77,
+                red: 212,
+                green: 207,
+                blue: 203,
+              )
+              : colorClaro,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -461,7 +479,12 @@ class _VistaClientesState extends State<VistaClientes> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: colorAcento.withOpacity(0.2),
+                        color: colorAcento.withValues(
+                          alpha: 51,
+                          red: 216,
+                          green: 86,
+                          blue: 62,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
@@ -572,7 +595,12 @@ class _VistaClientesState extends State<VistaClientes> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: colorOscuro.withOpacity(0.7),
+                    color: colorOscuro.withValues(
+                      alpha: 179,
+                      red: 26,
+                      green: 26,
+                      blue: 26,
+                    ),
                     fontWeight: FontWeight.bold,
                   ),
                 ),

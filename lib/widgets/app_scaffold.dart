@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
-import '../services/connection_test.dart';
+//import '../services/connection_test.dart';
 
 class AppScaffold extends StatelessWidget {
+  // Definición de la paleta de colores en RGB
+  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
+  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
+  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
+  static const Color colorGrisClaro = Color.fromRGBO(
+    212,
+    207,
+    203,
+    1,
+  ); // #D4CFCB
+  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
+
   final String title;
   final String currentRoute;
   final Widget body;
   final List<Widget>? actions;
   final bool showDrawer;
-  final Widget? bottomNavigationBar; // Nuevo parámetro añadido
+  final Widget? bottomNavigationBar;
 
   const AppScaffold({
     super.key,
@@ -16,7 +28,7 @@ class AppScaffold extends StatelessWidget {
     required this.body,
     this.actions,
     this.showDrawer = true,
-    this.bottomNavigationBar, // Inicializar el nuevo parámetro
+    this.bottomNavigationBar,
   });
 
   @override
@@ -28,15 +40,20 @@ class AppScaffold extends StatelessWidget {
         title: Text(
           title,
           style: const TextStyle(
-            color: Colors.teal,
+            color: colorPrimario,
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: colorClaro,
         elevation: 2,
-        shadowColor: Colors.black26,
-        iconTheme: const IconThemeData(color: Colors.teal),
+        shadowColor: colorOscuro.withValues(
+          red: 26,
+          green: 26,
+          blue: 26,
+          alpha: 66,
+        ), // equivalente a opacidad 0.26
+        iconTheme: const IconThemeData(color: colorPrimario),
         actions:
             actions ??
             [
@@ -50,7 +67,7 @@ class AppScaffold extends StatelessWidget {
             ],
       ),
       body: body,
-      bottomNavigationBar: bottomNavigationBar, // Añadir esta línea
+      bottomNavigationBar: bottomNavigationBar,
     );
   }
 
@@ -62,7 +79,7 @@ class AppScaffold extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.teal.shade50, Colors.white],
+            colors: [colorGrisClaro, colorClaro],
           ),
         ),
         child: ListView(
@@ -73,16 +90,16 @@ class AppScaffold extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Colors.teal.shade700, Colors.teal.shade500],
+                  colors: [colorPrimario, colorAcento],
                 ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const CircleAvatar(
-                    backgroundColor: Colors.white,
+                    backgroundColor: colorClaro,
                     radius: 36,
-                    child: Icon(Icons.person, size: 50, color: Colors.teal),
+                    child: Icon(Icons.person, size: 50, color: colorPrimario),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -94,8 +111,11 @@ class AppScaffold extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    "correo@example.com",
-                    style: TextStyle(color: Colors.grey.shade100, fontSize: 14),
+                    "Administrador",
+                    style: TextStyle(
+                      color: Colors.white, // Color blanco puro
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -108,13 +128,14 @@ class AppScaffold extends StatelessWidget {
               currentRoute: currentRoute,
               context: context,
             ),
-            _buildDrawerButton(
+            /*_buildDrawerButton(
               icon: Icons.people,
               label: "Usuarios",
               route: '/usuario',
               currentRoute: currentRoute,
               context: context,
             ),
+            */
             // Nuevo botón para Empleados
             _buildDrawerButton(
               icon: Icons.badge,
@@ -167,6 +188,7 @@ class AppScaffold extends StatelessWidget {
               context: context,
             ),
             const Divider(),
+            /*
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 12.0,
@@ -217,20 +239,20 @@ class AppScaffold extends StatelessWidget {
                       children: [
                         Icon(
                           Icons.storage,
-                          color: Colors.grey.shade700,
+                          color: colorPrimario, // Mejorar visibilidad
                           size: 22,
                         ),
                         const SizedBox(width: 16),
-                        const Text(
+                        Text(
                           "Probar Conexión BD",
-                          style: TextStyle(fontSize: 16, color: Colors.black87),
+                          style: TextStyle(fontSize: 16, color: colorOscuro),
                         ),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
+            ),*/
           ],
         ),
       ),
@@ -249,7 +271,15 @@ class AppScaffold extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
       child: Material(
-        color: highlighted ? Colors.teal.withAlpha(25) : Colors.transparent,
+        color:
+            highlighted
+                ? colorAcento.withValues(
+                  red: 216,
+                  green: 86,
+                  blue: 62,
+                  alpha: 40, // Color más suave pero visible
+                )
+                : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
@@ -277,7 +307,10 @@ class AppScaffold extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: highlighted ? Colors.teal : Colors.grey.shade700,
+                  color:
+                      highlighted
+                          ? Colors.white
+                          : colorPrimario, // Usar color primario para mejor visibilidad
                   size: 22,
                 ),
                 const SizedBox(width: 16),
@@ -285,7 +318,7 @@ class AppScaffold extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 16,
-                    color: highlighted ? Colors.teal : Colors.black87,
+                    color: highlighted ? Colors.white : colorOscuro,
                     fontWeight:
                         highlighted ? FontWeight.bold : FontWeight.normal,
                   ),

@@ -31,16 +31,21 @@ class _ClienteListViewState extends State<ClienteListView> {
   static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
   static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
   static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
-  
+  static const Color colorGrisClaro = Color.fromRGBO(
+    212,
+    207,
+    203,
+    1,
+  ); // #D4CFCB
+
   final TextEditingController _searchController = TextEditingController();
   List<Cliente> _filteredClientes = [];
 
   @override
   void initState() {
     super.initState();
-    _filteredClientes = widget.clientes;
+    // Initialize _filteredClientes by applying the initial (empty) filter.
+    _filterClientes(_searchController.text);
   }
 
   @override
@@ -145,7 +150,7 @@ class _ClienteListViewState extends State<ClienteListView> {
                                 : 'No se encontraron clientes',
                             style: TextStyle(
                               fontSize: 16,
-                              color: colorOscuro.withOpacity(0.6),
+                              color: colorOscuro.withAlpha((255 * 0.6).round()),
                             ),
                           ),
                         ],
@@ -154,7 +159,12 @@ class _ClienteListViewState extends State<ClienteListView> {
                     : ListView.separated(
                       itemCount: _filteredClientes.length,
                       separatorBuilder:
-                          (context, index) => Divider(height: 1, color: colorGrisClaro.withOpacity(0.5)),
+                          (context, index) => Divider(
+                            height: 1,
+                            color: colorGrisClaro.withAlpha(
+                              (255 * 0.5).round(),
+                            ),
+                          ),
                       itemBuilder: (context, index) {
                         final cliente = _filteredClientes[index];
                         return ClienteCard(

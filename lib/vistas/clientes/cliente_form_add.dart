@@ -22,7 +22,12 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
   static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
   static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
   static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorGrisClaro = Color.fromRGBO(
+    212,
+    207,
+    203,
+    1,
+  ); // #D4CFCB
   static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
 
   final nombreController = TextEditingController();
@@ -169,55 +174,58 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: colorClaro,
-      title: Text('Agregar Nuevo Cliente', style: TextStyle(color: colorPrimario)),
+      title: Text(
+        'Agregar Nuevo Cliente',
+        style: TextStyle(color: colorPrimario),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _buildTextField(
               controller: nombreController,
-              labelText: 'Nombre', 
-              prefixIcon: Icons.person
+              labelText: 'Nombre',
+              prefixIcon: Icons.person,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: apellidoPaternoController,
-              labelText: 'Apellido Paterno', 
-              prefixIcon: Icons.person
+              labelText: 'Apellido Paterno',
+              prefixIcon: Icons.person,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: apellidoMaternoController,
-              labelText: 'Apellido Materno (opcional)', 
-              prefixIcon: Icons.person
+              labelText: 'Apellido Materno (opcional)',
+              prefixIcon: Icons.person,
             ),
             const SizedBox(height: 12),
             _buildDropdownField(),
             const SizedBox(height: 12),
             _buildTextField(
               controller: telefonoController,
-              labelText: 'Teléfono', 
+              labelText: 'Teléfono',
               prefixIcon: Icons.phone,
-              keyboardType: TextInputType.phone
+              keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: rfcController,
-              labelText: 'RFC', 
-              prefixIcon: Icons.assignment_ind
+              labelText: 'RFC',
+              prefixIcon: Icons.assignment_ind,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: curpController,
-              labelText: 'CURP', 
-              prefixIcon: Icons.badge
+              labelText: 'CURP',
+              prefixIcon: Icons.badge,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: correoController,
-              labelText: 'Correo', 
+              labelText: 'Correo',
               prefixIcon: Icons.email,
-              keyboardType: TextInputType.emailAddress
+              keyboardType: TextInputType.emailAddress,
             ),
 
             // Sección de dirección
@@ -228,9 +236,9 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
             Text(
               'Información de Dirección',
               style: TextStyle(
-                fontSize: 16, 
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: colorPrimario
+                color: colorPrimario,
               ),
             ),
             const SizedBox(height: 12),
@@ -238,46 +246,46 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
             // Campos de dirección completos
             _buildTextField(
               controller: calleController,
-              labelText: 'Calle', 
-              prefixIcon: Icons.location_on
+              labelText: 'Calle',
+              prefixIcon: Icons.location_on,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: numeroController,
-              labelText: 'Número', 
-              prefixIcon: Icons.home
+              labelText: 'Número',
+              prefixIcon: Icons.home,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: coloniaController,
-              labelText: 'Colonia', 
-              prefixIcon: Icons.grid_3x3
+              labelText: 'Colonia',
+              prefixIcon: Icons.grid_3x3,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: ciudadController,
-              labelText: 'Ciudad *', 
-              prefixIcon: Icons.location_city
+              labelText: 'Ciudad *',
+              prefixIcon: Icons.location_city,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: estadoGeograficoController,
-              labelText: 'Estado *', 
-              prefixIcon: Icons.map
+              labelText: 'Estado *',
+              prefixIcon: Icons.map,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: codigoPostalController,
-              labelText: 'Código Postal', 
+              labelText: 'Código Postal',
               prefixIcon: Icons.markunread_mailbox,
-              keyboardType: TextInputType.number
+              keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 12),
             _buildTextField(
               controller: referenciasController,
-              labelText: 'Referencias', 
+              labelText: 'Referencias',
               prefixIcon: Icons.info_outline,
-              maxLines: 2
+              maxLines: 2,
             ),
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
@@ -285,7 +293,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
                 '* Campos obligatorios',
                 style: TextStyle(
                   fontStyle: FontStyle.italic,
-                  color: colorOscuro.withOpacity(0.6),
+                  color: colorOscuro.withAlpha((0.6 * 255).round()),
                 ),
               ),
             ),
@@ -302,14 +310,12 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
           onPressed: _agregarCliente,
           icon: Icon(Icons.save, color: colorClaro),
           label: Text('Guardar', style: TextStyle(color: colorClaro)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: colorPrimario,
-          ),
+          style: ElevatedButton.styleFrom(backgroundColor: colorPrimario),
         ),
       ],
     );
   }
-  
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
@@ -336,7 +342,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       maxLines: maxLines,
     );
   }
-  
+
   Widget _buildDropdownField() {
     return DropdownButtonFormField<String>(
       decoration: InputDecoration(
@@ -354,9 +360,18 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       value: tipoCliente,
       dropdownColor: colorClaro,
       items: [
-        DropdownMenuItem(value: 'comprador', child: Text('Comprador', style: TextStyle(color: colorOscuro))),
-        DropdownMenuItem(value: 'arrendatario', child: Text('Arrendatario', style: TextStyle(color: colorOscuro))),
-        DropdownMenuItem(value: 'ambos', child: Text('Ambos', style: TextStyle(color: colorOscuro))),
+        DropdownMenuItem(
+          value: 'comprador',
+          child: Text('Comprador', style: TextStyle(color: colorOscuro)),
+        ),
+        DropdownMenuItem(
+          value: 'arrendatario',
+          child: Text('Arrendatario', style: TextStyle(color: colorOscuro)),
+        ),
+        DropdownMenuItem(
+          value: 'ambos',
+          child: Text('Ambos', style: TextStyle(color: colorOscuro)),
+        ),
       ],
       onChanged: (value) {
         setState(() => tipoCliente = value!);

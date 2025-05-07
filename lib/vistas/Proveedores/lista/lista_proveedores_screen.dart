@@ -36,25 +36,7 @@ class _ListaProveedoresScreenState
     // Inicialización después de montar el widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Iniciar actualización automática cada 30 segundos
-      _iniciarActualizacionAutomatica();
-    });
-  }
-
-  void _iniciarActualizacionAutomatica() {
-    developer.log('[Proveedores] Configurando actualización automática (30s)');
-
-    // Cancelar timer existente si hay uno
-    _autoRefreshTimer?.cancel();
-
-    // Crear nuevo timer que se ejecuta cada 30 segundos
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      final estado = ref.read(proveedoresProvider);
-
-      if (mounted && !estado.buscando) {
-        // No actualizar automáticamente durante búsqueda
-        developer.log('[Proveedores] Ejecutando actualización automática');
-        ref.read(proveedoresProvider.notifier).cargarProveedores();
-      }
+      //_iniciarActualizacionAutomatica();
     });
   }
 
@@ -62,6 +44,7 @@ class _ListaProveedoresScreenState
   void dispose() {
     developer.log('[Proveedores] Destruyendo ListaProveedoresScreen');
     _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = null; // Añadir esta línea para asegurar la limpieza
     super.dispose();
   }
 

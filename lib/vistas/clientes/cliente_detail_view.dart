@@ -29,7 +29,12 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
   static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
   static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
   static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(212, 207, 203, 1); // #D4CFCB
+  static const Color colorGrisClaro = Color.fromRGBO(
+    212,
+    207,
+    203,
+    1,
+  ); // #D4CFCB
   static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
 
   @override
@@ -37,7 +42,8 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
     return Card(
       elevation: 4,
       margin: const EdgeInsets.all(8),
-      color: widget.isInactivo ? colorGrisClaro.withOpacity(0.3) : colorClaro,
+      color:
+          widget.isInactivo ? Color.fromRGBO(212, 207, 203, 0.3) : colorClaro,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -87,7 +93,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: colorAcento.withOpacity(0.2),
+                color: colorAcento.withAlpha((0.2 * 255).round()),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
@@ -648,7 +654,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: colorOscuro.withOpacity(0.7),
+                    color: colorOscuro.withAlpha((0.7 * 255).round()),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
