@@ -10,6 +10,7 @@ import 'utils/applogger.dart'; // Importación del AppLogger
 import 'vistas/empleados/lista/lista_empleados_screen.dart';
 import 'vistas/Proveedores/lista/lista_proveedores_screen.dart';
 import 'utils/archivo_utils.dart'; // Importación de ArchivoUtils
+import 'utils/app_colors.dart'; // Importar nuestra clase de colores
 import 'utils/pdf_font_helper.dart'; // Importación de PdfFontHelper
 import 'package:inmobiliaria/vistas/ventas/lista_ventas_screen.dart';
 import 'package:inmobiliaria/vistas/ventas/reportes_ventas_screen.dart';
@@ -82,8 +83,23 @@ class MyApp extends ConsumerWidget {
       title: 'Inmobiliaria',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.teal,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
+        primaryColor: AppColors.primario,
+        primarySwatch:
+            Colors
+                .teal, // Esto debería cambiarse por un MaterialColor personalizado
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.primario,
+          primary: AppColors.primario,
+          secondary: AppColors.acento,
+          surface: AppColors.claro,
+          error: AppColors.error,
+        ),
+        scaffoldBackgroundColor: AppColors.claro,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.claro,
+          foregroundColor: AppColors.primario,
+          elevation: 2,
+        ),
         useMaterial3: true,
       ),
       // Añadir configuración de localización

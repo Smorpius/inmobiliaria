@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../utils/applogger.dart';
 import '../../../utils/archivo_utils.dart';
 import '../../../models/documento_model.dart';
+import '../../../utils/app_colors.dart'; // Importamos la paleta de colores
 
 class DocumentoCard extends StatefulWidget {
   final Documento documento;
@@ -90,7 +91,9 @@ class _DocumentoCardState extends State<DocumentoCard> {
                         children: [
                           Text(
                             widget.documento.nombre,
-                            style: theme.textTheme.titleSmall,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: AppColors.oscuro, // Usar AppColors
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -99,7 +102,12 @@ class _DocumentoCardState extends State<DocumentoCard> {
                             DateFormat(
                               'dd/MM/yyyy',
                             ).format(widget.documento.fechaCreacion),
-                            style: theme.textTheme.bodySmall,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.withAlpha(
+                                AppColors.oscuro,
+                                180,
+                              ), // Usar AppColors con alpha
+                            ),
                           ),
                           const Spacer(),
                           Row(
@@ -112,7 +120,7 @@ class _DocumentoCardState extends State<DocumentoCard> {
                                       .toUpperCase()
                                       .substring(1),
                                   style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.primary,
+                                    color: AppColors.primario, // Usar AppColors
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -130,13 +138,16 @@ class _DocumentoCardState extends State<DocumentoCard> {
                   right: 4,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black54,
+                      color: AppColors.withAlpha(
+                        AppColors.oscuro,
+                        140,
+                      ), // Usar AppColors con alpha
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: IconButton(
                       icon: const Icon(
                         Icons.delete_outline,
-                        color: Colors.white,
+                        color: AppColors.claro, // Usar AppColors
                       ),
                       iconSize: 20,
                       onPressed: widget.onDelete,
@@ -153,12 +164,19 @@ class _DocumentoCardState extends State<DocumentoCard> {
 
   Widget _buildPreview() {
     if (_cargando) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primario, // Usar AppColors
+        ),
+      );
     }
 
     if (widget.documento.isImage && _archivoLocal != null) {
       return Container(
-        color: Colors.grey.shade100,
+        color: AppColors.withAlpha(
+          AppColors.grisClaro,
+          100,
+        ), // Usar AppColors con alpha
         child: Image.file(
           _archivoLocal!,
           fit: BoxFit.cover,
@@ -176,7 +194,10 @@ class _DocumentoCardState extends State<DocumentoCard> {
     );
 
     return Container(
-      color: color.withAlpha((0.1 * 255).round()),
+      color: AppColors.withAlpha(
+        color,
+        25,
+      ), // Usar AppColors.withAlpha en lugar de withAlpha directo
       child: Center(
         child: Icon(widget.documento.icono, size: 48, color: color),
       ),
@@ -185,17 +206,19 @@ class _DocumentoCardState extends State<DocumentoCard> {
 
   Widget _buildTipoChip() {
     final Map<String, Color> tipoColores = {
-      'contrato': Colors.blue,
-      'comprobante': Colors.green,
-      'reporte': Colors.amber,
+      'contrato': AppColors.info, // Usar AppColors
+      'comprobante': AppColors.exito, // Usar AppColors
+      'reporte': AppColors.advertencia, // Usar AppColors
     };
 
-    final color = tipoColores[widget.documento.tipoDocumento] ?? Colors.grey;
+    final color =
+        tipoColores[widget.documento.tipoDocumento] ??
+        AppColors.grisClaro; // Usar AppColors
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withAlpha((0.1 * 255).round()),
+        color: AppColors.withAlpha(color, 25), // Usar AppColors.withAlpha
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color, width: 0.5),
       ),
@@ -213,13 +236,13 @@ class _DocumentoCardState extends State<DocumentoCard> {
   Color _getColorForDocumentType(String tipo) {
     switch (tipo) {
       case 'contrato':
-        return Colors.blue;
+        return AppColors.info; // Usar AppColors
       case 'comprobante':
-        return Colors.green;
+        return AppColors.exito; // Usar AppColors
       case 'reporte':
-        return Colors.amber;
+        return AppColors.advertencia; // Usar AppColors
       default:
-        return Colors.grey;
+        return AppColors.grisClaro; // Usar AppColors
     }
   }
 }

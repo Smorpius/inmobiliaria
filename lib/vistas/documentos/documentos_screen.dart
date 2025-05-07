@@ -9,6 +9,7 @@ import 'widgets/filtro_documentos_widget.dart';
 import '../../providers/documento_provider.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../utils/app_colors.dart'; // Importamos la paleta de colores
 
 class DocumentosScreen extends ConsumerStatefulWidget {
   const DocumentosScreen({super.key});
@@ -29,8 +30,8 @@ class _DocumentosScreenState extends ConsumerState<DocumentosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Documentos'),
-        backgroundColor: Colors.teal,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.claro, // Usar AppColors
+        foregroundColor: AppColors.primario, // Usar AppColors
         actions: [
           IconButton(
             icon: Icon(
@@ -166,8 +167,8 @@ class _DocumentosScreenState extends ConsumerState<DocumentosScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _seleccionarDocumento,
-        backgroundColor: Colors.teal,
-        child: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: AppColors.primario, // Usar AppColors
+        child: const Icon(Icons.add, color: AppColors.claro), // Usar AppColors
       ),
     );
   }

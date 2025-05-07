@@ -1,19 +1,7 @@
 import 'package:flutter/material.dart';
-//import '../services/connection_test.dart';
+import '../utils/app_colors.dart'; // Importar la clase de colores centralizada
 
 class AppScaffold extends StatelessWidget {
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
-
   final String title;
   final String currentRoute;
   final Widget body;
@@ -40,20 +28,21 @@ class AppScaffold extends StatelessWidget {
         title: Text(
           title,
           style: const TextStyle(
-            color: colorPrimario,
+            color: AppColors.primario, // Usar AppColors
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
         ),
-        backgroundColor: colorClaro,
+        backgroundColor: AppColors.claro, // Usar AppColors
         elevation: 2,
-        shadowColor: colorOscuro.withValues(
-          red: 26,
-          green: 26,
-          blue: 26,
+        shadowColor: AppColors.withValues(
+          // Usar método de AppColors
+          color: AppColors.oscuro,
           alpha: 66,
-        ), // equivalente a opacidad 0.26
-        iconTheme: const IconThemeData(color: colorPrimario),
+        ),
+        iconTheme: const IconThemeData(
+          color: AppColors.primario,
+        ), // Usar AppColors
         actions:
             actions ??
             [
@@ -79,7 +68,7 @@ class AppScaffold extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [colorGrisClaro, colorClaro],
+            colors: [AppColors.grisClaro, AppColors.claro], // Usar AppColors
           ),
         ),
         child: ListView(
@@ -90,16 +79,23 @@ class AppScaffold extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [colorPrimario, colorAcento],
+                  colors: [
+                    AppColors.primario,
+                    AppColors.acento,
+                  ], // Usar AppColors
                 ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const CircleAvatar(
-                    backgroundColor: colorClaro,
+                    backgroundColor: AppColors.claro, // Usar AppColors
                     radius: 36,
-                    child: Icon(Icons.person, size: 50, color: colorPrimario),
+                    child: Icon(
+                      Icons.person,
+                      size: 50,
+                      color: AppColors.primario,
+                    ), // Usar AppColors
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -112,10 +108,7 @@ class AppScaffold extends StatelessWidget {
                   ),
                   Text(
                     "Administrador",
-                    style: TextStyle(
-                      color: Colors.white, // Color blanco puro
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.white, fontSize: 14),
                   ),
                 ],
               ),
@@ -128,15 +121,6 @@ class AppScaffold extends StatelessWidget {
               currentRoute: currentRoute,
               context: context,
             ),
-            /*_buildDrawerButton(
-              icon: Icons.people,
-              label: "Usuarios",
-              route: '/usuario',
-              currentRoute: currentRoute,
-              context: context,
-            ),
-            */
-            // Nuevo botón para Empleados
             _buildDrawerButton(
               icon: Icons.badge,
               label: "Empleados",
@@ -158,7 +142,6 @@ class AppScaffold extends StatelessWidget {
               currentRoute: currentRoute,
               context: context,
             ),
-            // NUEVO: Botón para Proveedores
             _buildDrawerButton(
               icon: Icons.inventory,
               label: "Proveedores",
@@ -188,71 +171,6 @@ class AppScaffold extends StatelessWidget {
               context: context,
             ),
             const Divider(),
-            /*
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12.0,
-                vertical: 4.0,
-              ),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    // Mostrar indicador de carga
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Comprobando conexión a la base de datos...',
-                        ),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-
-                    // Comprobar conexión - ESTA ES LA CORRECCIÓN
-                    final result =
-                        await DatabaseConnectionTest.testConnection();
-
-                    if (!context.mounted) return;
-                    // Mostrar resultado
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          result
-                              ? '✅ Conexión exitosa a la base de datos'
-                              : '❌ Error al conectar a la base de datos',
-                        ),
-                        backgroundColor: result ? Colors.green : Colors.red,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 12.0,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.storage,
-                          color: colorPrimario, // Mejorar visibilidad
-                          size: 22,
-                        ),
-                        const SizedBox(width: 16),
-                        Text(
-                          "Probar Conexión BD",
-                          style: TextStyle(fontSize: 16, color: colorOscuro),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),*/
           ],
         ),
       ),
@@ -273,11 +191,10 @@ class AppScaffold extends StatelessWidget {
       child: Material(
         color:
             highlighted
-                ? colorAcento.withValues(
-                  red: 216,
-                  green: 86,
-                  blue: 62,
-                  alpha: 40, // Color más suave pero visible
+                ? AppColors.withValues(
+                  // Usar método de AppColors
+                  color: AppColors.acento,
+                  alpha: 40,
                 )
                 : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
@@ -310,7 +227,7 @@ class AppScaffold extends StatelessWidget {
                   color:
                       highlighted
                           ? Colors.white
-                          : colorPrimario, // Usar color primario para mejor visibilidad
+                          : AppColors.primario, // Usar AppColors
                   size: 22,
                 ),
                 const SizedBox(width: 16),
@@ -318,7 +235,10 @@ class AppScaffold extends StatelessWidget {
                   label,
                   style: TextStyle(
                     fontSize: 16,
-                    color: highlighted ? Colors.white : colorOscuro,
+                    color:
+                        highlighted
+                            ? Colors.white
+                            : AppColors.oscuro, // Usar AppColors
                     fontWeight:
                         highlighted ? FontWeight.bold : FontWeight.normal,
                   ),

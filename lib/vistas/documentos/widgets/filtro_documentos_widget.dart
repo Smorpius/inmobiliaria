@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../providers/documento_provider.dart';
+import '../../../utils/app_colors.dart'; // Importar la paleta de colores
 
 class FiltroDocumentosWidget extends StatefulWidget {
   final DocumentoFiltro filtro;
@@ -16,188 +17,189 @@ class FiltroDocumentosWidget extends StatefulWidget {
 }
 
 class _FiltroDocumentosWidgetState extends State<FiltroDocumentosWidget> {
-  late TextEditingController _buscadorController;
-
-  final List<String> _tiposDocumento = [
-    'contrato',
-    'comprobante',
-    'reporte',
-    'documento',
-  ];
-
-  final List<String> _categorias = [
-    'venta',
-    'renta',
-    'movimiento',
-    'estadística',
-    'general',
-  ];
+  late TextEditingController _busquedaController;
+  late String? _tipoSeleccionado;
+  late String? _categoriaSeleccionada;
+  late bool _soloFavoritos;
 
   @override
   void initState() {
     super.initState();
-    _buscadorController = TextEditingController(
+    _busquedaController = TextEditingController(
       text: widget.filtro.terminoBusqueda,
     );
+    _tipoSeleccionado = widget.filtro.tipoDocumento;
+    _categoriaSeleccionada = widget.filtro.categoria;
+    _soloFavoritos = widget.filtro.soloFavoritos;
   }
 
   @override
   void dispose() {
-    _buscadorController.dispose();
+    _busquedaController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.grey.shade100,
+      color: AppColors.claro, // Usar AppColors
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Buscador
+          // Barra de búsqueda
           TextField(
-            controller: _buscadorController,
+            controller: _busquedaController,
             decoration: InputDecoration(
-              hintText: 'Buscar documentos...',
+              labelText: 'Buscar documentos',
               prefixIcon: const Icon(Icons.search),
-              suffixIcon:
-                  _buscadorController.text.isNotEmpty
-                      ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _buscadorController.clear();
-                          _actualizarFiltro(terminoBusqueda: '');
-                        },
-                      )
-                      : null,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
               filled: true,
               fillColor: Colors.white,
+              suffixIcon:
+                  _busquedaController.text.isNotEmpty
+                      ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _busquedaController.clear();
+                          _actualizarFiltro();
+                        },
+                      )
+                      : null,
             ),
-            onChanged: (value) => _actualizarFiltro(terminoBusqueda: value),
+            onChanged: (_) => _actualizarFiltro(),
           ),
 
           const SizedBox(height: 16),
 
-          // Filtros de tipo y categoría
-          Row(
+          // Filtros adicionales
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
             children: [
               // Tipo de documento
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Tipo',
-                  value: widget.filtro.tipoDocumento,
-                  items: _tiposDocumento,
-                  itemBuilder: (tipo) => Text(_formatearTexto(tipo)),
-                  onChanged:
-                      (String? value) =>
-                          _actualizarFiltro(tipoDocumento: value),
+              DropdownButton<String>(
+                hint: const Text('Tipo de documento'),
+                value: _tipoSeleccionado,
+                underline: Container(
+                  height: 2,
+                  color: AppColors.primario, // Usar AppColors
                 ),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _tipoSeleccionado = newValue;
+                    _actualizarFiltro();
+                  });
+                },
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('Todos los tipos')),
+                  DropdownMenuItem(value: 'contrato', child: Text('Contratos')),
+                  DropdownMenuItem(
+                    value: 'comprobante',
+                    child: Text('Comprobantes'),
+                  ),
+                  DropdownMenuItem(value: 'reporte', child: Text('Reportes')),
+                  DropdownMenuItem(value: 'documento', child: Text('Otros')),
+                ],
               ),
 
-              const SizedBox(width: 16),
-
               // Categoría
-              Expanded(
-                child: _buildDropdown(
-                  label: 'Categoría',
-                  value: widget.filtro.categoria,
-                  items: _categorias,
-                  itemBuilder: (categoria) => Text(_formatearTexto(categoria)),
-                  onChanged:
-                      (String? value) => _actualizarFiltro(categoria: value),
+              DropdownButton<String>(
+                hint: const Text('Categoría'),
+                value: _categoriaSeleccionada,
+                underline: Container(
+                  height: 2,
+                  color: AppColors.primario, // Usar AppColors
                 ),
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _categoriaSeleccionada = newValue;
+                    _actualizarFiltro();
+                  });
+                },
+                items: const [
+                  DropdownMenuItem(
+                    value: null,
+                    child: Text('Todas las categorías'),
+                  ),
+                  DropdownMenuItem(value: 'venta', child: Text('Ventas')),
+                  DropdownMenuItem(value: 'renta', child: Text('Rentas')),
+                  DropdownMenuItem(
+                    value: 'movimiento',
+                    child: Text('Movimientos'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'estadística',
+                    child: Text('Estadísticas'),
+                  ),
+                  DropdownMenuItem(value: 'general', child: Text('General')),
+                ],
+              ),
+
+              // Checkbox para favoritos
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: _soloFavoritos,
+                    activeColor: AppColors.primario, // Usar AppColors
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _soloFavoritos = value ?? false;
+                        _actualizarFiltro();
+                      });
+                    },
+                  ),
+                  const Text('Solo favoritos'),
+                ],
               ),
             ],
           ),
 
           const SizedBox(height: 16),
 
-          // Opciones adicionales
-          Row(
-            children: [
-              // Favoritos
-              FilterChip(
-                label: const Text('Favoritos'),
-                selected: widget.filtro.soloFavoritos,
-                onSelected:
-                    (selected) => _actualizarFiltro(soloFavoritos: selected),
-                avatar: const Icon(Icons.star),
+          // Botón para limpiar filtros si hay alguno activo
+          if (_hayFiltrosActivos())
+            ElevatedButton.icon(
+              onPressed: _limpiarFiltros,
+              icon: const Icon(Icons.clear_all),
+              label: const Text('Limpiar filtros'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primario, // Usar AppColors
+                foregroundColor: Colors.white,
               ),
-
-              const SizedBox(width: 8),
-
-              // Botón para limpiar filtros
-              const Spacer(),
-              TextButton.icon(
-                icon: const Icon(Icons.clear_all),
-                label: const Text('Limpiar filtros'),
-                onPressed: _limpiarFiltros,
-              ),
-            ],
-          ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildDropdown<T>({
-    required String label,
-    required T? value,
-    required List<T> items,
-    required Widget Function(T) itemBuilder,
-    required void Function(T?) onChanged,
-  }) {
-    return InputDecorator(
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<T>(
-          value: value,
-          isExpanded: true,
-          hint: const Text('Todos'),
-          items: [
-            DropdownMenuItem<T>(child: const Text('Todos')),
-            ...items.map(
-              (item) =>
-                  DropdownMenuItem<T>(value: item, child: itemBuilder(item)),
-            ),
-          ],
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
-  void _actualizarFiltro({
-    String? terminoBusqueda,
-    String? tipoDocumento,
-    String? categoria,
-    bool? soloFavoritos,
-  }) {
-    final nuevoFiltro = DocumentoFiltro(
-      terminoBusqueda: terminoBusqueda ?? widget.filtro.terminoBusqueda,
-      tipoDocumento: tipoDocumento,
-      categoria: categoria,
-      soloFavoritos: soloFavoritos ?? widget.filtro.soloFavoritos,
-    );
-
-    widget.onFiltroChanged(nuevoFiltro);
+  bool _hayFiltrosActivos() {
+    return _busquedaController.text.isNotEmpty ||
+        _tipoSeleccionado != null ||
+        _categoriaSeleccionada != null ||
+        _soloFavoritos;
   }
 
   void _limpiarFiltros() {
-    _buscadorController.clear();
-    widget.onFiltroChanged(DocumentoFiltro());
+    setState(() {
+      _busquedaController.clear();
+      _tipoSeleccionado = null;
+      _categoriaSeleccionada = null;
+      _soloFavoritos = false;
+      _actualizarFiltro();
+    });
   }
 
-  String _formatearTexto(String texto) {
-    if (texto.isEmpty) return '';
-    return "${texto[0].toUpperCase()}${texto.substring(1).toLowerCase()}";
+  void _actualizarFiltro() {
+    final nuevoFiltro = DocumentoFiltro(
+      terminoBusqueda: _busquedaController.text,
+      tipoDocumento: _tipoSeleccionado,
+      categoria: _categoriaSeleccionada,
+      soloFavoritos: _soloFavoritos,
+    );
+    widget.onFiltroChanged(nuevoFiltro);
   }
 }

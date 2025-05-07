@@ -10,6 +10,7 @@ import '../../models/documento_model.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/documento_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../utils/app_colors.dart'; // Importar la paleta de colores centralizada
 
 class DocumentoDetalleScreen extends ConsumerStatefulWidget {
   final Documento documento;
@@ -167,6 +168,8 @@ class _DocumentoDetalleScreenState
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.documento.nombre),
+        backgroundColor: AppColors.claro, // Usar AppColors
+        foregroundColor: AppColors.primario, // Usar AppColors
         actions: [
           if (_archivoLocal != null && !_cargando) ...[
             IconButton(
