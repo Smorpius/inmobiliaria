@@ -5,6 +5,7 @@ import '../inmuebles/inmueble_detalle_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inmobiliaria/providers/providers_global.dart';
 import 'package:inmobiliaria/providers/cliente_detalle_provider.dart';
+import '../../utils/app_colors.dart'; // Importar la clase de colores centralizada
 
 class ClienteDetailView extends ConsumerStatefulWidget {
   final Cliente cliente;
@@ -25,25 +26,15 @@ class ClienteDetailView extends ConsumerStatefulWidget {
 }
 
 class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
-
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 4,
       margin: const EdgeInsets.all(8),
       color:
-          widget.isInactivo ? Color.fromRGBO(212, 207, 203, 0.3) : colorClaro,
+          widget.isInactivo
+              ? AppColors.withValues(color: AppColors.grisClaro, alpha: 77)
+              : AppColors.claro,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -69,8 +60,9 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
       child: Column(
         children: [
           CircleAvatar(
-            backgroundColor: widget.isInactivo ? colorGrisClaro : colorPrimario,
-            foregroundColor: colorClaro,
+            backgroundColor:
+                widget.isInactivo ? AppColors.grisClaro : AppColors.primario,
+            foregroundColor: AppColors.claro,
             radius: 40,
             child: Text(
               widget.cliente.nombre.substring(0, 1).toUpperCase(),
@@ -84,7 +76,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
               fontSize: 24,
               fontWeight: FontWeight.bold,
               decoration: widget.isInactivo ? TextDecoration.lineThrough : null,
-              color: widget.isInactivo ? colorGrisClaro : colorOscuro,
+              color: widget.isInactivo ? AppColors.grisClaro : AppColors.oscuro,
             ),
             textAlign: TextAlign.center,
           ),
@@ -93,13 +85,16 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
               margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
-                color: colorAcento.withAlpha((0.2 * 255).round()),
+                color: AppColors.withValues(
+                  color: AppColors.acento,
+                  alpha: (0.2 * 255).round(),
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
                 'INACTIVO',
                 style: TextStyle(
-                  color: colorAcento,
+                  color: AppColors.acento,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -566,8 +561,8 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
             icon: const Icon(Icons.edit),
             label: const Text('Editar'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: colorPrimario,
-              foregroundColor: colorClaro,
+              backgroundColor: AppColors.primario,
+              foregroundColor: AppColors.claro,
             ),
           ),
         if (!widget.isInactivo) const SizedBox(width: 12),
@@ -576,8 +571,9 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
           icon: Icon(widget.isInactivo ? Icons.person_add : Icons.delete),
           label: Text(widget.isInactivo ? 'Reactivar' : 'Inactivar'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: widget.isInactivo ? colorPrimario : colorAcento,
-            foregroundColor: colorClaro,
+            backgroundColor:
+                widget.isInactivo ? AppColors.primario : AppColors.acento,
+            foregroundColor: AppColors.claro,
           ),
         ),
       ],
@@ -645,7 +641,7 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: colorPrimario, size: 22),
+          Icon(icon, color: AppColors.primario, size: 22),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -654,7 +650,10 @@ class _ClienteDetailViewState extends ConsumerState<ClienteDetailView> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: colorOscuro.withAlpha((0.7 * 255).round()),
+                    color: AppColors.withValues(
+                      color: AppColors.oscuro,
+                      alpha: (0.7 * 255).round(),
+                    ),
                     fontWeight: FontWeight.bold,
                   ),
                 ),

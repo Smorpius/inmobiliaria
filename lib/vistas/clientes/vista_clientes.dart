@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../controllers/cliente_controller.dart';
+import '../../utils/app_colors.dart'; // Importar la clase de colores centralizada
 
 class VistaClientes extends StatefulWidget {
   final ClienteController? controller;
@@ -19,18 +20,6 @@ class VistaClientes extends StatefulWidget {
 }
 
 class _VistaClientesState extends State<VistaClientes> {
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
-
   late final ClienteController _controller;
   Cliente? _selectedCliente;
   bool _isLoading = true;
@@ -218,7 +207,7 @@ class _VistaClientesState extends State<VistaClientes> {
           messengerState.showSnackBar(
             SnackBar(
               content: const Text('Cliente reactivado correctamente'),
-              backgroundColor: colorPrimario,
+              backgroundColor: AppColors.primario,
             ),
           );
         }
@@ -230,7 +219,7 @@ class _VistaClientesState extends State<VistaClientes> {
           messengerState.showSnackBar(
             SnackBar(
               content: const Text('Cliente inactivado correctamente'),
-              backgroundColor: colorAcento,
+              backgroundColor: AppColors.acento,
             ),
           );
         }
@@ -284,7 +273,7 @@ class _VistaClientesState extends State<VistaClientes> {
           onPressed: _toggleMostrarInactivos,
           icon: Icon(
             _mostrandoInactivos ? Icons.person : Icons.person_off,
-            color: _mostrandoInactivos ? colorAcento : null,
+            color: _mostrandoInactivos ? AppColors.acento : null,
           ),
           tooltip:
               _mostrandoInactivos
@@ -294,7 +283,9 @@ class _VistaClientesState extends State<VistaClientes> {
       ],
       body:
           _isLoading
-              ? Center(child: CircularProgressIndicator(color: colorPrimario))
+              ? Center(
+                child: CircularProgressIndicator(color: AppColors.primario),
+              )
               : Stack(
                 children: [
                   Row(
@@ -382,18 +373,16 @@ class _VistaClientesState extends State<VistaClientes> {
                                       Icon(
                                         Icons.person_search,
                                         size: 80,
-                                        color: colorGrisClaro,
+                                        color: AppColors.grisClaro,
                                       ),
                                       const SizedBox(height: 16),
                                       Text(
                                         'Seleccione un cliente para ver sus detalles',
                                         style: TextStyle(
                                           fontSize: 16,
-                                          color: colorOscuro.withValues(
+                                          color: AppColors.withValues(
+                                            color: AppColors.oscuro,
                                             alpha: 153,
-                                            red: 26,
-                                            green: 26,
-                                            blue: 26,
                                           ),
                                         ),
                                       ),
@@ -413,8 +402,8 @@ class _VistaClientesState extends State<VistaClientes> {
                       right: 16,
                       bottom: 16,
                       child: FloatingActionButton(
-                        backgroundColor: colorPrimario,
-                        foregroundColor: colorClaro,
+                        backgroundColor: AppColors.primario,
+                        foregroundColor: AppColors.claro,
                         onPressed: _agregarCliente,
                         tooltip: 'Agregar Cliente',
                         child: const Icon(Icons.person_add),
@@ -431,13 +420,8 @@ class _VistaClientesState extends State<VistaClientes> {
       margin: const EdgeInsets.all(8),
       color:
           _mostrandoInactivos
-              ? colorGrisClaro.withValues(
-                alpha: 77,
-                red: 212,
-                green: 207,
-                blue: 203,
-              )
-              : colorClaro,
+              ? AppColors.withValues(color: AppColors.grisClaro, alpha: 77)
+              : AppColors.claro,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -449,8 +433,10 @@ class _VistaClientesState extends State<VistaClientes> {
                 children: [
                   CircleAvatar(
                     backgroundColor:
-                        _mostrandoInactivos ? colorGrisClaro : colorPrimario,
-                    foregroundColor: colorClaro,
+                        _mostrandoInactivos
+                            ? AppColors.grisClaro
+                            : AppColors.primario,
+                    foregroundColor: AppColors.claro,
                     radius: 40,
                     child: Text(
                       cliente.nombre.substring(0, 1).toUpperCase(),
@@ -467,7 +453,10 @@ class _VistaClientesState extends State<VistaClientes> {
                           _mostrandoInactivos
                               ? TextDecoration.lineThrough
                               : null,
-                      color: _mostrandoInactivos ? colorGrisClaro : colorOscuro,
+                      color:
+                          _mostrandoInactivos
+                              ? AppColors.grisClaro
+                              : AppColors.oscuro,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -479,18 +468,16 @@ class _VistaClientesState extends State<VistaClientes> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: colorAcento.withValues(
+                        color: AppColors.withValues(
+                          color: AppColors.acento,
                           alpha: 51,
-                          red: 216,
-                          green: 86,
-                          blue: 62,
                         ),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
                         'INACTIVO',
                         style: TextStyle(
-                          color: colorAcento,
+                          color: AppColors.acento,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -542,8 +529,8 @@ class _VistaClientesState extends State<VistaClientes> {
                     icon: const Icon(Icons.edit),
                     label: const Text('Editar'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: colorPrimario,
-                      foregroundColor: colorClaro,
+                      backgroundColor: AppColors.primario,
+                      foregroundColor: AppColors.claro,
                     ),
                   ),
                 const SizedBox(width: 8),
@@ -555,8 +542,10 @@ class _VistaClientesState extends State<VistaClientes> {
                   label: Text(_mostrandoInactivos ? 'Reactivar' : 'Inactivar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
-                        _mostrandoInactivos ? colorPrimario : colorAcento,
-                    foregroundColor: colorClaro,
+                        _mostrandoInactivos
+                            ? AppColors.primario
+                            : AppColors.acento,
+                    foregroundColor: AppColors.claro,
                   ),
                 ),
               ],
@@ -586,7 +575,7 @@ class _VistaClientesState extends State<VistaClientes> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: colorPrimario, size: 22),
+          Icon(icon, color: AppColors.primario, size: 22),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -595,11 +584,9 @@ class _VistaClientesState extends State<VistaClientes> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: colorOscuro.withValues(
+                    color: AppColors.withValues(
+                      color: AppColors.oscuro,
                       alpha: 179,
-                      red: 26,
-                      green: 26,
-                      blue: 26,
                     ),
                     fontWeight: FontWeight.bold,
                   ),

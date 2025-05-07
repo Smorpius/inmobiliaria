@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../controllers/cliente_controller.dart';
+import '../../utils/app_colors.dart'; // Importar la clase de colores centralizada
 
 class ClienteFormAdd extends StatefulWidget {
   final Function() onClienteAdded;
@@ -18,18 +19,6 @@ class ClienteFormAdd extends StatefulWidget {
 }
 
 class _ClienteFormAddState extends State<ClienteFormAdd> {
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
-
   final nombreController = TextEditingController();
   final apellidoPaternoController = TextEditingController();
   final apellidoMaternoController = TextEditingController();
@@ -41,11 +30,11 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
   // Controladores para TODOS los campos de dirección
   final calleController = TextEditingController();
   final numeroController = TextEditingController();
-  final coloniaController = TextEditingController(); // Añadido
+  final coloniaController = TextEditingController();
   final ciudadController = TextEditingController();
-  final estadoGeograficoController = TextEditingController(); // Añadido
+  final estadoGeograficoController = TextEditingController();
   final codigoPostalController = TextEditingController();
-  final referenciasController = TextEditingController(); // Añadido
+  final referenciasController = TextEditingController();
 
   String tipoCliente = 'comprador';
 
@@ -85,7 +74,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
         curpController.text.isEmpty) {
       _mostrarSnackBar(
         'Por favor, llene todos los campos obligatorios',
-        colorAcento,
+        AppColors.acento,
       );
       return false;
     }
@@ -95,7 +84,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
         estadoGeograficoController.text.isEmpty) {
       _mostrarSnackBar(
         'Por favor, ingrese al menos Ciudad y Estado',
-        colorAcento,
+        AppColors.acento,
       );
       return false;
     }
@@ -173,10 +162,10 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: colorClaro,
+      backgroundColor: AppColors.claro,
       title: Text(
         'Agregar Nuevo Cliente',
-        style: TextStyle(color: colorPrimario),
+        style: TextStyle(color: AppColors.primario),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -238,7 +227,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: colorPrimario,
+                color: AppColors.primario,
               ),
             ),
             const SizedBox(height: 12),
@@ -293,7 +282,7 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
                 '* Campos obligatorios',
                 style: TextStyle(
                   fontStyle: FontStyle.italic,
-                  color: colorOscuro.withAlpha((0.6 * 255).round()),
+                  color: AppColors.oscuro.withAlpha((0.6 * 255).round()),
                 ),
               ),
             ),
@@ -303,14 +292,14 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       actions: [
         TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.cancel, color: colorOscuro),
-          label: Text('Cancelar', style: TextStyle(color: colorOscuro)),
+          icon: Icon(Icons.cancel, color: AppColors.oscuro),
+          label: Text('Cancelar', style: TextStyle(color: AppColors.oscuro)),
         ),
         ElevatedButton.icon(
           onPressed: _agregarCliente,
-          icon: Icon(Icons.save, color: colorClaro),
-          label: Text('Guardar', style: TextStyle(color: colorClaro)),
-          style: ElevatedButton.styleFrom(backgroundColor: colorPrimario),
+          icon: Icon(Icons.save, color: AppColors.claro),
+          label: Text('Guardar', style: TextStyle(color: AppColors.claro)),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primario),
         ),
       ],
     );
@@ -327,16 +316,16 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
       controller: controller,
       decoration: InputDecoration(
         labelText: labelText,
-        labelStyle: TextStyle(color: colorOscuro),
-        prefixIcon: Icon(prefixIcon, color: colorPrimario),
+        labelStyle: TextStyle(color: AppColors.oscuro),
+        prefixIcon: Icon(prefixIcon, color: AppColors.primario),
         border: const OutlineInputBorder(),
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorGrisClaro),
+          borderSide: BorderSide(color: AppColors.grisClaro),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorPrimario),
+          borderSide: BorderSide(color: AppColors.primario),
         ),
-        fillColor: colorClaro,
+        fillColor: AppColors.claro,
       ),
       keyboardType: keyboardType,
       maxLines: maxLines,
@@ -347,30 +336,33 @@ class _ClienteFormAddState extends State<ClienteFormAdd> {
     return DropdownButtonFormField<String>(
       decoration: InputDecoration(
         labelText: 'Tipo de Cliente',
-        labelStyle: TextStyle(color: colorOscuro),
-        prefixIcon: Icon(Icons.category, color: colorPrimario),
+        labelStyle: TextStyle(color: AppColors.oscuro),
+        prefixIcon: Icon(Icons.category, color: AppColors.primario),
         border: const OutlineInputBorder(),
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorGrisClaro),
+          borderSide: BorderSide(color: AppColors.grisClaro),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorPrimario),
+          borderSide: BorderSide(color: AppColors.primario),
         ),
       ),
       value: tipoCliente,
-      dropdownColor: colorClaro,
+      dropdownColor: AppColors.claro,
       items: [
         DropdownMenuItem(
           value: 'comprador',
-          child: Text('Comprador', style: TextStyle(color: colorOscuro)),
+          child: Text('Comprador', style: TextStyle(color: AppColors.oscuro)),
         ),
         DropdownMenuItem(
           value: 'arrendatario',
-          child: Text('Arrendatario', style: TextStyle(color: colorOscuro)),
+          child: Text(
+            'Arrendatario',
+            style: TextStyle(color: AppColors.oscuro),
+          ),
         ),
         DropdownMenuItem(
           value: 'ambos',
-          child: Text('Ambos', style: TextStyle(color: colorOscuro)),
+          child: Text('Ambos', style: TextStyle(color: AppColors.oscuro)),
         ),
       ],
       onChanged: (value) {

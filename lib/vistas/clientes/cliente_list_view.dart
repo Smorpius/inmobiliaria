@@ -1,6 +1,7 @@
 import 'cliente_card.dart';
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
+import '../../utils/app_colors.dart'; // Importar la clase de colores centralizada
 
 class ClienteListView extends StatefulWidget {
   final List<Cliente> clientes;
@@ -27,17 +28,6 @@ class ClienteListView extends StatefulWidget {
 }
 
 class _ClienteListViewState extends State<ClienteListView> {
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-
   final TextEditingController _searchController = TextEditingController();
   List<Cliente> _filteredClientes = [];
 
@@ -85,7 +75,7 @@ class _ClienteListViewState extends State<ClienteListView> {
         // Título que muestra si estamos viendo clientes activos o inactivos
         Container(
           padding: const EdgeInsets.symmetric(vertical: 12.0),
-          color: colorPrimario, // Cambiado a color rojo sólido
+          color: AppColors.primario, // Usar AppColors
           child: Center(
             child: Text(
               widget.mostrandoInactivos
@@ -94,7 +84,7 @@ class _ClienteListViewState extends State<ClienteListView> {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
-                color: colorClaro, // Texto en color claro para contraste
+                color: AppColors.claro, // Usar AppColors
               ),
             ),
           ),
@@ -105,10 +95,10 @@ class _ClienteListViewState extends State<ClienteListView> {
             controller: _searchController,
             decoration: InputDecoration(
               labelText: 'Buscar Cliente',
-              labelStyle: TextStyle(color: colorOscuro),
-              prefixIcon: Icon(Icons.search, color: colorPrimario),
+              labelStyle: TextStyle(color: AppColors.oscuro),
+              prefixIcon: Icon(Icons.search, color: AppColors.primario),
               suffixIcon: IconButton(
-                icon: Icon(Icons.clear, color: colorOscuro),
+                icon: Icon(Icons.clear, color: AppColors.oscuro),
                 onPressed: () {
                   _searchController.clear();
                   _filterClientes('');
@@ -116,21 +106,21 @@ class _ClienteListViewState extends State<ClienteListView> {
               ),
               border: const OutlineInputBorder(),
               enabledBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: colorGrisClaro),
+                borderSide: BorderSide(color: AppColors.grisClaro),
               ),
               focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: colorPrimario),
+                borderSide: BorderSide(color: AppColors.primario),
               ),
               filled: true,
-              fillColor: colorClaro,
+              fillColor: AppColors.claro,
             ),
             onChanged: _filterClientes,
           ),
         ),
         Expanded(
           child: RefreshIndicator(
-            color: colorPrimario,
-            backgroundColor: colorClaro,
+            color: AppColors.primario,
+            backgroundColor: AppColors.claro,
             onRefresh: widget.onRefresh,
             child:
                 _filteredClientes.isEmpty
@@ -141,7 +131,7 @@ class _ClienteListViewState extends State<ClienteListView> {
                           Icon(
                             Icons.person_search,
                             size: 50,
-                            color: colorGrisClaro,
+                            color: AppColors.grisClaro,
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -150,7 +140,10 @@ class _ClienteListViewState extends State<ClienteListView> {
                                 : 'No se encontraron clientes',
                             style: TextStyle(
                               fontSize: 16,
-                              color: colorOscuro.withAlpha((255 * 0.6).round()),
+                              color: AppColors.withValues(
+                                color: AppColors.oscuro,
+                                alpha: (255 * 0.6).round(),
+                              ),
                             ),
                           ),
                         ],
@@ -161,8 +154,9 @@ class _ClienteListViewState extends State<ClienteListView> {
                       separatorBuilder:
                           (context, index) => Divider(
                             height: 1,
-                            color: colorGrisClaro.withAlpha(
-                              (255 * 0.5).round(),
+                            color: AppColors.withValues(
+                              color: AppColors.grisClaro,
+                              alpha: (255 * 0.5).round(),
                             ),
                           ),
                       itemBuilder: (context, index) {

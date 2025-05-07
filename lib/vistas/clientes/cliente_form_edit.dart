@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
 import '../../controllers/cliente_controller.dart';
+import '../../utils/app_colors.dart'; // Importar la clase de colores centralizada
 
 class ClienteFormEdit extends StatefulWidget {
   final Cliente cliente;
@@ -19,18 +20,6 @@ class ClienteFormEdit extends StatefulWidget {
 }
 
 class _ClienteFormEditState extends State<ClienteFormEdit> {
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
-
   // Controladores para información personal
   late final TextEditingController nombreController;
   late final TextEditingController apellidoPaternoController;
@@ -207,8 +196,11 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: colorClaro,
-      title: Text('Editar Cliente', style: TextStyle(color: colorPrimario)),
+      backgroundColor: AppColors.claro,
+      title: Text(
+        'Editar Cliente',
+        style: TextStyle(color: AppColors.primario),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -269,7 +261,7 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: colorPrimario,
+                color: AppColors.primario,
               ),
             ),
             const SizedBox(height: 12),
@@ -324,7 +316,7 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
                 '* Campos obligatorios',
                 style: TextStyle(
                   fontStyle: FontStyle.italic,
-                  color: colorOscuro.withAlpha((255 * 0.6).round()),
+                  color: AppColors.oscuro.withAlpha((255 * 0.6).round()),
                 ),
               ),
             ),
@@ -334,14 +326,14 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
       actions: [
         TextButton.icon(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(Icons.cancel, color: colorOscuro),
-          label: Text('Cancelar', style: TextStyle(color: colorOscuro)),
+          icon: Icon(Icons.cancel, color: AppColors.oscuro),
+          label: Text('Cancelar', style: TextStyle(color: AppColors.oscuro)),
         ),
         ElevatedButton.icon(
           onPressed: () => _actualizarCliente(context),
-          icon: Icon(Icons.save, color: colorClaro),
-          label: Text('Guardar', style: TextStyle(color: colorClaro)),
-          style: ElevatedButton.styleFrom(backgroundColor: colorAcento),
+          icon: Icon(Icons.save, color: AppColors.claro),
+          label: Text('Guardar', style: TextStyle(color: AppColors.claro)),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.acento),
         ),
       ],
     );
@@ -358,16 +350,16 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
       controller: controller,
       decoration: InputDecoration(
         labelText: labelText,
-        labelStyle: TextStyle(color: colorOscuro),
-        prefixIcon: Icon(prefixIcon, color: colorPrimario),
+        labelStyle: TextStyle(color: AppColors.oscuro),
+        prefixIcon: Icon(prefixIcon, color: AppColors.primario),
         border: const OutlineInputBorder(),
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorGrisClaro),
+          borderSide: BorderSide(color: AppColors.grisClaro),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorPrimario),
+          borderSide: BorderSide(color: AppColors.primario),
         ),
-        fillColor: colorClaro,
+        fillColor: AppColors.claro,
       ),
       keyboardType: keyboardType,
       maxLines: maxLines,
@@ -378,30 +370,33 @@ class _ClienteFormEditState extends State<ClienteFormEdit> {
     return DropdownButtonFormField<String>(
       decoration: InputDecoration(
         labelText: 'Tipo de Cliente',
-        labelStyle: TextStyle(color: colorOscuro),
-        prefixIcon: Icon(Icons.category, color: colorPrimario),
+        labelStyle: TextStyle(color: AppColors.oscuro),
+        prefixIcon: Icon(Icons.category, color: AppColors.primario),
         border: const OutlineInputBorder(),
         enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorGrisClaro),
+          borderSide: BorderSide(color: AppColors.grisClaro),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colorPrimario),
+          borderSide: BorderSide(color: AppColors.primario),
         ),
       ),
       value: tipoCliente,
-      dropdownColor: colorClaro,
+      dropdownColor: AppColors.claro,
       items: [
         DropdownMenuItem(
           value: 'comprador',
-          child: Text('Comprador', style: TextStyle(color: colorOscuro)),
+          child: Text('Comprador', style: TextStyle(color: AppColors.oscuro)),
         ),
         DropdownMenuItem(
           value: 'arrendatario',
-          child: Text('Arrendatario', style: TextStyle(color: colorOscuro)),
+          child: Text(
+            'Arrendatario',
+            style: TextStyle(color: AppColors.oscuro),
+          ),
         ),
         DropdownMenuItem(
           value: 'ambos',
-          child: Text('Ambos', style: TextStyle(color: colorOscuro)),
+          child: Text('Ambos', style: TextStyle(color: AppColors.oscuro)),
         ),
       ],
       onChanged: (value) {

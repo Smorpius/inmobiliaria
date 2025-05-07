@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/cliente_model.dart';
+import '../../utils/app_colors.dart'; // Importar la clase centralizada
 
 class ClienteCard extends StatelessWidget {
   final Cliente cliente;
@@ -8,18 +9,6 @@ class ClienteCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final bool isInactivo;
-
-  // Definición de la paleta de colores en RGB
-  static const Color colorPrimario = Color.fromRGBO(165, 57, 45, 1); // #A5392D
-  static const Color colorOscuro = Color.fromRGBO(26, 26, 26, 1); // #1A1A1A
-  static const Color colorClaro = Color.fromRGBO(247, 245, 242, 1); // #F7F5F2
-  static const Color colorGrisClaro = Color.fromRGBO(
-    212,
-    207,
-    203,
-    1,
-  ); // #D4CFCB
-  static const Color colorAcento = Color.fromRGBO(216, 86, 62, 1); // #D8563E
 
   const ClienteCard({
     super.key,
@@ -52,30 +41,16 @@ class ClienteCard extends StatelessWidget {
       color:
           isInactivo
               ? (isSelected
-                  ? colorAcento.withValues(
-                    alpha: 26,
-                    red: 216,
-                    green: 86,
-                    blue: 62,
-                  )
-                  : colorGrisClaro.withValues(
-                    alpha: 77,
-                    red: 212,
-                    green: 207,
-                    blue: 203,
-                  ))
+                  ? AppColors.withValues(color: AppColors.acento, alpha: 26)
+                  : AppColors.withValues(color: AppColors.grisClaro, alpha: 77))
               : (isSelected
-                  ? colorPrimario.withValues(
-                    alpha: 26,
-                    red: 165,
-                    green: 57,
-                    blue: 45,
-                  )
-                  : colorClaro),
+                  ? AppColors.withValues(color: AppColors.primario, alpha: 26)
+                  : AppColors.claro),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isInactivo ? colorGrisClaro : colorPrimario,
-          foregroundColor: colorClaro,
+          backgroundColor:
+              isInactivo ? AppColors.grisClaro : AppColors.primario,
+          foregroundColor: AppColors.claro,
           child: Text(cliente.nombre.substring(0, 1).toUpperCase()),
         ),
         title: Text(
@@ -83,7 +58,7 @@ class ClienteCard extends StatelessWidget {
           style: TextStyle(
             fontWeight: FontWeight.bold,
             decoration: isInactivo ? TextDecoration.lineThrough : null,
-            color: isInactivo ? colorGrisClaro : colorOscuro,
+            color: isInactivo ? AppColors.grisClaro : AppColors.oscuro,
           ),
         ),
         subtitle: Column(
@@ -92,33 +67,27 @@ class ClienteCard extends StatelessWidget {
             Text(
               'Tel: ${cliente.telefono}',
               style: TextStyle(
-                color: colorOscuro.withValues(
+                color: AppColors.withValues(
+                  color: AppColors.oscuro,
                   alpha: 179,
-                  red: 26,
-                  green: 26,
-                  blue: 26,
                 ),
               ),
             ),
             Text(
               'RFC: ${cliente.rfc}',
               style: TextStyle(
-                color: colorOscuro.withValues(
+                color: AppColors.withValues(
+                  color: AppColors.oscuro,
                   alpha: 179,
-                  red: 26,
-                  green: 26,
-                  blue: 26,
                 ),
               ),
             ),
             Text(
               'Tipo: ${_formatTipoCliente(cliente.tipoCliente)}',
               style: TextStyle(
-                color: colorOscuro.withValues(
+                color: AppColors.withValues(
+                  color: AppColors.oscuro,
                   alpha: 179,
-                  red: 26,
-                  green: 26,
-                  blue: 26,
                 ),
               ),
             ),
@@ -126,7 +95,7 @@ class ClienteCard extends StatelessWidget {
               Text(
                 'INACTIVO',
                 style: TextStyle(
-                  color: colorAcento,
+                  color: AppColors.acento,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -139,14 +108,14 @@ class ClienteCard extends StatelessWidget {
           children: [
             if (!isInactivo)
               IconButton(
-                icon: Icon(Icons.edit, color: colorPrimario),
+                icon: Icon(Icons.edit, color: AppColors.primario),
                 tooltip: 'Editar cliente',
                 onPressed: onEdit,
               ),
             IconButton(
               icon: Icon(
                 isInactivo ? Icons.person_add : Icons.delete,
-                color: isInactivo ? colorPrimario : colorAcento,
+                color: isInactivo ? AppColors.primario : AppColors.acento,
               ),
               tooltip: isInactivo ? 'Reactivar cliente' : 'Inactivar cliente',
               onPressed: onDelete,
